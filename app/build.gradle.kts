@@ -1,7 +1,9 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    alias(libs.plugins.android.application)
+    // Sem versão: o AGP vem do classpath do buildscript da raiz, para ficar no mesmo
+    // classloader do plugin Kotlin. Veja o comentário no build.gradle.kts da raiz.
+    id("com.android.application")
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     // SavedMatch é @Serializable: sem este plugin aqui, o módulo nem compila.

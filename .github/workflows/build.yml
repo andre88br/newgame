@@ -13,13 +13,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # TEMPORÁRIO. O Kotlin 2.4.10 não se aplica com AGP 8.13+ nem com AGP 9: o plugin
-  # kotlin-android referencia BaseExtension/BaseVariant, classes que essas versões
-  # removeram. Este trabalho varre as versões do AGP, da mais nova para a mais antiga, até
-  # achar a primeira que configura o módulo — e, se nenhuma servir, tenta o caminho oposto,
-  # um Kotlin mais novo com AGP 9. Sai do fluxo assim que a resposta estiver aplicada.
+  # TEMPORÁRIO. Todas as versões do AGP falhavam com o mesmo NoClassDefFoundError, o que
+  # revelou o problema real: AGP e Kotlin em classloaders separados. Corrigido isso, esta
+  # varredura confirma qual versão do AGP configura de fato, começando pela mais nova. Sai
+  # do fluxo assim que a resposta estiver aplicada.
   combinacoes:
-    name: Achar a combinação AGP/Gradle/Kotlin
+    name: Confirmar a versão do AGP
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,41 +27,29 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Varrer as combinações
+      - name: Varrer
         run: |
           set +e
-          META=https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle/maven-metadata.xml
-          TODAS=$(curl -sS "$META" | grep -oP '(?<=<version>)[^<]+' | grep -vE 'alpha|beta|rc|dev')
-          echo "AGP 8.x publicadas: $(echo "$TODAS" | grep -E '^8\.' | tr '\n' ' ')"
-          echo
-
-          testar() { # $1=agp  $2=gradle  $3=kotlin
-            sed -i "s|^agp = .*|agp = \"$1\"|" gradle/libs.versions.toml
-            sed -i "s|^kotlin = .*|kotlin = \"$3\"|" gradle/libs.versions.toml
+          testar() { # $1=agp  $2=gradle
+            sed -i "s|com.android.tools.build:gradle:[0-9.]*|com.android.tools.build:gradle:$1|" build.gradle.kts
             sed -i "s|gradle-[0-9.]*-bin.zip|gradle-$2-bin.zip|" gradle/wrapper/gradle-wrapper.properties
             ./gradlew :app:help -Pnewgame.androidModule=true --no-daemon \
               --no-configuration-cache -q > /tmp/saida 2>&1
             local r=$?
             if [ $r -eq 0 ]; then
-              echo "OK     AGP $1 | Gradle $2 | Kotlin $3"
+              echo "OK     AGP $1 | Gradle $2"
             else
-              echo "falhou AGP $1 | Gradle $2 | Kotlin $3 :: $(grep -E '^ *> ' /tmp/saida | head -2 | tr -d '\n' | cut -c1-150)"
+              echo "falhou AGP $1 | Gradle $2 :: $(grep -E '^ *> ' /tmp/saida | head -2 | tr -d '\n' | cut -c1-170)"
             fi
-            git checkout -- gradle/libs.versions.toml gradle/wrapper/gradle-wrapper.properties
+            git checkout -- build.gradle.kts gradle/wrapper/gradle-wrapper.properties
             return $r
           }
 
-          for v in $(echo "$TODAS" | grep -E '^8\.' | tac | head -10); do
-            testar "$v" 8.14.4 2.4.10 && {
-              echo; echo "=== USAR: AGP $v + Gradle 8.14.4 + Kotlin 2.4.10"; exit 0; }
-          done
-
-          for k in 2.4.20-Beta2 2.4.20-Beta1; do
-            testar 9.3.1 9.7.0 "$k" && {
-              echo; echo "=== USAR: AGP 9.3.1 + Gradle 9.7.0 + Kotlin $k"; exit 0; }
-          done
-
-          echo; echo "=== nenhuma combinação testada configurou"
+          testar 9.3.1  9.7.0  && { echo; echo "=== USAR: AGP 9.3.1 + Gradle 9.7.0"; exit 0; }
+          testar 9.0.0  9.7.0  && { echo; echo "=== USAR: AGP 9.0.0 + Gradle 9.7.0"; exit 0; }
+          testar 8.13.2 8.14.4 && { echo; echo "=== USAR: AGP 8.13.2 + Gradle 8.14.4"; exit 0; }
+          testar 8.12.3 8.14.4 && { echo; echo "=== USAR: AGP 8.12.3 + Gradle 8.14.4"; exit 0; }
+          echo; echo "=== nenhuma configurou"
 
   motor:
     name: Testes do motor

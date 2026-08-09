@@ -46,6 +46,11 @@ val androidSdkFound = sequenceOf("ANDROID_HOME", "ANDROID_SDK_ROOT")
 val includeAndroidModule = providers.gradleProperty("newgame.androidModule")
     .orNull?.toBooleanStrictOrNull() ?: androidSdkFound
 
+// O build.gradle.kts da raiz precisa da mesma resposta para decidir se põe o AGP no
+// classpath, e um script de projeto não consegue reavaliar isto de forma confiável tão
+// cedo. Uma propriedade de sistema atravessa: o settings roda antes de qualquer projeto.
+System.setProperty("newgame.androidModule", includeAndroidModule.toString())
+
 if (includeAndroidModule) {
     include(":app")
 } else {

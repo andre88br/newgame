@@ -9,8 +9,9 @@ junit = "5.14.4"
 # levantadas pedindo a lista de versões ao runner do GitHub Actions, que tem acesso, e
 # depois confirmadas por um build de verdade — não são mais chute.
 #
-# O AGP 9 exige Gradle 9: se mexer numa dessas versões, confira o wrapper junto.
-agp = "9.3.1"
+# A versão do AGP não está aqui: ela vive no buildscript da raiz, que é onde precisa
+# estar para o classloader bater com o do Kotlin. O AGP 9 exige Gradle 9 — mexeu numa,
+# confira o wrapper junto.
 androidxCore = "1.19.0"
 activityCompose = "1.13.0"
 lifecycle = "2.11.0"
@@ -43,4 +44,3 @@ kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-android-application = { id = "com.android.application", version.ref = "agp" }
