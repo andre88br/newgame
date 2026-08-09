@@ -28,8 +28,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.andre88br.newgame.app.R
 import io.github.andre88br.newgame.app.ui.board.painters.painterFor
+import io.github.andre88br.newgame.app.ui.board.surfaces.MoveSurface
 import io.github.andre88br.newgame.app.ui.gameName
 import io.github.andre88br.newgame.core.engine.GameEntry
+import io.github.andre88br.newgame.core.engine.GameId
 import io.github.andre88br.newgame.core.engine.Outcome
 import io.github.andre88br.newgame.core.engine.Seat
 
@@ -78,23 +80,37 @@ fun BoardScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = statusText(ui),
+                text = statusText(ui, entry.id),
                 style = MaterialTheme.typography.titleMedium,
             )
 
             Box(modifier = Modifier.fillMaxWidth()) {
-                GridBoard(
-                    state = ui.state,
-                    interactor = entry.interactor,
-                    painter = painter,
-                    modifier = Modifier.fillMaxWidth(),
-                    selected = ui.selected,
-                    highlighted = ui.hinted,
-                    lastMove = ui.lastMove,
-                    flipped = ui.humanSeat == Seat.SECOND,
-                    enabled = ui.canPlay,
-                    onSquareTap = viewModel::onSquareTap,
-                )
+                val interactor = entry.interactor
+                if (interactor != null && painter != null) {
+                    GridBoard(
+                        state = ui.state,
+                        interactor = interactor,
+                        painter = painter,
+                        modifier = Modifier.fillMaxWidth(),
+                        selected = ui.selected,
+                        highlighted = ui.hinted,
+                        lastMove = ui.lastMove,
+                        flipped = ui.humanSeat == Seat.SECOND,
+                        enabled = ui.canPlay,
+                        onSquareTap = viewModel::onSquareTap,
+                    )
+                } else {
+                    // Dominó e ludo: a tela do próprio jogo monta o lance e o entrega pronto.
+                    MoveSurface(
+                        gameId = entry.id,
+                        state = ui.state,
+                        viewer = ui.viewer,
+                        enabled = ui.canPlay,
+                        hinted = ui.hintedMove,
+                        modifier = Modifier.fillMaxWidth(),
+                        onMove = viewModel::onMoveChosen,
+                    )
+                }
             }
 
             MoveHistory(history = ui.history)
@@ -141,15 +157,13 @@ fun BoardScreen(
 
 /**
  * O texto de estado depende do modo: contra o celular a pessoa pensa em "eu" e "ele";
- * no passa-e-joga não há "você", e o certo é dizer de quem é a vez pela cor.
+ * no passa-e-joga não há "você", e o certo é dizer de quem é a vez.
  */
 @Composable
-private fun statusText(ui: BoardUiState): String = when (val status = ui.status) {
+private fun statusText(ui: BoardUiState, gameId: GameId): String = when (val status = ui.status) {
     BoardStatus.Thinking -> stringResource(R.string.board_thinking)
     BoardStatus.HumanTurn -> stringResource(R.string.board_your_turn)
-    is BoardStatus.SeatTurn -> stringResource(
-        if (status.seat == Seat.FIRST) R.string.board_turn_first else R.string.board_turn_second,
-    )
+    is BoardStatus.SeatTurn -> stringResource(turnLabel(gameId, status.seat))
 
     is BoardStatus.Finished -> when (val outcome = status.outcome) {
         is Outcome.Draw -> stringResource(R.string.board_draw)
@@ -159,11 +173,33 @@ private fun statusText(ui: BoardUiState): String = when (val status = ui.status)
                     if (outcome.seat == ui.humanSeat) R.string.board_you_won else R.string.board_you_lost,
                 )
             } else {
-                stringResource(
-                    if (outcome.seat == Seat.FIRST) R.string.board_first_won else R.string.board_second_won,
-                )
+                stringResource(winnerLabel(gameId, outcome.seat))
             }
 
         Outcome.InProgress -> stringResource(R.string.board_your_turn)
     }
+}
+
+/**
+ * "Brancas" e "pretas" só dizem alguma coisa onde as peças têm cor. No dominó as duas mãos
+ * são iguais e no ludo o que distingue é o canto do tabuleiro, então ali os dois lados são
+ * jogador 1 e jogador 2.
+ */
+private fun coloredPieces(gameId: GameId): Boolean = when (gameId) {
+    GameId.DOMINOES, GameId.LUDO -> false
+    else -> true
+}
+
+private fun turnLabel(gameId: GameId, seat: Seat): Int = when {
+    coloredPieces(gameId) && seat == Seat.FIRST -> R.string.board_turn_first
+    coloredPieces(gameId) -> R.string.board_turn_second
+    seat == Seat.FIRST -> R.string.board_turn_player_first
+    else -> R.string.board_turn_player_second
+}
+
+private fun winnerLabel(gameId: GameId, seat: Seat): Int = when {
+    coloredPieces(gameId) && seat == Seat.FIRST -> R.string.board_first_won
+    coloredPieces(gameId) -> R.string.board_second_won
+    seat == Seat.FIRST -> R.string.board_player_first_won
+    else -> R.string.board_player_second_won
 }

@@ -165,6 +165,24 @@ interface BoardGame<S : GameState, M : Move> {
     fun outcome(state: S): Outcome
 
     /**
+     * Se este jogo tem informação oculta — mão do adversário, monte de compra.
+     *
+     * É declarado em vez de deduzido de [redactFor] porque quem consome precisa saber
+     * **antes** de olhar um estado: a IA de informação imperfeita joga por amostragem de
+     * mundos possíveis, e a tela precisa decidir se mostra a mão do outro lado.
+     */
+    val hasHiddenInformation: Boolean get() = false
+
+    /**
+     * Se são as regras que decidem quem abre, e não quem está configurando a partida.
+     *
+     * No dominó abre quem tirou a maior carroça; no ludo, quem tirar um dado que sirva.
+     * A tela de configuração precisa saber disso para não oferecer uma escolha que ela não
+     * tem como cumprir.
+     */
+    val decidesWhoStarts: Boolean get() = false
+
+    /**
      * Remove de [state] a informação que [viewer] não tem direito de ver (a mão do
      * adversário no dominó, por exemplo). Jogos de informação perfeita não escondem nada.
      */

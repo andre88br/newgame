@@ -7,6 +7,8 @@
     <string name="game_checkers">Damas</string>
     <string name="game_reversi">Reversi</string>
     <string name="game_chess">Xadrez</string>
+    <string name="game_dominoes">Dominó</string>
+    <string name="game_ludo">Ludo</string>
 
     <!-- Início -->
     <string name="home_title">Escolha um jogo</string>
@@ -29,6 +31,7 @@
     <string name="setup_phone_starts">O celular</string>
     <string name="setup_start">Começar</string>
     <string name="setup_resume_warning">Continuar apagará a partida em andamento deste jogo.</string>
+    <string name="setup_rules_decide_start">Neste jogo quem começa é decidido pelas regras.</string>
 
     <!-- Tabuleiro -->
     <string name="board_your_turn">Sua vez</string>
@@ -45,6 +48,26 @@
     <string name="board_restart">Recomeçar</string>
     <string name="board_hint_shown">Sugestão: %1$s</string>
     <string name="board_history">Lances</string>
+    <!-- Jogos sem cor de peça: no dominó e no ludo os lados são jogador 1 e jogador 2. -->
+    <string name="board_turn_player_first">Vez do jogador 1</string>
+    <string name="board_turn_player_second">Vez do jogador 2</string>
+    <string name="board_player_first_won">Jogador 1 venceu</string>
+    <string name="board_player_second_won">Jogador 2 venceu</string>
+    <string name="board_no_surface">%1$s ainda não tem tela</string>
+
+    <!-- Dominó -->
+    <string name="dominoes_your_hand">Sua mão</string>
+    <string name="dominoes_opponent_tiles">Adversário: %1$d peças</string>
+    <string name="dominoes_boneyard">Monte: %1$d</string>
+    <string name="dominoes_empty_table">Mesa vazia — comece por qualquer peça</string>
+    <string name="dominoes_pick_end_title">Em qual ponta?</string>
+    <string name="dominoes_pick_end_message">A peça %1$d-%2$d encaixa nas duas pontas.</string>
+    <string name="dominoes_end_left">Esquerda (%1$d)</string>
+    <string name="dominoes_end_right">Direita (%1$d)</string>
+
+    <!-- Ludo -->
+    <string name="ludo_die">Dado: %1$d</string>
+    <string name="ludo_finished">Na chegada: %1$d de %2$d</string>
 
     <!-- Promoção no xadrez -->
     <string name="promotion_title">Promover o peão</string>

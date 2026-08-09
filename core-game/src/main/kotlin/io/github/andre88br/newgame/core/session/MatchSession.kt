@@ -132,7 +132,8 @@ class MatchSession(
     fun playAiTurn(): Move? {
         val player = currentPlayer
         if (isOver || player !is Player.Ai) return null
-        val move = entry.ai.chooseMove(state, player.difficulty, seedForCurrentPly()) ?: return null
+        val move = entry.ai.chooseMove(viewOfCurrentPlayer(), player.difficulty, seedForCurrentPly())
+            ?: return null
         return when (commit(move)) {
             is PlayResult.Ok -> move
             else -> null
@@ -145,8 +146,20 @@ class MatchSession(
      */
     fun hint(): Move? {
         if (isOver) return null
-        return entry.ai.chooseMove(state, Difficulty.HARD, seedForCurrentPly())
+        return entry.ai.chooseMove(viewOfCurrentPlayer(), Difficulty.HARD, seedForCurrentPly())
     }
+
+    /**
+     * O estado como quem está na vez o enxerga.
+     *
+     * A IA recebe isto, e não o estado inteiro. Em jogo de informação perfeita não muda
+     * nada — `redactFor` devolve o mesmo estado. No dominó muda tudo: sem isso a máquina
+     * jogaria vendo a mão do adversário, e ganharia por trapaça em vez de por jogo.
+     *
+     * A dica também passa por aqui, e pelo mesmo motivo: sugerir um lance com base em
+     * cartas que a pessoa não pode ver seria dar a resposta pelo caminho errado.
+     */
+    fun viewOfCurrentPlayer(): GameState = entry.rules.redactFor(state, turn)
 
     /**
      * Volta a partida até a vez de uma pessoa.

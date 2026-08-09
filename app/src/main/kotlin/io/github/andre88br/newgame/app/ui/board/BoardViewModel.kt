@@ -56,6 +56,13 @@ sealed interface BoardMessage {
 data class PendingPromotion(val square: Int, val choices: List<PromotionChoice>)
 
 data class BoardUiState(
+    /**
+     * O tabuleiro como quem está olhando pode vê-lo.
+     *
+     * No dominó isso não é detalhe: o estado completo traz a mão do adversário, e mandá-lo
+     * para a tela entregaria o jogo mesmo que nada o desenhasse — bastaria um `toString` no
+     * lugar errado. A tela recebe só o que é de direito.
+     */
     val state: GameState,
     val status: BoardStatus,
     val selected: Int? = null,
@@ -64,6 +71,12 @@ data class BoardUiState(
     val promotion: PendingPromotion? = null,
     val hinted: Set<Int> = emptySet(),
     val lastMove: Set<Int> = emptySet(),
+    /** O lance sugerido pela dica, para as telas que não desenham grade. */
+    val hintedMove: Move? = null,
+    /** O último lance jogado, pelo mesmo motivo. */
+    val lastPlayed: Move? = null,
+    /** De quem é o ponto de vista de [state]. */
+    val viewer: Seat = Seat.FIRST,
     val canUndo: Boolean = false,
     val canPlay: Boolean = true,
     val againstPhone: Boolean = true,
@@ -88,6 +101,7 @@ class BoardViewModel(
 ) : ViewModel() {
 
     private var lastMoveSquares: Set<Int> = emptySet()
+    private var lastPlayedMove: Move? = null
     private var messageCounter = 0L
 
     private val _ui = MutableStateFlow(snapshot())
@@ -99,11 +113,12 @@ class BoardViewModel(
     }
 
     fun onSquareTap(square: Int) {
+        val interactor = entry.interactor ?: return
         if (session.isOver || session.awaitingAi || _ui.value.status == BoardStatus.Thinking) return
         // Com o diálogo de promoção aberto, o tabuleiro não responde: o lance está no meio.
         if (_ui.value.promotion != null) return
 
-        when (val result = entry.interactor.tap(session.state, _ui.value.selected, square)) {
+        when (val result = interactor.tap(session.state, _ui.value.selected, square)) {
             is TapResult.Play -> commitHumanMove(result.move)
             is TapResult.Select -> _ui.value = snapshot(selected = result.square)
             TapResult.Deselect -> _ui.value = snapshot(selected = null)
@@ -121,6 +136,18 @@ class BoardViewModel(
         }
     }
 
+    /**
+     * Joga um lance montado pela própria tela.
+     *
+     * O dominó e o ludo não se jogam tocando em casas de uma grade: a mão e os peões têm
+     * telas próprias, que entregam o lance pronto. A validação continua sendo do motor —
+     * esta porta não confia no que recebe, só encaminha.
+     */
+    fun onMoveChosen(move: Move) {
+        if (session.isOver || session.awaitingAi || _ui.value.status == BoardStatus.Thinking) return
+        commitHumanMove(move)
+    }
+
     /** A pessoa escolheu a peça no diálogo de promoção. */
     fun onPromotionChosen(choice: PromotionChoice) {
         _ui.value = snapshot(selected = _ui.value.selected)
@@ -136,6 +163,7 @@ class BoardViewModel(
         if (_ui.value.status == BoardStatus.Thinking) return
         if (session.undo()) {
             lastMoveSquares = emptySet()
+            lastPlayedMove = null
             _ui.value = snapshot()
             persist()
         }
@@ -145,6 +173,7 @@ class BoardViewModel(
         if (_ui.value.status == BoardStatus.Thinking) return
         session.restart()
         lastMoveSquares = emptySet()
+        lastPlayedMove = null
         _ui.value = snapshot()
         persist()
         maybePlayAiTurn()
@@ -161,7 +190,8 @@ class BoardViewModel(
                 snapshot(message = BoardMessage.NoHint)
             } else {
                 snapshot(
-                    hinted = entry.interactor.squaresOf(suggestion).toSet(),
+                    hinted = entry.interactor?.squaresOf(suggestion).orEmpty().toSet(),
+                    hintedMove = suggestion,
                     message = BoardMessage.Hint(suggestion.describe()),
                 )
             }
@@ -171,7 +201,8 @@ class BoardViewModel(
     private fun commitHumanMove(move: Move) {
         when (val result = session.play(move)) {
             is PlayResult.Ok -> {
-                lastMoveSquares = entry.interactor.squaresOf(result.move).toSet()
+                lastMoveSquares = entry.interactor?.squaresOf(result.move).orEmpty().toSet()
+                lastPlayedMove = result.move
                 _ui.value = snapshot()
                 persist()
                 maybePlayAiTurn()
@@ -191,7 +222,8 @@ class BoardViewModel(
             // A busca do nível difícil leva segundos: fora da thread da interface, sempre.
             val move = withContext(Dispatchers.Default) { session.playAiTurn() }
             if (move != null) {
-                lastMoveSquares = entry.interactor.squaresOf(move).toSet()
+                lastMoveSquares = entry.interactor?.squaresOf(move).orEmpty().toSet()
+                lastPlayedMove = move
             }
             _ui.value = snapshot()
             persist()
@@ -218,9 +250,22 @@ class BoardViewModel(
         }
     }
 
+    /**
+     * De quem é o ponto de vista mostrado na tela.
+     *
+     * Contra o celular é sempre a pessoa, inclusive enquanto a máquina pensa — a mão dela
+     * não pode piscar na tela no meio do turno do adversário. No passa-e-joga é de quem
+     * está na vez, que é justamente quem tem o aparelho na mão.
+     */
+    private fun viewerSeat(): Seat {
+        val humanSeats = session.players.filterValues { it is Player.Human }.keys
+        return humanSeats.singleOrNull() ?: session.turn
+    }
+
     private fun snapshot(
         selected: Int? = null,
         hinted: Set<Int> = emptySet(),
+        hintedMove: Move? = null,
         message: BoardMessage? = null,
         status: BoardStatus? = null,
         promotion: PendingPromotion? = null,
@@ -234,14 +279,26 @@ class BoardViewModel(
             else -> BoardStatus.HumanTurn
         }
 
+        val viewer = viewerSeat()
+        // Acabada a partida, as mãos viram: no dominó fechado é a contagem dos pontos que
+        // decide quem ganhou, e escondê-la deixaria o resultado sem explicação.
+        val visible = if (outcome.isOver) {
+            session.state
+        } else {
+            entry.rules.redactFor(session.state, viewer)
+        }
+
         return BoardUiState(
-            state = session.state,
+            state = visible,
             status = resolvedStatus,
             selected = selected,
             history = session.history,
             promotion = promotion,
             hinted = hinted,
             lastMove = lastMoveSquares,
+            hintedMove = hintedMove,
+            lastPlayed = lastPlayedMove,
+            viewer = viewer,
             canUndo = session.canUndo,
             canPlay = !outcome.isOver && resolvedStatus != BoardStatus.Thinking,
             againstPhone = humanSeats.size == 1,

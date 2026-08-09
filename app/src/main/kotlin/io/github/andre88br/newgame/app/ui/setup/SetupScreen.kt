@@ -98,17 +98,26 @@ fun SetupScreen(
                     onSelect = { difficulty = it },
                 )
 
-                ChoiceRow(
-                    label = stringResource(R.string.setup_who_starts),
-                    options = listOf(Seat.FIRST, Seat.SECOND),
-                    selected = humanSeat,
-                    optionLabel = {
-                        stringResource(
-                            if (it == Seat.FIRST) R.string.setup_you_start else R.string.setup_phone_starts,
-                        )
-                    },
-                    onSelect = { humanSeat = it },
-                )
+                // Onde as regras é que decidem quem abre, oferecer a escolha seria mentir:
+                // no dominó abre a maior carroça, no ludo o primeiro dado que serve.
+                if (entry.rules.decidesWhoStarts) {
+                    Text(
+                        text = stringResource(R.string.setup_rules_decide_start),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                } else {
+                    ChoiceRow(
+                        label = stringResource(R.string.setup_who_starts),
+                        options = listOf(Seat.FIRST, Seat.SECOND),
+                        selected = humanSeat,
+                        optionLabel = {
+                            stringResource(
+                                if (it == Seat.FIRST) R.string.setup_you_start else R.string.setup_phone_starts,
+                            )
+                        },
+                        onSelect = { humanSeat = it },
+                    )
+                }
             }
 
             if (hasOngoingMatch) {

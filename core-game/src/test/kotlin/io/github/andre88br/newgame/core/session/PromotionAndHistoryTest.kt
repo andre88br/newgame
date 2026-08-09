@@ -74,8 +74,8 @@ class PromotionAndHistoryTest {
     fun `os outros jogos nunca pedem escolha de promocao`() {
         for (entry in GameCatalog.available) {
             if (entry.id == GameId.CHESS) continue
+            val interactor = entry.interactor ?: continue
             val state = entry.rules.initialState(MatchConfig.DETERMINISTIC)
-            val interactor = entry.interactor
             for (square in 0 until interactor.rows * interactor.columns) {
                 val result = interactor.tap(state, null, square)
                 assertTrue(

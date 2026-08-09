@@ -27,7 +27,13 @@ class GameCatalogTest {
         for (entry in GameCatalog.available) {
             val state = entry.rules.initialState(MatchConfig.DETERMINISTIC)
             assertEquals(0, state.ply, "${entry.id} não começa no lance zero")
-            assertEquals(Seat.FIRST, state.turn, "${entry.id} não começa na primeira cadeira")
+            // Quem abre não é sempre a primeira cadeira: no dominó abre quem tirou a maior
+            // dupla, e no ludo abre quem tirou um dado que serve. O contrato é a cadeira
+            // existir na mesa, não ser a de índice zero.
+            assertTrue(
+                state.turn.index in 0 until entry.rules.seatCount,
+                "${entry.id} começa numa cadeira que não existe: ${state.turn}",
+            )
             assertEquals(
                 Outcome.InProgress,
                 entry.rules.outcome(state),
@@ -86,12 +92,41 @@ class GameCatalogTest {
     @Test
     fun `jogos de informacao perfeita nao escondem nada`() {
         for (entry in GameCatalog.available) {
+            if (entry.rules.hasHiddenInformation) continue
             val state = entry.rules.initialState(MatchConfig.DETERMINISTIC)
             assertEquals(
                 state,
                 entry.rules.redactFor(state, Seat.FIRST),
                 "${entry.id} redigiu um estado que não tem informação oculta",
             )
+        }
+    }
+
+    /**
+     * O contrário do teste acima, e o que de fato protege quem joga: um jogo que se declara
+     * de informação oculta precisa esconder alguma coisa de verdade. Declarar a bandeira e
+     * devolver o estado inteiro passaria despercebido — e a IA veria a mão do adversário.
+     */
+    @Test
+    fun `jogo de informacao oculta esconde algo de quem olha`() {
+        val ocultos = GameCatalog.available.filter { it.rules.hasHiddenInformation }
+        assertTrue(ocultos.isNotEmpty(), "nenhum jogo de informação oculta no catálogo")
+
+        for (entry in ocultos) {
+            val state = entry.rules.initialState(MatchConfig(seed = 7))
+            for (index in 0 until entry.rules.seatCount) {
+                val viewer = Seat(index)
+                val visto = entry.rules.redactFor(state, viewer)
+                assertTrue(
+                    visto != state,
+                    "${entry.id} entregou o estado inteiro para a cadeira $index",
+                )
+                assertEquals(
+                    visto,
+                    entry.rules.redactFor(visto, viewer),
+                    "${entry.id}: redigir duas vezes precisa dar no mesmo",
+                )
+            }
         }
     }
 

@@ -27,6 +27,12 @@ interface AnyGame {
 
     fun outcome(state: GameState): Outcome
 
+    /** Veja [BoardGame.hasHiddenInformation]. */
+    val hasHiddenInformation: Boolean
+
+    /** Veja [BoardGame.decidesWhoStarts]. */
+    val decidesWhoStarts: Boolean
+
     fun redactFor(state: GameState, viewer: Seat): GameState
 
     /** Veja [BoardGame.repetitionKey]. */
@@ -50,6 +56,8 @@ private class TypedFacade<S : GameState, M : Move>(
 
     override val id: GameId get() = game.id
     override val seatCount: Int get() = game.seatCount
+    override val hasHiddenInformation: Boolean get() = game.hasHiddenInformation
+    override val decidesWhoStarts: Boolean get() = game.decidesWhoStarts
 
     override fun initialState(config: MatchConfig): GameState = game.initialState(config)
 

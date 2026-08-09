@@ -213,8 +213,9 @@ class BoardInteractionTest {
     @Test
     fun `todo jogo do catalogo tem um interator coerente com as regras`() {
         for (entry in GameCatalog.available) {
+            // Dominó e ludo não se jogam tocando em casas: a tela deles monta o lance.
+            val interactor = entry.interactor ?: continue
             val state = entry.rules.initialState(MatchConfig.DETERMINISTIC)
-            val interactor = entry.interactor
 
             assertTrue(interactor.rows > 0 && interactor.columns > 0, "${entry.id} sem tamanho")
 
@@ -260,8 +261,8 @@ class BoardInteractionTest {
     @Test
     fun `squaresOf devolve casas dentro do tabuleiro em todo jogo`() {
         for (entry in GameCatalog.available) {
+            val interactor = entry.interactor ?: continue
             val state = entry.rules.initialState(MatchConfig.DETERMINISTIC)
-            val interactor = entry.interactor
             val limit = interactor.rows * interactor.columns
             for (move in entry.rules.legalMoves(state)) {
                 val squares = interactor.squaresOf(move)

@@ -3,7 +3,7 @@
 App Android com vários jogos de tabuleiro, jogáveis contra o aparelho ou entre duas
 pessoas no mesmo celular.
 
-> **Status: Fase 3 concluída.** Quatro jogos: Jogo da Velha, Damas, Reversi e Xadrez.
+> **Status: Fase 4 concluída.** Seis jogos: Jogo da Velha, Damas, Reversi, Xadrez, Dominó e Ludo.
 > Contra o celular ou passa-e-joga, com desfazer, dica, e a partida sobrevive a fechar o app.
 > Para instalar sem montar ambiente, veja [baixar o APK do GitHub](#sem-instalar-nada-baixar-o-apk-do-github).
 
@@ -81,6 +81,10 @@ Acrescentar um jogo é implementar `BoardGame`, um `Evaluator`, um `BoardInterac
 `BoardPainter`, e somar uma linha ao `GameCatalog`. Nenhuma tela precisa saber quais jogos
 existem.
 
+Jogo que não se joga tocando em casas de uma grade entra com `interactor = null` e uma tela
+própria em `app/.../ui/board/surfaces` — é o caminho do dominó, que se joga pela mão, e do
+ludo, que se joga pelos peões.
+
 ### Jogos prontos
 
 | Jogo | Regras implementadas |
@@ -89,6 +93,8 @@ existem.
 | Damas brasileiras | captura obrigatória e máxima, captura para trás, dama voadora, sopro turco, promoção só no fim do lance, empate por 20 lances sem progresso |
 | Reversi | viradas nas oito direções, passe automático de quem não tem lance, fim quando nenhum dos dois pode jogar |
 | Xadrez | roque (com as três condições), en passant, promoção com escolha da peça, xeque-mate, afogamento, regra dos 50 lances, material insuficiente, repetição tripla |
+| Dominó | dominó de bater, mão oculta, abre a maior carroça, compra e passe automáticos, jogo fechado decidido na contagem de pontos |
+| Ludo | dado rolado pelo motor, saída só com 6, lance extra no 6, captura, casas seguras, chegada exata |
 
 ### A IA
 
@@ -105,6 +111,24 @@ entre jogar e entregar peça.
 Nos níveis mais baixos ela erra de propósito de vez em quando. Só diminuir a profundidade
 não funciona — uma busca rasa continua jogando certinho e ganhando de quem está aprendendo.
 
+### Informação oculta e sorteio
+
+O dominó trouxe o primeiro problema que a busca sozinha não resolve: a mão do adversário não
+se conhece. A resposta está em duas peças que valem para qualquer jogo assim:
+
+- **`redactFor(estado, quem)`** apaga do estado o que aquele lado não tem direito de ver. A
+  sessão aplica isso **antes de entregar o estado à IA** — nem a máquina joga sabendo o que
+  não deveria. As peças continuam contadas, porque saber quantas o outro tem faz parte do
+  jogo; só o valor some.
+- **`DeterminizedAi`** sorteia mundos possíveis compatíveis com o que se vê, roda a busca em
+  cada um e vota no lance que mais vezes saiu melhor.
+
+O ludo tem o problema oposto: informação completa, mas o próximo lance depende do dado.
+Quem rola é o motor, não o jogador — quando a vez chega, o valor já está no estado e a
+decisão é só qual peão anda. Rolar dado não é decisão, e não vira lance. O gerador mora
+dentro do estado, e não num campo estático, porque é isso que faz a partida salva reproduzir
+exatamente os mesmos dados ao ser reaberta.
+
 ### O app
 
 Cinco telas: início, configuração da partida, tabuleiro, histórico e ajustes. Tema claro e
@@ -115,6 +139,14 @@ do papel de parede de cada aparelho não garante.
 O `GridBoard` é um único composable que serve qualquer jogo de grade: o tamanho vem do
 `BoardInteractor`, o desenho das peças vem de um `BoardPainter`, e a tradução de toque em
 lance nem passa por aqui. Reversi e Xadrez, na Fase 3, entraram só implementando o painter.
+
+Dominó e ludo não cabem nesse molde, e não foram forçados a caber. Cada um tem sua tela: a
+mão deitada, com a linha rolando na horizontal; a cruz de 15 × 15, com o dado ao lado. Mas o
+que decide o que aparece continua vindo do `core-game` — `handTiles` diz em que pontas cada
+peça encaixa, e `LudoLayout` diz em que casa da cruz cada peão se desenha. **A geometria do
+ludo é testada**, não conferida no olho: os testes verificam que a volta de 52 casas fecha
+sem buraco, que os dois corredores finais encostam na última casa da volta da sua cor, e que
+nenhum peão de uma partida inteira cai fora do desenho.
 
 Os lances aparecem numa faixa que rola na horizontal e acompanha o último lance sozinha —
 vertical competiria com o tabuleiro, que é o que a pessoa precisa ver num celular. A
@@ -128,7 +160,7 @@ guardar menos dados do que cabem numa mensagem de texto.
 
 ## Como isso é testado
 
-179 testes. Os que realmente seguram o projeto:
+242 testes. Os que realmente seguram o projeto:
 
 - **`perft` do xadrez contra as cinco posições de referência** do Chess Programming Wiki —
   12 milhões de posições conferidas contra números publicados, cobrindo roque, en passant e
@@ -148,6 +180,10 @@ guardar menos dados do que cabem numa mensagem de texto.
 - **Desfazer contra o celular volta dois lances**, não um. Voltar só o último devolveria a
   vez para a IA, que jogaria de novo, e o botão pareceria não ter feito nada.
 - **Retomar uma partida salva** chega ao mesmo tabuleiro, caractere por caractere.
+- **A IA do dominó não vê a mão do adversário.** O teste confere que o estado que chega até
+  ela já veio redigido, e que redigir duas vezes dá no mesmo.
+- **A cruz do ludo fecha.** Circuito de 52 casas sem salto, corredores colados na volta,
+  currais em cantos opostos, e uma partida inteira sem peão fora do desenho.
 
 ## Sobre a cadeia de ferramentas
 
@@ -180,7 +216,7 @@ não.
 - [x] **Fase 1** — motor, IA, Jogo da Velha, Damas
 - [x] **Fase 2** — app Android jogável (Compose, contra a IA e passa-e-joga, desfazer, dica)
 - [x] **Fase 3** — Reversi e Xadrez
-- [ ] **Fase 4** — Dominó e Ludo
+- [x] **Fase 4** — Dominó e Ludo
 - [ ] **Fase 5** — acabamento (animações, som, acessibilidade, tradução, CI)
 
 O modo online ficou fora por decisão de escopo. O motor já está preparado para recebê-lo
