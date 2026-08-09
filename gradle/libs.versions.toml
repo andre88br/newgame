@@ -5,17 +5,17 @@ kotlinxSerialization = "1.11.0"
 kotlinxCoroutines = "1.11.0"
 junit = "5.14.4"
 
-# ATENÇÃO: as versões abaixo vêm do Google Maven, que não é alcançável do ambiente onde
-# este projeto foi escrito (dl.google.com responde 403 pela política de rede). Elas foram
-# escritas de memória e NÃO foram resolvidas por nenhum Gradle. Se o Sync do Android Studio
-# reclamar de alguma, o próprio erro traz a versão disponível e a correção é aqui, numa
-# linha só — não há código a mudar.
-agp = "8.13.0"
-androidxCore = "1.17.0"
-activityCompose = "1.11.0"
-lifecycle = "2.9.4"
-navigationCompose = "2.9.5"
-composeBom = "2026.01.00"
+# Estas vêm do Google Maven, inalcançável do ambiente onde o projeto foi escrito. Foram
+# levantadas pedindo a lista de versões ao runner do GitHub Actions, que tem acesso, e
+# depois confirmadas por um build de verdade — não são mais chute.
+#
+# O AGP 9 exige Gradle 9: se mexer numa dessas versões, confira o wrapper junto.
+agp = "9.3.1"
+androidxCore = "1.19.0"
+activityCompose = "1.13.0"
+lifecycle = "2.11.0"
+navigationCompose = "2.9.8"
+composeBom = "2026.06.01"
 
 [libraries]
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }

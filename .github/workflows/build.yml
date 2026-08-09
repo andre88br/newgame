@@ -13,32 +13,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # TEMPORÁRIO: o ambiente onde o app foi escrito não alcança o Google Maven, então as
-  # versões do AndroidX foram escritas de memória. Este trabalho lista o que existe de
-  # verdade, para fixá-las de uma vez em vez de tentar por tentativa e erro. Sai do fluxo
-  # assim que o catálogo estiver correto.
-  diagnostico:
-    name: Versões disponíveis no Google Maven
-    runs-on: ubuntu-latest
-    steps:
-      - name: Listar as versões estáveis mais recentes
-        run: |
-          for artefato in \
-            "com/android/tools/build/gradle" \
-            "androidx/compose/compose-bom" \
-            "androidx/core/core-ktx" \
-            "androidx/activity/activity-compose" \
-            "androidx/lifecycle/lifecycle-viewmodel-compose" \
-            "androidx/navigation/navigation-compose"; do
-            echo "=== $artefato"
-            curl -sS "https://dl.google.com/dl/android/maven2/$artefato/maven-metadata.xml" \
-              | grep -oP '(?<=<version>)[^<]+' \
-              | grep -vE 'alpha|beta|rc|dev' \
-              | tail -6 | sed 's/^/    /'
-          done
-          echo "=== AGP instalado no runner / SDK"
-          ls "$ANDROID_HOME/platforms" 2>/dev/null | tail -5
-
   motor:
     name: Testes do motor
     runs-on: ubuntu-latest
