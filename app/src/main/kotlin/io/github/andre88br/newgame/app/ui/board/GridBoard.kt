@@ -1,0 +1,107 @@
+package io.github.andre88br.newgame.app.ui.board
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import io.github.andre88br.newgame.app.ui.theme.LocalBoardPalette
+import io.github.andre88br.newgame.core.engine.GameState
+import io.github.andre88br.newgame.core.session.BoardInteractor
+
+/**
+ * O tabuleiro na tela: grade, toques e destaques.
+ *
+ * Não sabe que jogo está desenhando. O tamanho da grade vem do [BoardInteractor], o
+ * desenho das peças vem do [BoardPainter], e a tradução de toque em lance também é do
+ * interator — que mora no `core-game` e é testado lá. Aqui só tem geometria.
+ */
+@Composable
+fun GridBoard(
+    state: GameState,
+    interactor: BoardInteractor,
+    painter: BoardPainter,
+    modifier: Modifier = Modifier,
+    selected: Int? = null,
+    highlighted: Set<Int> = emptySet(),
+    lastMove: Set<Int> = emptySet(),
+    enabled: Boolean = true,
+    onSquareTap: (Int) -> Unit = {},
+) {
+    val palette = LocalBoardPalette.current
+
+    Canvas(
+        modifier = modifier
+            .aspectRatio(interactor.columns.toFloat() / interactor.rows.toFloat())
+            .pointerInput(interactor, enabled) {
+                if (!enabled) return@pointerInput
+                detectTapGestures { offset ->
+                    val cellWidth = size.width.toFloat() / interactor.columns
+                    val cellHeight = size.height.toFloat() / interactor.rows
+                    if (cellWidth <= 0f || cellHeight <= 0f) return@detectTapGestures
+
+                    val column = (offset.x / cellWidth).toInt().coerceIn(0, interactor.columns - 1)
+                    val row = (offset.y / cellHeight).toInt().coerceIn(0, interactor.rows - 1)
+                    onSquareTap(interactor.squareAt(row, column))
+                }
+            },
+    ) {
+        val cellSize = minOf(size.width / interactor.columns, size.height / interactor.rows)
+        val boardWidth = cellSize * interactor.columns
+        val boardHeight = cellSize * interactor.rows
+        val originX = (size.width - boardWidth) / 2f
+        val originY = (size.height - boardHeight) / 2f
+
+        val cells = ArrayList<Cell>(interactor.rows * interactor.columns)
+        for (row in 0 until interactor.rows) {
+            for (column in 0 until interactor.columns) {
+                cells += Cell(
+                    square = interactor.squareAt(row, column),
+                    row = row,
+                    column = column,
+                    left = originX + column * cellSize,
+                    top = originY + row * cellSize,
+                    size = cellSize,
+                )
+            }
+        }
+
+        cells.forEach { painter.drawSquare(this, it, state, palette) }
+
+        // Destaques entre o fundo e a peça: assim a marcação emoldura a peça em vez de
+        // cobri-la.
+        val markWidth = cellSize * 0.07f
+        cells.forEach { cell ->
+            if (cell.square in lastMove) {
+                drawRect(
+                    color = palette.lastMove,
+                    topLeft = Offset(cell.left, cell.top),
+                    size = Size(cell.size, cell.size),
+                )
+            }
+            if (cell.square in highlighted) {
+                drawRect(
+                    color = palette.hint,
+                    topLeft = Offset(cell.left + markWidth / 2, cell.top + markWidth / 2),
+                    size = Size(cell.size - markWidth, cell.size - markWidth),
+                    style = Stroke(width = markWidth),
+                )
+            }
+            if (cell.square == selected) {
+                drawRect(
+                    color = palette.selection,
+                    topLeft = Offset(cell.left + markWidth / 2, cell.top + markWidth / 2),
+                    size = Size(cell.size - markWidth, cell.size - markWidth),
+                    style = Stroke(width = markWidth),
+                )
+            }
+        }
+
+        cells.forEach { painter.drawPiece(this, it, state, palette) }
+        painter.drawOverlay(this, cells, state, palette)
+    }
+}

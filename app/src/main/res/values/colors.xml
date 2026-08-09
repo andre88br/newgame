@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Igual a Palette.LightBackground em ui/theme/Color.kt. -->
+    <color name="window_background">#FFF7F2EA</color>
+    <color name="launcher_background">#FF1F4B3F</color>
+</resources>

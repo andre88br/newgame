@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Um recorte de tabuleiro de damas com duas peças. Ícone provisório: o acabamento visual
+  está previsto para a Fase 5, mas o app precisa de um ícone para instalar.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Casas escuras de um tabuleiro 4x4 dentro da área segura (27..81). -->
+    <path android:fillColor="#F2E6D0" android:pathData="M27,27h54v54h-54z" />
+    <path android:fillColor="#2F6B58" android:pathData="M40.5,27h13.5v13.5h-13.5z" />
+    <path android:fillColor="#2F6B58" android:pathData="M67.5,27h13.5v13.5h-13.5z" />
+    <path android:fillColor="#2F6B58" android:pathData="M27,40.5h13.5v13.5h-13.5z" />
+    <path android:fillColor="#2F6B58" android:pathData="M54,40.5h13.5v13.5h-13.5z" />
+    <path android:fillColor="#2F6B58" android:pathData="M40.5,54h13.5v13.5h-13.5z" />
+    <path android:fillColor="#2F6B58" android:pathData="M67.5,54h13.5v13.5h-13.5z" />
+    <path android:fillColor="#2F6B58" android:pathData="M27,67.5h13.5v13.5h-13.5z" />
+    <path android:fillColor="#2F6B58" android:pathData="M54,67.5h13.5v13.5h-13.5z" />
+
+    <!-- Duas peças. -->
+    <path android:fillColor="#D93B3B" android:pathData="M47.25,60.75m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0" />
+    <path android:fillColor="#1B1B1B" android:pathData="M74.25,33.75m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0" />
+</vector>

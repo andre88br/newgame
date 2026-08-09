@@ -4,13 +4,18 @@ import io.github.andre88br.newgame.core.ai.AnyAi
 import io.github.andre88br.newgame.core.ai.asAnyAi
 import io.github.andre88br.newgame.core.games.checkers.CheckersAi
 import io.github.andre88br.newgame.core.games.checkers.CheckersGame
+import io.github.andre88br.newgame.core.games.checkers.CheckersInteractor
 import io.github.andre88br.newgame.core.games.tictactoe.TicTacToeAi
 import io.github.andre88br.newgame.core.games.tictactoe.TicTacToeGame
+import io.github.andre88br.newgame.core.games.tictactoe.TicTacToeInteractor
+import io.github.andre88br.newgame.core.session.BoardInteractor
 
 /** Um jogo pronto para a interface: as regras, o adversário do aparelho e como se chama. */
 data class GameEntry(
     val rules: AnyGame,
     val ai: AnyAi,
+    /** Como os toques no tabuleiro viram lances. */
+    val interactor: BoardInteractor,
     /** Chave de tradução do nome, resolvida nos recursos do app. */
     val nameKey: String,
     /** Quantas pessoas jogam de fato (o ludo aceita 2 a 4; aqui é o padrão). */
@@ -29,11 +34,13 @@ object GameCatalog {
         GameEntry(
             rules = TicTacToeGame.asAny(),
             ai = TicTacToeAi.asAnyAi(),
+            interactor = TicTacToeInteractor,
             nameKey = "game_tic_tac_toe",
         ),
         GameEntry(
             rules = CheckersGame.asAny(),
             ai = CheckersAi.asAnyAi(),
+            interactor = CheckersInteractor,
             nameKey = "game_checkers",
         ),
     )

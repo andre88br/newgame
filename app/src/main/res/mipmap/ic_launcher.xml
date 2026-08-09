@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ícone para Android 7 e 7.1, que ainda não têm ícone adaptativo. A partir do Android 8 o
+  arquivo em mipmap-anydpi-v26 tem prioridade sobre este.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/launcher_background" />
+    <item android:drawable="@drawable/ic_launcher_foreground" />
+</layer-list>

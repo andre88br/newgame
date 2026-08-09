@@ -132,6 +132,28 @@ object CheckersGame : BoardGame<CheckersState, CheckersMove> {
     }
 
     /**
+     * Por que a peça em [square] não tem lance, ou `null` se ela tiver.
+     *
+     * A tela usa isso quando alguém toca numa peça e nada acontece. Sem essa explicação, a
+     * captura obrigatória parece defeito do app — é a dúvida número um de quem está
+     * aprendendo damas.
+     */
+    fun explainNoMovesFrom(state: CheckersState, square: Int): String? {
+        val piece = state.board.getOrNull(square) ?: return "Casa inválida"
+        if (piece == EMPTY) return null
+        if (piece.pieceOwner() != state.turn) return "Essa peça não é sua"
+        if (movesFrom(state, square).isNotEmpty()) return null
+
+        val captures = CheckersMoves.captures(state.board, state.turn)
+        return if (captures.isEmpty()) {
+            "Essa peça não tem para onde ir"
+        } else {
+            val most = captures.maxOf { it.captured.size }
+            "Captura é obrigatória: outra peça sua captura $most peça(s)"
+        }
+    }
+
+    /**
      * Por que o lance foi recusado. Vale o trabalho: "captura é obrigatória" é a dúvida
      * número um de quem está aprendendo, e a tela pode mostrar o motivo direto.
      */

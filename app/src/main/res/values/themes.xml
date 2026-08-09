@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Tema só da janela: define a cor que aparece entre o toque no ícone e o primeiro
+      quadro desenhado pelo Compose. Sem ela, o app pisca branco ao abrir no tema escuro.
+      Toda a aparência de verdade está em ui/theme/Theme.kt.
+
+      O pai é android:Theme.Material.Light.NoActionBar, do próprio sistema, para não
+      precisar da biblioteca XML do Material — que seria mais uma dependência.
+    -->
+    <style name="Theme.Newgame" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@color/window_background</item>
+        <item name="android:navigationBarColor">@color/window_background</item>
+    </style>
+</resources>

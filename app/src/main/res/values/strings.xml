@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">newgame</string>
+
+    <!-- Nomes dos jogos. A chave casa com GameEntry.nameKey, no core-game. -->
+    <string name="game_tic_tac_toe">Jogo da Velha</string>
+    <string name="game_checkers">Damas</string>
+
+    <!-- Início -->
+    <string name="home_title">Escolha um jogo</string>
+    <string name="home_history">Histórico</string>
+    <string name="home_settings">Ajustes</string>
+    <string name="home_resume">Continuar partida</string>
+    <string name="home_players_two">2 jogadores</string>
+
+    <!-- Configuração da partida -->
+    <string name="setup_title">Nova partida</string>
+    <string name="setup_mode">Modo</string>
+    <string name="setup_mode_ai">Contra o celular</string>
+    <string name="setup_mode_local">Dois jogadores</string>
+    <string name="setup_difficulty">Nível</string>
+    <string name="setup_difficulty_easy">Fácil</string>
+    <string name="setup_difficulty_medium">Médio</string>
+    <string name="setup_difficulty_hard">Difícil</string>
+    <string name="setup_who_starts">Quem começa</string>
+    <string name="setup_you_start">Você</string>
+    <string name="setup_phone_starts">O celular</string>
+    <string name="setup_start">Começar</string>
+    <string name="setup_resume_warning">Continuar apagará a partida em andamento deste jogo.</string>
+
+    <!-- Tabuleiro -->
+    <string name="board_your_turn">Sua vez</string>
+    <string name="board_turn_first">Vez das brancas</string>
+    <string name="board_turn_second">Vez das pretas</string>
+    <string name="board_thinking">Pensando…</string>
+    <string name="board_you_won">Você venceu!</string>
+    <string name="board_you_lost">O celular venceu</string>
+    <string name="board_first_won">Brancas venceram</string>
+    <string name="board_second_won">Pretas venceram</string>
+    <string name="board_draw">Empate</string>
+    <string name="board_undo">Desfazer</string>
+    <string name="board_hint">Dica</string>
+    <string name="board_restart">Recomeçar</string>
+    <string name="board_hint_shown">Sugestão: %1$s</string>
+    <string name="board_no_hint">Não há sugestão agora</string>
+
+    <!-- Histórico -->
+    <string name="history_title">Histórico</string>
+    <string name="history_empty">Nenhuma partida ainda. Jogue uma!</string>
+    <string name="history_in_progress">Em andamento</string>
+    <string name="history_moves">%1$d lances</string>
+    <string name="history_clear">Limpar histórico</string>
+    <string name="history_stats">%1$d vitórias · %2$d derrotas · %3$d empates</string>
+
+    <!-- Ajustes -->
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_system">Seguir o sistema</string>
+    <string name="settings_theme_light">Claro</string>
+    <string name="settings_theme_dark">Escuro</string>
+    <string name="settings_default_difficulty">Nível padrão do celular</string>
+    <string name="settings_about">newgame · jogos de tabuleiro offline</string>
+
+    <!-- Geral -->
+    <string name="action_back">Voltar</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_confirm">Confirmar</string>
+</resources>
