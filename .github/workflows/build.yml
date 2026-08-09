@@ -13,12 +13,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # TEMPORÁRIO. O Kotlin 2.4.10 com AGP 9.3.1 falha em KotlinAndroidTarget, que referencia
-  # BaseVariant — classe removida no AGP 9. Em vez de adivinhar a combinação certa de um
-  # ambiente que não alcança o Google Maven, o runner testa as candidatas e diz qual
-  # configura. Sai do fluxo assim que a resposta estiver aplicada.
+  # TEMPORÁRIO. O Kotlin 2.4.10 não se aplica com AGP 8.13+ nem com AGP 9: o plugin
+  # kotlin-android referencia BaseExtension/BaseVariant, classes que essas versões
+  # removeram. Este trabalho varre as versões do AGP, da mais nova para a mais antiga, até
+  # achar a primeira que configura o módulo — e, se nenhuma servir, tenta o caminho oposto,
+  # um Kotlin mais novo com AGP 9. Sai do fluxo assim que a resposta estiver aplicada.
   combinacoes:
-    name: Descobrir a combinação AGP/Gradle/Kotlin
+    name: Achar a combinação AGP/Gradle/Kotlin
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,44 +28,41 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Testar as candidatas
+      - name: Varrer as combinações
         run: |
           set +e
           META=https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle/maven-metadata.xml
           TODAS=$(curl -sS "$META" | grep -oP '(?<=<version>)[^<]+' | grep -vE 'alpha|beta|rc|dev')
-          AGP8=$(echo "$TODAS" | grep -E '^8\.' | tail -1)
-          AGP9_PRIMEIRA=$(echo "$TODAS" | grep -E '^9\.' | head -1)
-          echo "AGP 8.x mais recente: $AGP8"
-          echo "AGP 9.x mais antiga:  $AGP9_PRIMEIRA"
-          echo "AGP 8.x disponíveis:  $(echo "$TODAS" | grep -E '^8\.1' | tr '\n' ' ')"
+          echo "AGP 8.x publicadas: $(echo "$TODAS" | grep -E '^8\.' | tr '\n' ' ')"
           echo
 
-          usar_agp()    { sed -i "s|^agp = .*|agp = \"$1\"|" gradle/libs.versions.toml; }
-          usar_gradle() { sed -i "s|gradle-[0-9.]*-bin.zip|gradle-$1-bin.zip|" gradle/wrapper/gradle-wrapper.properties; }
-          sem_kotlin_android() { sed -i '/plugins.kotlin.android/d' app/build.gradle.kts; }
-
-          tentar() {
+          testar() { # $1=agp  $2=gradle  $3=kotlin
+            sed -i "s|^agp = .*|agp = \"$1\"|" gradle/libs.versions.toml
+            sed -i "s|^kotlin = .*|kotlin = \"$3\"|" gradle/libs.versions.toml
+            sed -i "s|gradle-[0-9.]*-bin.zip|gradle-$2-bin.zip|" gradle/wrapper/gradle-wrapper.properties
             ./gradlew :app:help -Pnewgame.androidModule=true --no-daemon \
               --no-configuration-cache -q > /tmp/saida 2>&1
-            if [ $? -eq 0 ]; then
-              echo ">>> $1 :: FUNCIONA"
+            local r=$?
+            if [ $r -eq 0 ]; then
+              echo "OK     AGP $1 | Gradle $2 | Kotlin $3"
             else
-              echo ">>> $1 :: falhou -- $(grep -oE 'Could not [^\r]{0,90}|com/android/[^ ]+|Minimum supported Gradle version[^\r]{0,40}|requires Gradle[^\r]{0,40}|[Uu]nsupported[^\r]{0,60}' /tmp/saida | head -2 | tr '\n' '|')"
+              echo "falhou AGP $1 | Gradle $2 | Kotlin $3 :: $(grep -E '^ *> ' /tmp/saida | head -2 | tr -d '\n' | cut -c1-150)"
             fi
-            git checkout -- gradle/libs.versions.toml gradle/wrapper/gradle-wrapper.properties app/build.gradle.kts
+            git checkout -- gradle/libs.versions.toml gradle/wrapper/gradle-wrapper.properties
+            return $r
           }
 
-          usar_agp "$AGP8"; usar_gradle 8.14.4
-          tentar "AGP $AGP8 + Gradle 8.14.4 + kotlin-android"
+          for v in $(echo "$TODAS" | grep -E '^8\.' | tac | head -10); do
+            testar "$v" 8.14.4 2.4.10 && {
+              echo; echo "=== USAR: AGP $v + Gradle 8.14.4 + Kotlin 2.4.10"; exit 0; }
+          done
 
-          sem_kotlin_android
-          tentar "AGP 9.3.1 + Gradle 9.7.0 + Kotlin embutido do AGP"
+          for k in 2.4.20-Beta2 2.4.20-Beta1; do
+            testar 9.3.1 9.7.0 "$k" && {
+              echo; echo "=== USAR: AGP 9.3.1 + Gradle 9.7.0 + Kotlin $k"; exit 0; }
+          done
 
-          usar_agp "$AGP9_PRIMEIRA"
-          tentar "AGP $AGP9_PRIMEIRA + Gradle 9.7.0 + kotlin-android"
-
-          usar_agp "$AGP8"; usar_gradle 8.14.4; sem_kotlin_android
-          tentar "AGP $AGP8 + Gradle 8.14.4 + Kotlin embutido do AGP"
+          echo; echo "=== nenhuma combinação testada configurou"
 
   motor:
     name: Testes do motor
