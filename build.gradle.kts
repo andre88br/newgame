@@ -20,7 +20,7 @@ buildscript {
         dependencies {
             // Versão do AGP. Fica aqui, e não no catálogo, porque o catálogo não é visível
             // dentro de um bloco buildscript.
-            classpath("com.android.tools.build:gradle:9.3.1")
+            classpath("com.android.tools.build:gradle:8.13.2")
         }
     }
 }
