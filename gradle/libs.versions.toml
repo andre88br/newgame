@@ -5,17 +5,21 @@ kotlinxSerialization = "1.11.0"
 kotlinxCoroutines = "1.11.0"
 junit = "5.14.4"
 
-# Estas vêm do Google Maven, inalcançável do ambiente onde o projeto foi escrito. Foram
-# levantadas pedindo a lista de versões ao runner do GitHub Actions, que tem acesso, e
-# depois confirmadas por um build de verdade — não são mais chute.
+# Estas vêm do Google Maven, inalcançável do ambiente onde o projeto foi escrito, e foram
+# levantadas e confirmadas por builds de verdade no GitHub Actions.
+#
+# NÃO são as mais recentes publicadas, e isso é proposital: a partir de core 1.18 e
+# lifecycle 2.10 o AndroidX passa a exigir AGP 9.1+, e o AGP 9 ainda não aceita o plugin
+# kotlin-android 2.4.10. Enquanto essa ponta não se resolver, o teto do AndroidX é o que
+# o AGP 8.13.2 aceita. Subir qualquer uma destas sem subir o AGP quebra o build.
 #
 # A versão do AGP não está aqui: ela vive no buildscript da raiz, que é onde precisa
 # estar para o classloader bater com o do Kotlin. O AGP 9 exige Gradle 9 — mexeu numa,
 # confira o wrapper junto.
-androidxCore = "1.19.0"
-activityCompose = "1.13.0"
-lifecycle = "2.11.0"
-navigationCompose = "2.9.8"
+androidxCore = "1.17.0"
+activityCompose = "1.12.0"
+lifecycle = "2.9.4"
+navigationCompose = "2.9.5"
 composeBom = "2026.06.01"
 
 [libraries]

@@ -50,6 +50,27 @@ kotlin {
     }
 }
 
+// Trava de teto para o AndroidX.
+//
+// Declarar a versão em cada dependência não basta: se qualquer transitiva pedir uma mais
+// nova, o Gradle sobe para ela — e a partir de core 1.18 / lifecycle 2.10 o AndroidX exige
+// AGP 9.1+, que o plugin Kotlin ainda não acompanha. O build então falha com uma mensagem
+// que não aponta para o culpado. Fixar aqui torna o teto explícito e o erro impossível.
+//
+// Assim que o kotlin-android suportar o AGP 9, some daqui e sobem as versões no catálogo.
+configurations.configureEach {
+    resolutionStrategy {
+        force(
+            "androidx.core:core:${libs.versions.androidxCore.get()}",
+            "androidx.core:core-ktx:${libs.versions.androidxCore.get()}",
+            "androidx.lifecycle:lifecycle-runtime:${libs.versions.lifecycle.get()}",
+            "androidx.lifecycle:lifecycle-runtime-compose:${libs.versions.lifecycle.get()}",
+            "androidx.lifecycle:lifecycle-viewmodel:${libs.versions.lifecycle.get()}",
+            "androidx.lifecycle:lifecycle-viewmodel-compose:${libs.versions.lifecycle.get()}",
+        )
+    }
+}
+
 dependencies {
     // Todas as regras de jogo, a IA e a orquestração da partida vêm daqui. Este módulo
     // só desenha e liga os fios.
