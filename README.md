@@ -3,9 +3,9 @@
 App Android com vários jogos de tabuleiro, jogáveis contra o aparelho ou entre duas
 pessoas no mesmo celular.
 
-> **Status: Fase 2 concluída.** O app está inteiro: escolher o jogo, jogar contra o
-> celular ou passa-e-joga, desfazer, pedir dica, fechar o app e voltar onde parou.
-> Veja o [roteiro](#roteiro) e a ressalva sobre [compilação](#sobre-a-compilação-do-módulo-android).
+> **Status: Fase 2 concluída, APK compilando.** O app está inteiro: escolher o jogo, jogar
+> contra o celular ou passa-e-joga, desfazer, pedir dica, fechar o app e voltar onde parou.
+> Para instalar sem montar ambiente, veja [baixar o APK do GitHub](#sem-instalar-nada-baixar-o-apk-do-github).
 
 ## Como está organizado
 
@@ -133,24 +133,31 @@ guardar menos dados do que cabem numa mensagem de texto.
   vez para a IA, que jogaria de novo, e o botão pareceria não ter feito nada.
 - **Retomar uma partida salva** chega ao mesmo tabuleiro, caractere por caractere.
 
-## Sobre a compilação do módulo Android
+## Sobre a cadeia de ferramentas
 
 Este projeto foi escrito num ambiente sem o SDK do Android e **sem acesso ao Google Maven**
-(`dl.google.com` bloqueado por política de rede). Consequência honesta: o módulo `:app`
-nunca passou por um compilador antes de chegar aqui.
+(`dl.google.com` bloqueado por política de rede). O módulo `:app` só encontrou um
+compilador quando o fluxo do GitHub Actions entrou no ar — e as versões deste projeto são
+o resultado disso, não escolha de gosto:
 
-O que foi feito para reduzir o risco em vez de torcer:
+| | versão | por quê |
+|---|---|---|
+| AGP | 8.13.2 | o AGP 9 ainda não aceita o plugin `kotlin-android` 2.4.10 |
+| Gradle | 8.14.4 | o que o AGP 8.13 pede |
+| core-ktx | 1.17.0 | a partir de 1.18 o AndroidX exige AGP 9.1+ |
+| lifecycle | 2.9.4 | a partir de 2.10, idem |
 
-- A lógica que dava para testar foi movida para o `core-game`, e está coberta pelos 110
-  testes.
-- As fontes do `:app` passaram pelo compilador Kotlin isolado: **nenhum erro de sintaxe**.
-  O único arquivo do módulo sem dependência de Android (`MatchStore.kt`) compila limpo.
-- Só API estável do Material 3 — nada de `SegmentedButton`, `FilterChip` ou ícones —
-  justamente para diminuir a chance de o projeto não abrir de primeira.
+O teto do AndroidX está fixado por `resolutionStrategy` em `app/build.gradle.kts`, para
+que nenhuma dependência transitiva o ultrapasse e produza um erro que não aponta o culpado.
+**Subir qualquer uma dessas versões sem subir o AGP quebra o build.** Quando o
+`kotlin-android` passar a suportar o AGP 9, a trava sai e todas sobem juntas.
 
-O que continua sem verificação: as versões de AGP, Compose BOM, AndroidX e Navigation em
-`gradle/libs.versions.toml`, escritas de memória. Se o Gradle Sync reclamar, o próprio erro
-traz a versão disponível e a correção é uma linha no catálogo.
+Um detalhe do `build.gradle.kts` da raiz que parece estranho e não é: o AGP entra pelo
+classpath do `buildscript`, não pelo bloco `plugins`. Ele precisa ficar no mesmo
+classloader do plugin Kotlin — declará-lo só dentro do `:app` faz o build morrer com
+`NoClassDefFoundError` em `BaseExtension`, em qualquer versão. E precisa ser condicional,
+para o `:core-game:test` continuar rodando sem SDK; `buildscript` aceita `if`, `plugins`
+não.
 
 ## Roteiro
 
