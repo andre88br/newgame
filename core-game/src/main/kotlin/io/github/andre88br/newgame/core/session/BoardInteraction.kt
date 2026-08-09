@@ -18,12 +18,33 @@ sealed interface TapResult {
     /** O toque desfez a escolha anterior. */
     data object Deselect : TapResult
 
+    /**
+     * O lance está definido, menos por um detalhe que só a pessoa pode decidir — no xadrez,
+     * em que peça o peão vira ao chegar na última fileira.
+     *
+     * Cada opção já traz o lance pronto. Assim quem mostra o diálogo não precisa saber
+     * montar um lance de xadrez: escolhe uma das opções e manda jogar.
+     */
+    data class ChoosePromotion(
+        val from: Int,
+        val to: Int,
+        val choices: List<PromotionChoice>,
+    ) : TapResult
+
     /** O toque não vale, e [reason] explica por quê, em português, para mostrar na tela. */
     data class Rejected(val reason: String) : TapResult
 
     /** Toque sem efeito (casa vazia sem nada escolhido, partida encerrada). */
     data object Ignored : TapResult
 }
+
+/**
+ * Uma peça possível na promoção.
+ *
+ * [kind] é a letra da peça (`Q`, `R`, `B`, `N`), que a tela traduz para "Dama", "Torre" e
+ * assim por diante; [move] é o lance já montado, pronto para jogar.
+ */
+data class PromotionChoice(val kind: Char, val move: Move)
 
 /**
  * Traduz toques em casas para lances.

@@ -3,6 +3,7 @@ package io.github.andre88br.newgame.core.games.chess
 import io.github.andre88br.newgame.core.engine.GameState
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.session.BoardInteractor
+import io.github.andre88br.newgame.core.session.PromotionChoice
 import io.github.andre88br.newgame.core.session.TapResult
 
 /**
@@ -11,11 +12,15 @@ import io.github.andre88br.newgame.core.session.TapResult
  * Roque se joga movendo o rei duas casas — não tocando na torre —, que é como funciona em
  * todo aplicativo de xadrez e é também como o motor representa o lance.
  *
- * **Promoção sai sempre dama.** O motor gera as quatro peças, mas a tela ainda não pergunta
- * qual. Promover a torre, bispo ou cavalo aparece em pouquíssimas partidas, e quase sempre
- * a dama é o certo; oferecer a escolha fica para quando houver diálogo de promoção.
+ * Chegando um peão à última fileira, o toque não vira lance direto: devolve
+ * [TapResult.ChoosePromotion] com as quatro peças, para a tela perguntar. Promover a torre
+ * ou a cavalo é raro, mas existe — e há posição em que virar dama é empate por afogamento
+ * enquanto virar torre é vitória.
  */
 object ChessInteractor : BoardInteractor {
+
+    /** Ordem em que as peças aparecem no diálogo de promoção. */
+    private val PROMOTION_ORDER = listOf('Q', 'R', 'B', 'N')
 
     override val rows: Int = CHESS_SIZE
     override val columns: Int = CHESS_SIZE
@@ -30,7 +35,19 @@ object ChessInteractor : BoardInteractor {
         if (selected != null) {
             val candidates = ChessGame.movesFrom(board, selected).filter { it.to == square }
             if (candidates.isNotEmpty()) {
-                return TapResult.Play(candidates.firstOrNull { it.promotion == 'Q' } ?: candidates.first())
+                val promotions = candidates.filter { it.promotion != null }
+                if (promotions.isNotEmpty()) {
+                    return TapResult.ChoosePromotion(
+                        from = selected,
+                        to = square,
+                        // Na ordem em que se costuma escolher: dama primeiro, cavalo por último.
+                        choices = PROMOTION_ORDER.mapNotNull { kind ->
+                            promotions.firstOrNull { it.promotion == kind }
+                                ?.let { PromotionChoice(kind, it) }
+                        },
+                    )
+                }
+                return TapResult.Play(candidates.first())
             }
             if (board.pieceAt(square).pieceSeat() == board.turn) return select(board, square)
             return TapResult.Rejected(rejectionFor(board, selected, square))

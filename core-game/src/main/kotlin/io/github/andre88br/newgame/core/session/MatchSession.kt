@@ -19,6 +19,14 @@ sealed interface Player {
     data class Ai(val difficulty: Difficulty) : Player
 }
 
+/** Um lance já jogado, com quem o jogou. */
+data class PlayedMove(
+    /** Quantos lances vieram antes deste. */
+    val ply: Int,
+    val seat: Seat,
+    val notation: String,
+)
+
 /** O que aconteceu com a tentativa de jogar. */
 sealed interface PlayResult {
     data class Ok(val move: Move, val state: GameState) : PlayResult
@@ -95,8 +103,19 @@ class MatchSession(
     val canUndo: Boolean
         get() = record.ply > 0 && players.values.any { it is Player.Human }
 
+    /**
+     * Os lances já jogados, com quem os jogou.
+     *
+     * Mantido junto com a partida em vez de recalculado sob demanda: descobrir de quem foi
+     * cada lance exige refazer o jogo do começo, e a tela pede este histórico a cada
+     * atualização. Numa partida de xadrez longa, recalcular toda vez seria refazer centenas
+     * de lances por quadro.
+     */
+    var history: List<PlayedMove> = rebuildHistory(this.record)
+        private set
+
     /** Lances da partida em notação, do primeiro ao último. */
-    fun notation(): List<String> = record.moves.map { entry.rules.decodeMove(it).describe() }
+    fun notation(): List<String> = history.map { it.notation }
 
     /** Joga [move] pela pessoa sentada na cadeira da vez. */
     fun play(move: Move): PlayResult {
@@ -161,9 +180,12 @@ class MatchSession(
     }
 
     private fun commit(move: Move): PlayResult {
+        val mover = state.turn
+        val playedAt = state.ply
         return when (val result = entry.rules.applyMove(state, move)) {
             is MoveResult.Ok -> {
                 state = result.state
+                history = history + PlayedMove(playedAt, mover, move.describe())
                 entry.rules.repetitionKey(result.state)?.let { key ->
                     repetitions[key] = (repetitions[key] ?: 0) + 1
                 }
@@ -183,7 +205,24 @@ class MatchSession(
         state = Replay.state(entry.rules, newRecord)
         repetitions.clear()
         repetitions.putAll(countRepetitions(newRecord))
+        history = rebuildHistory(newRecord)
         record = newRecord.copy(outcome = outcome)
+    }
+
+    /**
+     * Refaz o histórico a partir do registro. Só acontece ao desfazer, recomeçar ou retomar
+     * uma partida salva — nunca durante o jogo, em que a lista só cresce de um em um.
+     */
+    private fun rebuildHistory(source: MatchRecord): List<PlayedMove> {
+        val states = Replay.states(entry.rules, source)
+        return source.moves.mapIndexed { index, encoded ->
+            val before = states[index]
+            PlayedMove(
+                ply = before.ply,
+                seat = before.turn,
+                notation = entry.rules.decodeMove(encoded).describe(),
+            )
+        }
     }
 
     private fun countRepetitions(source: MatchRecord): MutableMap<String, Int> {

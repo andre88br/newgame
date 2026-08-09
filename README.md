@@ -88,7 +88,7 @@ existem.
 | Jogo da Velha | completo |
 | Damas brasileiras | captura obrigatória e máxima, captura para trás, dama voadora, sopro turco, promoção só no fim do lance, empate por 20 lances sem progresso |
 | Reversi | viradas nas oito direções, passe automático de quem não tem lance, fim quando nenhum dos dois pode jogar |
-| Xadrez | roque (com as três condições), en passant, promoção, xeque-mate, afogamento, regra dos 50 lances, material insuficiente, repetição tripla |
+| Xadrez | roque (com as três condições), en passant, promoção com escolha da peça, xeque-mate, afogamento, regra dos 50 lances, material insuficiente, repetição tripla |
 
 ### A IA
 
@@ -114,7 +114,12 @@ do papel de parede de cada aparelho não garante.
 
 O `GridBoard` é um único composable que serve qualquer jogo de grade: o tamanho vem do
 `BoardInteractor`, o desenho das peças vem de um `BoardPainter`, e a tradução de toque em
-lance nem passa por aqui. Reversi e Xadrez, na Fase 3, entram só implementando o painter.
+lance nem passa por aqui. Reversi e Xadrez, na Fase 3, entraram só implementando o painter.
+
+Os lances aparecem numa faixa que rola na horizontal e acompanha o último lance sozinha —
+vertical competiria com o tabuleiro, que é o que a pessoa precisa ver num celular. A
+numeração conta os lances da primeira cadeira em vez de pares: no reversi, quem fica sem
+lance perde a vez, e contar de dois em dois desandaria depois do primeiro passe.
 
 As partidas ficam num arquivo JSON no diretório do app, não num banco. Cada uma é uma
 semente mais uma lista de lances — algumas centenas de bytes — e nunca serão mais que
@@ -123,7 +128,7 @@ guardar menos dados do que cabem numa mensagem de texto.
 
 ## Como isso é testado
 
-168 testes. Os que realmente seguram o projeto:
+179 testes. Os que realmente seguram o projeto:
 
 - **`perft` do xadrez contra as cinco posições de referência** do Chess Programming Wiki —
   12 milhões de posições conferidas contra números publicados, cobrindo roque, en passant e

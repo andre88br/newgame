@@ -14,7 +14,9 @@ import io.github.andre88br.newgame.core.engine.Outcome
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.session.MatchSession
 import io.github.andre88br.newgame.core.session.PlayResult
+import io.github.andre88br.newgame.core.session.PlayedMove
 import io.github.andre88br.newgame.core.session.Player
+import io.github.andre88br.newgame.core.session.PromotionChoice
 import io.github.andre88br.newgame.core.session.TapResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,10 +52,16 @@ sealed interface BoardMessage {
     data object NoHint : BoardMessage
 }
 
+/** Promoção esperando escolha. A tela mostra o diálogo enquanto isto não for nulo. */
+data class PendingPromotion(val square: Int, val choices: List<PromotionChoice>)
+
 data class BoardUiState(
     val state: GameState,
     val status: BoardStatus,
     val selected: Int? = null,
+    /** Lances já jogados, do primeiro ao último. */
+    val history: List<PlayedMove> = emptyList(),
+    val promotion: PendingPromotion? = null,
     val hinted: Set<Int> = emptySet(),
     val lastMove: Set<Int> = emptySet(),
     val canUndo: Boolean = false,
@@ -92,6 +100,8 @@ class BoardViewModel(
 
     fun onSquareTap(square: Int) {
         if (session.isOver || session.awaitingAi || _ui.value.status == BoardStatus.Thinking) return
+        // Com o diálogo de promoção aberto, o tabuleiro não responde: o lance está no meio.
+        if (_ui.value.promotion != null) return
 
         when (val result = entry.interactor.tap(session.state, _ui.value.selected, square)) {
             is TapResult.Play -> commitHumanMove(result.move)
@@ -102,8 +112,24 @@ class BoardViewModel(
                 message = BoardMessage.Reason(result.reason),
             )
 
+            is TapResult.ChoosePromotion -> _ui.value = snapshot(
+                selected = _ui.value.selected,
+                promotion = PendingPromotion(result.to, result.choices),
+            )
+
             TapResult.Ignored -> Unit
         }
+    }
+
+    /** A pessoa escolheu a peça no diálogo de promoção. */
+    fun onPromotionChosen(choice: PromotionChoice) {
+        _ui.value = snapshot(selected = _ui.value.selected)
+        commitHumanMove(choice.move)
+    }
+
+    /** Fechou o diálogo sem escolher: a peça continua selecionada, nada foi jogado. */
+    fun onPromotionCancelled() {
+        _ui.value = snapshot(selected = _ui.value.selected)
     }
 
     fun onUndo() {
@@ -197,6 +223,7 @@ class BoardViewModel(
         hinted: Set<Int> = emptySet(),
         message: BoardMessage? = null,
         status: BoardStatus? = null,
+        promotion: PendingPromotion? = null,
     ): BoardUiState {
         val humanSeats = session.players.filterValues { it is Player.Human }.keys
         val outcome = session.outcome
@@ -211,6 +238,8 @@ class BoardViewModel(
             state = session.state,
             status = resolvedStatus,
             selected = selected,
+            history = session.history,
+            promotion = promotion,
             hinted = hinted,
             lastMove = lastMoveSquares,
             canUndo = session.canUndo,

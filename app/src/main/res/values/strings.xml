@@ -44,6 +44,15 @@
     <string name="board_hint">Dica</string>
     <string name="board_restart">Recomeçar</string>
     <string name="board_hint_shown">Sugestão: %1$s</string>
+    <string name="board_history">Lances</string>
+
+    <!-- Promoção no xadrez -->
+    <string name="promotion_title">Promover o peão</string>
+    <string name="promotion_message">Seu peão chegou à última fileira. Em que peça ele vira?</string>
+    <string name="piece_queen">Dama</string>
+    <string name="piece_rook">Torre</string>
+    <string name="piece_bishop">Bispo</string>
+    <string name="piece_knight">Cavalo</string>
     <string name="board_no_hint">Não há sugestão agora</string>
 
     <!-- Histórico -->

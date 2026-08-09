@@ -97,6 +97,8 @@ fun BoardScreen(
                 )
             }
 
+            MoveHistory(history = ui.history)
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -126,6 +128,14 @@ fun BoardScreen(
                 Text(stringResource(R.string.board_restart))
             }
         }
+    }
+
+    ui.promotion?.let { pending ->
+        PromotionDialog(
+            choices = pending.choices,
+            onPick = viewModel::onPromotionChosen,
+            onDismiss = viewModel::onPromotionCancelled,
+        )
     }
 }
 
