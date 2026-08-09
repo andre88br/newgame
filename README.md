@@ -41,6 +41,19 @@ automaticamente, com um aviso explicando por quê. Para forçar,
 
 Precisa do SDK do Android (o Android Studio configura sozinho).
 
+### Sem instalar nada: baixar o APK do GitHub
+
+Cada push dispara o fluxo em `.github/workflows/build.yml`, que roda os testes e compila o
+APK de depuração num servidor do GitHub — que já tem o SDK do Android. Para instalar no
+celular sem montar ambiente:
+
+1. Aba **Actions** do repositório → o build mais recente da sua branch.
+2. Seção **Artifacts**, no fim da página → baixe **`newgame-debug-apk`** (vem num `.zip`).
+3. Descompacte, passe o `.apk` para o celular e abra. O Android vai pedir permissão para
+   instalar de fonte desconhecida.
+
+É um APK de depuração, assinado com a chave de debug: serve para testar, não para publicar.
+
 ## O motor
 
 Todo jogo implementa a mesma interface, então tela, IA e persistência são escritas uma vez

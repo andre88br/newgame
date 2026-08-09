@@ -1,0 +1,64 @@
+name: build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+# Um push novo cancela o build anterior da mesma branch: economiza fila e evita baixar
+# um APK que já está desatualizado.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  motor:
+    name: Testes do motor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      # As regras dos jogos não dependem de Android. Rodar sem o módulo :app mantém honesta
+      # a promessa de que este teste funciona em qualquer máquina, com ou sem SDK.
+      - name: Rodar os testes do core-game
+        run: ./gradlew :core-game:test -Pnewgame.androidModule=false --no-daemon
+
+      - name: Guardar o relatório de testes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-de-testes
+          path: core-game/build/reports/tests/test
+          if-no-files-found: ignore
+
+  apk:
+    name: APK de depuração
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      # O runner do GitHub já traz o SDK do Android instalado e as licenças aceitas, então
+      # não é preciso instalar nada. É por isso que este fluxo existe: ele compila o módulo
+      # Android, coisa que o ambiente onde o app foi escrito não conseguia fazer.
+      - name: Compilar o APK
+        run: ./gradlew :app:assembleDebug -Pnewgame.androidModule=true --no-daemon
+
+      - name: Publicar o APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: newgame-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
