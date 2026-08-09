@@ -5,6 +5,12 @@ import io.github.andre88br.newgame.core.ai.asAnyAi
 import io.github.andre88br.newgame.core.games.checkers.CheckersAi
 import io.github.andre88br.newgame.core.games.checkers.CheckersGame
 import io.github.andre88br.newgame.core.games.checkers.CheckersInteractor
+import io.github.andre88br.newgame.core.games.chess.ChessAi
+import io.github.andre88br.newgame.core.games.chess.ChessGame
+import io.github.andre88br.newgame.core.games.chess.ChessInteractor
+import io.github.andre88br.newgame.core.games.reversi.ReversiAi
+import io.github.andre88br.newgame.core.games.reversi.ReversiGame
+import io.github.andre88br.newgame.core.games.reversi.ReversiInteractor
 import io.github.andre88br.newgame.core.games.tictactoe.TicTacToeAi
 import io.github.andre88br.newgame.core.games.tictactoe.TicTacToeGame
 import io.github.andre88br.newgame.core.games.tictactoe.TicTacToeInteractor
@@ -42,6 +48,18 @@ object GameCatalog {
             ai = CheckersAi.asAnyAi(),
             interactor = CheckersInteractor,
             nameKey = "game_checkers",
+        ),
+        GameEntry(
+            rules = ReversiGame.asAny(),
+            ai = ReversiAi.asAnyAi(),
+            interactor = ReversiInteractor,
+            nameKey = "game_reversi",
+        ),
+        GameEntry(
+            rules = ChessGame.asAny(),
+            ai = ChessAi.asAnyAi(),
+            interactor = ChessInteractor,
+            nameKey = "game_chess",
         ),
     )
 

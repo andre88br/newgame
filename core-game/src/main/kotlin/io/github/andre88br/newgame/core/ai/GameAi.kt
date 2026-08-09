@@ -37,6 +37,8 @@ class SearchBasedAi<S : GameState, M : Move>(
     private val ordering: MoveOrdering<S, M> = MoveOrdering.none(),
     private val limits: (Difficulty) -> SearchLimits,
     private val mistakeChance: (Difficulty) -> Int = ::defaultMistakeChance,
+    /** Veja [AlphaBetaSearch.isTactical]: só faz diferença em jogo com troca de peças. */
+    private val isTactical: ((S, M) -> Boolean)? = null,
 ) : GameAi<S, M> {
 
     override fun chooseMove(state: S, difficulty: Difficulty, seed: Long): M? {
@@ -52,13 +54,13 @@ class SearchBasedAi<S : GameState, M : Move>(
             }
         }
 
-        val search = AlphaBetaSearch(game, evaluator, ordering)
+        val search = AlphaBetaSearch(game, evaluator, ordering, isTactical)
         return search.search(state, limits(difficulty)).move ?: moves.first()
     }
 
     /** Diagnóstico para testes e depuração: expõe profundidade, nós e pontuação. */
     fun analyse(state: S, difficulty: Difficulty): SearchResult<M> =
-        AlphaBetaSearch(game, evaluator, ordering).search(state, limits(difficulty))
+        AlphaBetaSearch(game, evaluator, ordering, isTactical).search(state, limits(difficulty))
 }
 
 /** Chance, em porcentagem, de a IA jogar um lance qualquer em vez do melhor. */

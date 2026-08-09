@@ -73,6 +73,15 @@ class AlphaBetaSearch<S : GameState, M : Move>(
     private val game: BoardGame<S, M>,
     private val evaluator: Evaluator<S>,
     private val ordering: MoveOrdering<S, M> = MoveOrdering.none(),
+    /**
+     * Quais lances são "barulhentos" — capturas, promoções.
+     *
+     * Quando informado, a busca não para de repente ao acabar a profundidade: segue só
+     * pelos lances barulhentos até a poeira baixar. Sem isso a avaliação é feita no meio de
+     * uma troca de peças e enxerga uma vantagem que o lance seguinte desfaz — o *efeito
+     * horizonte*, que no xadrez faz a IA entregar peça atrás de peça.
+     */
+    private val isTactical: ((S, M) -> Boolean)? = null,
     private val nanoTime: () -> Long = System::nanoTime,
 ) {
 
@@ -133,7 +142,13 @@ class AlphaBetaSearch<S : GameState, M : Move>(
 
         val outcome = game.outcome(state)
         if (outcome.isOver) return terminalScore(outcome, root, state.ply)
-        if (depth <= 0) return evaluator.evaluate(state, root)
+        if (depth <= 0) {
+            return if (isTactical == null) {
+                evaluator.evaluate(state, root)
+            } else {
+                quiescence(state, alphaIn, betaIn, root, QUIESCENCE_DEPTH)
+            }
+        }
 
         val moves = ordering.order(state, game.legalMoves(state))
         // Sem lances mas sem desfecho definido: o jogo deveria ter declarado o resultado.
@@ -168,6 +183,63 @@ class AlphaBetaSearch<S : GameState, M : Move>(
         }
     }
 
+    /**
+     * Continua a busca só pelos lances barulhentos, até a posição ficar quieta.
+     *
+     * O `standPat` é a avaliação de não fazer nada: quem está na vez quase sempre pode
+     * parar por aí, então ele serve de piso (ou teto) e permite podar antes de olhar
+     * captura nenhuma. Só os lances marcados por [isTactical] são examinados, e a
+     * profundidade é limitada porque uma sequência de capturas pode ser longa.
+     */
+    private fun quiescence(state: S, alphaIn: Int, betaIn: Int, root: Seat, depthLeft: Int): Int {
+        nodes++
+        if (nodes and TIME_CHECK_MASK == 0L && nanoTime() > deadline) {
+            aborted = true
+            return 0
+        }
+
+        val moves = game.legalMoves(state)
+        if (moves.isEmpty()) return terminalScore(game.outcome(state), root, state.ply)
+
+        val standPat = evaluator.evaluate(state, root)
+        if (depthLeft <= 0) return standPat
+
+        val tactical = isTactical ?: return standPat
+        val noisy = moves.filter { tactical(state, it) }
+        if (noisy.isEmpty()) return standPat
+
+        var alpha = alphaIn
+        var beta = betaIn
+
+        return if (state.turn == root) {
+            if (standPat >= beta) return standPat
+            var best = standPat
+            if (best > alpha) alpha = best
+            for (move in ordering.order(state, noisy)) {
+                val child = game.applyKnownLegal(state, move)
+                val score = quiescence(child, alpha, beta, root, depthLeft - 1)
+                if (aborted) return best
+                if (score > best) best = score
+                if (best > alpha) alpha = best
+                if (alpha >= beta) break
+            }
+            best
+        } else {
+            if (standPat <= alpha) return standPat
+            var best = standPat
+            if (best < beta) beta = best
+            for (move in ordering.order(state, noisy)) {
+                val child = game.applyKnownLegal(state, move)
+                val score = quiescence(child, alpha, beta, root, depthLeft - 1)
+                if (aborted) return best
+                if (score < best) best = score
+                if (best < beta) beta = best
+                if (alpha >= beta) break
+            }
+            best
+        }
+    }
+
     private fun terminalScore(outcome: Outcome, root: Seat, ply: Int): Int = when (outcome) {
         is Outcome.Win ->
             // Descontar o lance faz a IA preferir ganhar rápido e demorar para perder.
@@ -181,5 +253,8 @@ class AlphaBetaSearch<S : GameState, M : Move>(
 
         /** Consulta o relógio a cada 1024 nós: barato o bastante para não pesar na busca. */
         const val TIME_CHECK_MASK = 1023L
+
+        /** Teto de meios-lances da busca de quiescência, para trocas longas não escaparem. */
+        const val QUIESCENCE_DEPTH = 6
     }
 }

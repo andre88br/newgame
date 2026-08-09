@@ -170,6 +170,17 @@ interface BoardGame<S : GameState, M : Move> {
      */
     fun redactFor(state: S, viewer: Seat): S = state
 
+    /**
+     * Identidade da posição para efeito de repetição, ou `null` no jogo em que repetir não
+     * significa nada.
+     *
+     * Repetição é propriedade da **partida**, não da posição: olhando um estado sozinho não
+     * há como saber quantas vezes ele já apareceu. Por isso o motor só diz o que conta como
+     * "a mesma posição", e quem guarda o histórico faz a contagem. A chave deve ignorar o
+     * que muda a cada lance sem mudar a posição — contadores, número do lance.
+     */
+    fun repetitionKey(state: S): String? = null
+
     val stateSerializer: KSerializer<S>
 
     val moveSerializer: KSerializer<M>

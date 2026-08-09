@@ -29,15 +29,29 @@ fun GridBoard(
     selected: Int? = null,
     highlighted: Set<Int> = emptySet(),
     lastMove: Set<Int> = emptySet(),
+    /**
+     * Gira o tabuleiro meia-volta, para quem joga com as peças de baixo ver o próprio lado
+     * de frente. No xadrez isso não é conforto: com o tabuleiro de cabeça para baixo, a
+     * pessoa erra o lado para onde os peões andam.
+     */
+    flipped: Boolean = false,
     enabled: Boolean = true,
     onSquareTap: (Int) -> Unit = {},
 ) {
     val palette = LocalBoardPalette.current
 
+    // Desenho e toque passam pela MESMA conversão: é o que garante que a casa tocada seja a
+    // casa vista, com ou sem giro.
+    fun squareOfCell(row: Int, column: Int): Int = if (flipped) {
+        interactor.squareAt(interactor.rows - 1 - row, interactor.columns - 1 - column)
+    } else {
+        interactor.squareAt(row, column)
+    }
+
     Canvas(
         modifier = modifier
             .aspectRatio(interactor.columns.toFloat() / interactor.rows.toFloat())
-            .pointerInput(interactor, enabled) {
+            .pointerInput(interactor, enabled, flipped) {
                 if (!enabled) return@pointerInput
                 detectTapGestures { offset ->
                     val cellWidth = size.width.toFloat() / interactor.columns
@@ -46,7 +60,7 @@ fun GridBoard(
 
                     val column = (offset.x / cellWidth).toInt().coerceIn(0, interactor.columns - 1)
                     val row = (offset.y / cellHeight).toInt().coerceIn(0, interactor.rows - 1)
-                    onSquareTap(interactor.squareAt(row, column))
+                    onSquareTap(squareOfCell(row, column))
                 }
             },
     ) {
@@ -60,7 +74,7 @@ fun GridBoard(
         for (row in 0 until interactor.rows) {
             for (column in 0 until interactor.columns) {
                 cells += Cell(
-                    square = interactor.squareAt(row, column),
+                    square = squareOfCell(row, column),
                     row = row,
                     column = column,
                     left = originX + column * cellSize,

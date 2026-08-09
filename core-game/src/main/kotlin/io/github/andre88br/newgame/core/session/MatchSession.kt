@@ -1,6 +1,7 @@
 package io.github.andre88br.newgame.core.session
 
 import io.github.andre88br.newgame.core.ai.Difficulty
+import io.github.andre88br.newgame.core.engine.DrawReason
 import io.github.andre88br.newgame.core.engine.GameEntry
 import io.github.andre88br.newgame.core.engine.GameState
 import io.github.andre88br.newgame.core.engine.MatchConfig
@@ -60,7 +61,25 @@ class MatchSession(
     var state: GameState = Replay.state(entry.rules, record)
         private set
 
-    val outcome: Outcome get() = entry.rules.outcome(state)
+    /**
+     * Quantas vezes cada posição já apareceu nesta partida.
+     *
+     * Contado aqui, e não recalculado a cada consulta, porque `outcome` é lido várias vezes
+     * por lance — uma vez por quadro da tela, no limite — e refazer a partida inteira toda
+     * vez travaria a interface no meio de um jogo longo.
+     */
+    private val repetitions: MutableMap<String, Int> = countRepetitions(record)
+
+    val outcome: Outcome
+        get() {
+            val declared = entry.rules.outcome(state)
+            if (declared.isOver) return declared
+            val key = entry.rules.repetitionKey(state)
+            if (key != null && (repetitions[key] ?: 0) >= THREEFOLD) {
+                return Outcome.Draw(DrawReason.REPETITION)
+            }
+            return declared
+        }
 
     val isOver: Boolean get() = outcome.isOver
 
@@ -144,11 +163,15 @@ class MatchSession(
     private fun commit(move: Move): PlayResult {
         return when (val result = entry.rules.applyMove(state, move)) {
             is MoveResult.Ok -> {
+                state = result.state
+                entry.rules.repetitionKey(result.state)?.let { key ->
+                    repetitions[key] = (repetitions[key] ?: 0) + 1
+                }
                 record = record.copy(
                     moves = record.moves + entry.rules.encodeMove(move),
-                    outcome = entry.rules.outcome(result.state),
+                    // `outcome` já leva a repetição em conta; `rules.outcome` não saberia.
+                    outcome = outcome,
                 )
-                state = result.state
                 PlayResult.Ok(move, result.state)
             }
 
@@ -158,7 +181,20 @@ class MatchSession(
 
     private fun adopt(newRecord: MatchRecord) {
         state = Replay.state(entry.rules, newRecord)
-        record = newRecord.copy(outcome = entry.rules.outcome(state))
+        repetitions.clear()
+        repetitions.putAll(countRepetitions(newRecord))
+        record = newRecord.copy(outcome = outcome)
+    }
+
+    private fun countRepetitions(source: MatchRecord): MutableMap<String, Int> {
+        val counts = HashMap<String, Int>()
+        // Sem chave de repetição — a maioria dos jogos — nem vale percorrer o histórico.
+        if (entry.rules.repetitionKey(entry.rules.initialState(config)) == null) return counts
+        for (snapshot in Replay.states(entry.rules, source)) {
+            val key = entry.rules.repetitionKey(snapshot) ?: continue
+            counts[key] = (counts[key] ?: 0) + 1
+        }
+        return counts
     }
 
     /**
@@ -168,5 +204,10 @@ class MatchSession(
      * o nível fácil não repetir sempre o mesmo erro, e ao mesmo tempo mantém a partida
      * reproduzível — reabrir um jogo salvo leva a máquina às mesmas escolhas.
      */
+    private companion object {
+        /** Três ocorrências da mesma posição empatam a partida. */
+        const val THREEFOLD = 3
+    }
+
     private fun seedForCurrentPly(): Long = config.seed * 0x9E3779B97F4A7C15uL.toLong() + state.ply
 }

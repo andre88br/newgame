@@ -12,6 +12,8 @@ import io.github.andre88br.newgame.core.engine.GameId
 fun painterFor(gameId: GameId): BoardPainter = when (gameId) {
     GameId.TIC_TAC_TOE -> TicTacToePainter
     GameId.CHECKERS -> CheckersPainter
-    GameId.CHESS, GameId.REVERSI, GameId.DOMINOES, GameId.LUDO ->
+    GameId.REVERSI -> ReversiPainter
+    GameId.CHESS -> ChessPainter
+    GameId.DOMINOES, GameId.LUDO ->
         error("O jogo $gameId ainda não tem tela — está previsto para uma fase seguinte")
 }

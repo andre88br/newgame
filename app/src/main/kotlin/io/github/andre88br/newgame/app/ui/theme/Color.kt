@@ -56,6 +56,8 @@ data class BoardPalette(
     val selection: Color,
     val hint: Color,
     val lastMove: Color,
+    /** Contorno do rei em xeque. */
+    val check: Color,
     /** Marca de quem começa no jogo da velha (o X). */
     val markFirst: Color,
     /** Marca de quem joga depois (o O). */
@@ -74,6 +76,7 @@ data class BoardPalette(
             selection = Color(0xFFFFC85C),
             hint = Color(0xFF4C9BE8),
             lastMove = Color(0x553D8BFF),
+            check = Color(0xFFE23A3A),
             markFirst = Color(0xFF1F5C4A),
             markSecond = Color(0xFFC02F2F),
         )
@@ -90,6 +93,7 @@ data class BoardPalette(
             selection = Color(0xFFFFC85C),
             hint = Color(0xFF6FB4F2),
             lastMove = Color(0x553D8BFF),
+            check = Color(0xFFFF6B6B),
             markFirst = Color(0xFF2C7A62),
             markSecond = Color(0xFFE05656),
         )

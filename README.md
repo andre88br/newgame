@@ -3,8 +3,8 @@
 App Android com vários jogos de tabuleiro, jogáveis contra o aparelho ou entre duas
 pessoas no mesmo celular.
 
-> **Status: Fase 2 concluída, APK compilando.** O app está inteiro: escolher o jogo, jogar
-> contra o celular ou passa-e-joga, desfazer, pedir dica, fechar o app e voltar onde parou.
+> **Status: Fase 3 concluída.** Quatro jogos: Jogo da Velha, Damas, Reversi e Xadrez.
+> Contra o celular ou passa-e-joga, com desfazer, dica, e a partida sobrevive a fechar o app.
 > Para instalar sem montar ambiente, veja [baixar o APK do GitHub](#sem-instalar-nada-baixar-o-apk-do-github).
 
 ## Como está organizado
@@ -87,6 +87,8 @@ existem.
 |---|---|
 | Jogo da Velha | completo |
 | Damas brasileiras | captura obrigatória e máxima, captura para trás, dama voadora, sopro turco, promoção só no fim do lance, empate por 20 lances sem progresso |
+| Reversi | viradas nas oito direções, passe automático de quem não tem lance, fim quando nenhum dos dois pode jogar |
+| Xadrez | roque (com as três condições), en passant, promoção, xeque-mate, afogamento, regra dos 50 lances, material insuficiente, repetição tripla |
 
 ### A IA
 
@@ -94,6 +96,11 @@ Busca alpha-beta com aprofundamento iterativo, compartilhada por todos os jogos
 (`core-game/.../ai/Search.kt`). O que limita é o **tempo por lance**, não a profundidade:
 a busca devolve o melhor lance da última profundidade concluída, então em aparelho lento a
 IA fica mais fraca em vez de travar a tela.
+
+Jogos com troca de peças ganham **busca de quiescência**: ao acabar a profundidade, a busca
+segue só pelas capturas até a posição ficar quieta. Sem isso a avaliação acontece no meio de
+uma troca e a IA "ganha" uma peça que perde no lance seguinte — no xadrez, é a diferença
+entre jogar e entregar peça.
 
 Nos níveis mais baixos ela erra de propósito de vez em quando. Só diminuir a profundidade
 não funciona — uma busca rasa continua jogando certinho e ganhando de quem está aprendendo.
@@ -116,8 +123,12 @@ guardar menos dados do que cabem numa mensagem de texto.
 
 ## Como isso é testado
 
-110 testes. Os que realmente seguram o projeto:
+168 testes. Os que realmente seguram o projeto:
 
+- **`perft` do xadrez contra as cinco posições de referência** do Chess Programming Wiki —
+  12 milhões de posições conferidas contra números publicados, cobrindo roque, en passant e
+  promoção. Passou de primeira, e é o que sustenta a afirmação de que a geração de lances
+  está certa.
 - **`perft` das damas contra referência externa.** Desligando as duas regras específicas
   do jogo brasileiro, o gerador vira damas inglesas e tem que reproduzir os números
   publicados de contagem de posições (7, 49, 302, 1469, 7361, 36768). Ele reproduz. Isso
@@ -163,7 +174,7 @@ não.
 
 - [x] **Fase 1** — motor, IA, Jogo da Velha, Damas
 - [x] **Fase 2** — app Android jogável (Compose, contra a IA e passa-e-joga, desfazer, dica)
-- [ ] **Fase 3** — Reversi e Xadrez
+- [x] **Fase 3** — Reversi e Xadrez
 - [ ] **Fase 4** — Dominó e Ludo
 - [ ] **Fase 5** — acabamento (animações, som, acessibilidade, tradução, CI)
 

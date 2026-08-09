@@ -29,6 +29,9 @@ interface AnyGame {
 
     fun redactFor(state: GameState, viewer: Seat): GameState
 
+    /** Veja [BoardGame.repetitionKey]. */
+    fun repetitionKey(state: GameState): String?
+
     fun encodeState(state: GameState): String
 
     fun decodeState(json: String): GameState
@@ -62,6 +65,8 @@ private class TypedFacade<S : GameState, M : Move>(
 
     override fun redactFor(state: GameState, viewer: Seat): GameState =
         game.redactFor(state.typed(), viewer)
+
+    override fun repetitionKey(state: GameState): String? = game.repetitionKey(state.typed())
 
     override fun encodeState(state: GameState): String =
         GameJson.encodeToString(game.stateSerializer, state.typed())

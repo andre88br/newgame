@@ -5,6 +5,8 @@
     <!-- Nomes dos jogos. A chave casa com GameEntry.nameKey, no core-game. -->
     <string name="game_tic_tac_toe">Jogo da Velha</string>
     <string name="game_checkers">Damas</string>
+    <string name="game_reversi">Reversi</string>
+    <string name="game_chess">Xadrez</string>
 
     <!-- Início -->
     <string name="home_title">Escolha um jogo</string>

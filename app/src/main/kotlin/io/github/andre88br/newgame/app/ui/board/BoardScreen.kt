@@ -91,6 +91,7 @@ fun BoardScreen(
                     selected = ui.selected,
                     highlighted = ui.hinted,
                     lastMove = ui.lastMove,
+                    flipped = ui.humanSeat == Seat.SECOND,
                     enabled = ui.canPlay,
                     onSquareTap = viewModel::onSquareTap,
                 )
