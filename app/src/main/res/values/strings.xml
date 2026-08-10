@@ -99,4 +99,87 @@
     <string name="action_back">Voltar</string>
     <string name="action_cancel">Cancelar</string>
     <string name="action_confirm">Confirmar</string>
+
+    <!-- Acessibilidade -->
+    <string name="a11y_suggested">sugerida pela dica</string>
+    <string name="a11y_board">Tabuleiro</string>
+    <string name="a11y_die">Dado, valor %1$d</string>
+
+    <!-- Ajustes novos da Fase 5 -->
+    <string name="settings_sound">Som</string>
+    <string name="settings_sound_summary">Efeitos curtos ao jogar, capturar e terminar</string>
+    <string name="settings_haptics">Vibração</string>
+    <string name="settings_haptics_summary">Um toque curto a cada lance</string>
+    <string name="settings_animations">Animações</string>
+    <string name="settings_animations_summary">Desligue para uma tela mais parada</string>
+    <string name="settings_language">Idioma</string>
+    <string name="settings_language_system">Seguir o sistema</string>
+
+    <!--
+      Motivos de recusa e descrições faladas.
+
+      Este bloco é GERADO a partir dos enums ReasonKey e SpeechKey, no core-game, pelo
+      script scripts/check_strings.py com a opção de escrita do português.
+      O CI confere que ele bate com o motor. Editar aqui à mão faz o build falhar — mude o
+      texto no motor e gere de novo.
+    -->
+    <string name="reason_game_over">A partida já terminou</string>
+    <string name="reason_square_taken">Essa casa já está ocupada</string>
+    <string name="reason_invalid_square">Casa inválida</string>
+    <string name="reason_not_your_piece">Essa peça não é sua</string>
+    <string name="reason_no_piece_here">Não há peça nessa casa</string>
+    <string name="reason_no_piece_of_yours_at">Não há peça sua na casa %1$s</string>
+    <string name="reason_piece_cannot_go_there">Essa peça não pode ir para aí</string>
+    <string name="reason_piece_has_nowhere_to_go">Essa peça não tem para onde ir</string>
+    <string name="reason_piece_has_no_move">Essa peça não tem lance disponível</string>
+    <string name="reason_move_not_allowed_for_piece">Lance não permitido para esta peça</string>
+    <string name="reason_reversi_no_flip">Esse lance não cerca nenhuma peça do adversário</string>
+    <string name="reason_reversi_must_flip">Só vale jogar onde se cerca alguma peça do adversário</string>
+    <string name="reason_capture_mandatory">Captura é obrigatória: existe lance que captura %1$s peça(s)</string>
+    <string name="reason_capture_mandatory_elsewhere">Captura é obrigatória: outra peça sua captura %1$s peça(s)</string>
+    <string name="reason_capture_maximum">É obrigatório capturar o máximo: %1$s peça(s), e este lance captura %2$s</string>
+    <string name="reason_capture_sequence_invalid">Sequência de captura inválida</string>
+    <string name="reason_king_in_check_must_resolve">Seu rei está em xeque: o lance precisa resolver isso</string>
+    <string name="reason_king_in_check_unresolved">Seu rei está em xeque: esse lance não resolve</string>
+    <string name="reason_king_in_check_only_resolving">Seu rei está em xeque: só valem lances que resolvam isso</string>
+    <string name="reason_would_expose_king">Esse lance deixaria seu rei em xeque</string>
+    <string name="reason_domino_not_in_hand">Você não tem a peça %1$s</string>
+    <string name="reason_domino_does_not_fit">A peça %1$s não encaixa nessa ponta</string>
+    <string name="reason_ludo_no_such_token">Esse peão não existe</string>
+    <string name="reason_ludo_needs_six">Só um 6 tira peão do curral</string>
+    <string name="reason_ludo_already_home">Esse peão já chegou</string>
+    <string name="reason_ludo_exact_finish">A chegada é exata: esse peão precisa de %1$s</string>
+    <string name="reason_ludo_square_occupied">Já há um peão seu nessa casa</string>
+    <string name="speech_square_empty">%1$s, vazia</string>
+    <string name="speech_square_with">%1$s, %2$s</string>
+    <string name="speech_mark_x">xis</string>
+    <string name="speech_mark_o">bola</string>
+    <string name="speech_man_white">pedra branca</string>
+    <string name="speech_man_black">pedra preta</string>
+    <string name="speech_king_white">dama branca</string>
+    <string name="speech_king_black">dama preta</string>
+    <string name="speech_disc_dark">peça preta</string>
+    <string name="speech_disc_light">peça branca</string>
+    <string name="speech_pawn_white">peão branco</string>
+    <string name="speech_knight_white">cavalo branco</string>
+    <string name="speech_bishop_white">bispo branco</string>
+    <string name="speech_rook_white">torre branca</string>
+    <string name="speech_queen_white">dama branca</string>
+    <string name="speech_chess_king_white">rei branco</string>
+    <string name="speech_pawn_black">peão preto</string>
+    <string name="speech_knight_black">cavalo preto</string>
+    <string name="speech_bishop_black">bispo preto</string>
+    <string name="speech_rook_black">torre preta</string>
+    <string name="speech_queen_black">dama preta</string>
+    <string name="speech_chess_king_black">rei preto</string>
+    <string name="speech_tile">peça %1$s por %2$s</string>
+    <string name="speech_tile_hidden">peça virada para baixo</string>
+    <string name="speech_tile_fits_both">%1$s, encaixa nas duas pontas</string>
+    <string name="speech_tile_fits_left">%1$s, encaixa na ponta esquerda</string>
+    <string name="speech_tile_fits_right">%1$s, encaixa na ponta direita</string>
+    <string name="speech_tile_fits_nowhere">%1$s, não encaixa</string>
+    <string name="speech_token_in_yard">peão %1$s, no curral</string>
+    <string name="speech_token_home">peão %1$s, na chegada</string>
+    <string name="speech_token_on_lane">peão %1$s, no corredor final, %2$s casas para chegar</string>
+    <string name="speech_token_on_track">peão %1$s, andou %2$s casas</string>
 </resources>

@@ -5,12 +5,14 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import io.github.andre88br.newgame.app.data.MatchStore
 import io.github.andre88br.newgame.app.data.SavedMatch
+import io.github.andre88br.newgame.app.ui.feedback.GameEvent
 import io.github.andre88br.newgame.core.ai.Difficulty
 import io.github.andre88br.newgame.core.engine.GameEntry
 import io.github.andre88br.newgame.core.engine.GameState
 import io.github.andre88br.newgame.core.engine.MatchConfig
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.Outcome
+import io.github.andre88br.newgame.core.engine.Reason
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.session.MatchSession
 import io.github.andre88br.newgame.core.session.PlayResult
@@ -41,11 +43,12 @@ sealed interface BoardStatus {
  * Aviso passageiro para a tela mostrar.
  *
  * O ViewModel não monta texto de interface: devolve o que aconteceu, e a tela resolve os
- * recursos. O único texto que atravessa pronto é o motivo de recusa, que vem do motor já
- * escrito para ser lido por gente ("Captura é obrigatória: …").
+ * recursos. Nem o motivo de recusa escapa disso — ele viaja como chave, e quem escolhe o
+ * idioma é a tela.
  */
 sealed interface BoardMessage {
-    data class Reason(val text: String) : BoardMessage
+    /** Lance ou toque recusado; o motivo vem em chave, e a tela escolhe o idioma. */
+    data class Rejected(val reason: Reason) : BoardMessage
 
     data class Hint(val notation: String) : BoardMessage
 
@@ -84,6 +87,10 @@ data class BoardUiState(
     val message: BoardMessage? = null,
     /** Cresce a cada aviso novo, para dois avisos iguais seguidos aparecerem duas vezes. */
     val messageId: Long = 0L,
+    /** O que acabou de acontecer, para a tela dar som e vibração. */
+    val event: GameEvent? = null,
+    /** Cresce a cada evento, pelo mesmo motivo de [messageId]. */
+    val eventId: Long = 0L,
 )
 
 /**
@@ -103,6 +110,8 @@ class BoardViewModel(
     private var lastMoveSquares: Set<Int> = emptySet()
     private var lastPlayedMove: Move? = null
     private var messageCounter = 0L
+    private var pendingEvent: GameEvent? = null
+    private var eventCounter = 0L
 
     private val _ui = MutableStateFlow(snapshot())
     val ui: StateFlow<BoardUiState> = _ui.asStateFlow()
@@ -124,7 +133,7 @@ class BoardViewModel(
             TapResult.Deselect -> _ui.value = snapshot(selected = null)
             is TapResult.Rejected -> _ui.value = snapshot(
                 selected = _ui.value.selected,
-                message = BoardMessage.Reason(result.reason),
+                message = BoardMessage.Rejected(result.reason),
             )
 
             is TapResult.ChoosePromotion -> _ui.value = snapshot(
@@ -199,17 +208,19 @@ class BoardViewModel(
     }
 
     private fun commitHumanMove(move: Move) {
+        val before = session.state
         when (val result = session.play(move)) {
             is PlayResult.Ok -> {
                 lastMoveSquares = entry.interactor?.squaresOf(result.move).orEmpty().toSet()
                 lastPlayedMove = result.move
+                noteEvent(before, result.move)
                 _ui.value = snapshot()
                 persist()
                 maybePlayAiTurn()
             }
 
             is PlayResult.Rejected ->
-                _ui.value = snapshot(message = BoardMessage.Reason(result.reason))
+                _ui.value = snapshot(message = BoardMessage.Rejected(result.reason))
             PlayResult.NotYourTurn, PlayResult.Finished -> Unit
         }
     }
@@ -220,13 +231,29 @@ class BoardViewModel(
 
         viewModelScope.launch {
             // A busca do nível difícil leva segundos: fora da thread da interface, sempre.
+            val before = session.state
             val move = withContext(Dispatchers.Default) { session.playAiTurn() }
             if (move != null) {
                 lastMoveSquares = entry.interactor?.squaresOf(move).orEmpty().toSet()
                 lastPlayedMove = move
+                noteEvent(before, move)
             }
             _ui.value = snapshot()
             persist()
+        }
+    }
+
+    /**
+     * Classifica o lance para o retorno da tela.
+     *
+     * A pergunta "foi captura?" é feita sobre o estado **anterior** ao lance: depois de
+     * aplicado, a peça capturada já não está lá para ser contada.
+     */
+    private fun noteEvent(before: GameState, move: Move) {
+        pendingEvent = when {
+            session.isOver -> GameEvent.FINISH
+            entry.rules.isCapture(before, move) -> GameEvent.CAPTURE
+            else -> GameEvent.MOVE
         }
     }
 
@@ -304,11 +331,17 @@ class BoardViewModel(
             againstPhone = humanSeats.size == 1,
             humanSeat = humanSeats.singleOrNull(),
             message = message,
+            event = pendingEvent,
+            eventId = if (pendingEvent == null) eventCounter else ++eventCounter,
             // Só o contador entra aqui, nunca `_ui.value`: este método monta o estado
             // inicial do próprio `_ui`, e ler o campo durante a sua própria inicialização
             // derrubaria o app ao abrir o tabuleiro.
             messageId = if (message == null) messageCounter else ++messageCounter,
-        )
+        ).also {
+            // Evento é de uma vez só: o próximo estado da tela já sai sem ele, para o som
+            // não tocar de novo a cada recomposição.
+            pendingEvent = null
+        }
     }
 
     /**

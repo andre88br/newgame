@@ -1,6 +1,8 @@
 package io.github.andre88br.newgame.app
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -125,6 +127,10 @@ fun NewgameNavHost(container: AppContainer) {
                 }
             }
 
+            // Som, vibração e animação são preferências, e mudá-las nos ajustes precisa
+            // valer na próxima partida sem reabrir o app.
+            val settings by container.preferences.settings.collectAsState()
+
             BoardScreen(
                 entry = entry,
                 viewModel = viewModel(
@@ -135,6 +141,7 @@ fun NewgameNavHost(container: AppContainer) {
                         session = session,
                     ),
                 ),
+                settings = settings,
                 onBack = { navController.popBackStack() },
             )
         }

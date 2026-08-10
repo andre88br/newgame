@@ -3,8 +3,9 @@
 App Android com vários jogos de tabuleiro, jogáveis contra o aparelho ou entre duas
 pessoas no mesmo celular.
 
-> **Status: Fase 4 concluída.** Seis jogos: Jogo da Velha, Damas, Reversi, Xadrez, Dominó e Ludo.
-> Contra o celular ou passa-e-joga, com desfazer, dica, e a partida sobrevive a fechar o app.
+> **Status: Fase 5 concluída — o projeto está completo.** Seis jogos: Jogo da Velha, Damas,
+> Reversi, Xadrez, Dominó e Ludo. Contra o celular ou passa-e-joga, com desfazer, dica, som,
+> leitor de tela, português e inglês, e a partida sobrevive a fechar o app.
 > Para instalar sem montar ambiente, veja [baixar o APK do GitHub](#sem-instalar-nada-baixar-o-apk-do-github).
 
 ## Como está organizado
@@ -160,7 +161,8 @@ guardar menos dados do que cabem numa mensagem de texto.
 
 ## Como isso é testado
 
-242 testes. Os que realmente seguram o projeto:
+268 testes, mais uma conferência de textos que roda fora do Gradle. Os que realmente
+seguram o projeto:
 
 - **`perft` do xadrez contra as cinco posições de referência** do Chess Programming Wiki —
   12 milhões de posições conferidas contra números publicados, cobrindo roque, en passant e
@@ -184,6 +186,45 @@ guardar menos dados do que cabem numa mensagem de texto.
   ela já veio redigido, e que redigir duas vezes dá no mesmo.
 - **A cruz do ludo fecha.** Circuito de 52 casas sem salto, corredores colados na volta,
   currais em cantos opostos, e uma partida inteira sem peão fora do desenho.
+- **A descrição falada bate com o tabuleiro.** A contagem de peças sai do estado por um
+  caminho e da descrição de acessibilidade por outro, e as duas têm que fechar a cada lance.
+- **Todo motivo de recusa vira frase sem estourar.** Modelo com marcador a mais quebraria o
+  app exatamente na hora de explicar por que o lance não valeu.
+- **`scripts/check_strings.py`, no CI.** Confere que toda chave do motor tem texto em
+  português e inglês e que os marcadores batem entre os dois. Chave sem tradução compila,
+  instala e só aparece na mão de quem está jogando — por isso é conferido por fora.
+
+## Acessibilidade, som e idioma
+
+Um tabuleiro desenhado num `Canvas` é, para o sistema, um retângulo — um leitor de tela
+anunciaria "tabuleiro" e nada mais. Por isso o toque **não sai do desenho**: sai de uma
+grade invisível de casas de verdade por cima dele. Com isso o TalkBack percorre o tabuleiro
+casa a casa e lê "e4, peão branco"; a linha de estado é região viva, então a troca de vez e
+o resultado são anunciados sem ninguém precisar procurar. No ludo, onde mirar num peão de
+meio centímetro não é razoável para ninguém, há uma fileira de botões que joga o mesmo lance
+por outro caminho.
+
+**O que se fala é decidido no `core-game`**, não na tela: `BoardSpeech` diz que a casa 12 tem
+uma dama branca, e a tela só resolve o idioma. É o que permite testar a descrição — defeito
+de acessibilidade é o mais fácil de nunca descobrir, porque quem escreve o código não usa
+leitor de tela e a tela continua bonita. Foi assim que apareceu um erro real: no reversi quem
+abre é o **preto**, e a tela vinha dizendo "vez das brancas" desde a Fase 3.
+
+A tradução segue a mesma divisão. O motor sabe *por que* o lance foi recusado, mas não sabe
+em que idioma o aparelho está — então o que atravessa a fronteira é uma chave com
+argumentos (`CAPTURE_MANDATORY`, `["2"]`), e o texto vive em `strings.xml`. O português é o
+idioma de referência e é **gerado** a partir dos enums do motor; o inglês é escrito à mão e
+conferido contra ele. Faltar tradução para uma chave cai no português em vez de virar aviso
+vazio: uma frase no idioma errado ainda explica o lance.
+
+Os efeitos sonoros são sintetizados por `scripts/make_sounds.py`, e não baixados de um banco
+de efeitos: `.wav` no diff é um blob opaco, e um seno somado a um ruído que decai é do
+projeto e não tem termos de licença. O CI roda o script e confere que os arquivos no
+repositório são exatamente o que ele produz.
+
+Animação tem uma só, e ela resolve um problema concreto: quando a IA joga, a peça
+simplesmente aparece noutro lugar, e o destaque surgindo é o que faz o olho pegar o que
+mudou. Som, vibração e animação são desligáveis nos ajustes.
 
 ## Sobre a cadeia de ferramentas
 
@@ -217,7 +258,7 @@ não.
 - [x] **Fase 2** — app Android jogável (Compose, contra a IA e passa-e-joga, desfazer, dica)
 - [x] **Fase 3** — Reversi e Xadrez
 - [x] **Fase 4** — Dominó e Ludo
-- [ ] **Fase 5** — acabamento (animações, som, acessibilidade, tradução, CI)
+- [x] **Fase 5** — acabamento (animações, som, acessibilidade, tradução, CI)
 
 O modo online ficou fora por decisão de escopo. O motor já está preparado para recebê-lo
 sem reescrita — lances serializáveis, aplicação determinística e semente explícita são

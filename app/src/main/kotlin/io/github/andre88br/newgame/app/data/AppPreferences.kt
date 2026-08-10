@@ -11,10 +11,19 @@ import kotlinx.coroutines.flow.asStateFlow
 data class Settings(
     val theme: ThemeChoice = ThemeChoice.SYSTEM,
     val defaultDifficulty: Difficulty = Difficulty.MEDIUM,
+    val sound: Boolean = true,
+    val haptics: Boolean = true,
+    /**
+     * Ligadas por padrão, mas desligáveis.
+     *
+     * Não é só gosto: movimento na tela atrapalha quem tem sensibilidade a isso, e o
+     * sistema tem um ajuste equivalente justamente por causa disso.
+     */
+    val animations: Boolean = true,
 )
 
 /**
- * Duas preferências guardadas em `SharedPreferences`.
+ * As preferências do app, guardadas em `SharedPreferences`.
  *
  * Sim, o DataStore é a recomendação atual. Para dois valores lidos na abertura do app, ele
  * traria uma dependência a mais em troca de nada perceptível — e leitura assíncrona de
@@ -39,9 +48,27 @@ class AppPreferences(context: Context) {
         _settings.value = _settings.value.copy(defaultDifficulty = difficulty)
     }
 
+    fun setSound(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_SOUND, enabled).apply()
+        _settings.value = _settings.value.copy(sound = enabled)
+    }
+
+    fun setHaptics(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_HAPTICS, enabled).apply()
+        _settings.value = _settings.value.copy(haptics = enabled)
+    }
+
+    fun setAnimations(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_ANIMATIONS, enabled).apply()
+        _settings.value = _settings.value.copy(animations = enabled)
+    }
+
     private fun read(): Settings = Settings(
         theme = prefs.getString(KEY_THEME, null).toEnum(ThemeChoice.SYSTEM),
         defaultDifficulty = prefs.getString(KEY_DIFFICULTY, null).toEnum(Difficulty.MEDIUM),
+        sound = prefs.getBoolean(KEY_SOUND, true),
+        haptics = prefs.getBoolean(KEY_HAPTICS, true),
+        animations = prefs.getBoolean(KEY_ANIMATIONS, true),
     )
 
     /** Valor gravado por uma versão anterior que não exista mais volta ao padrão. */
@@ -51,5 +78,8 @@ class AppPreferences(context: Context) {
     private companion object {
         const val KEY_THEME = "theme"
         const val KEY_DIFFICULTY = "default_difficulty"
+        const val KEY_SOUND = "sound"
+        const val KEY_HAPTICS = "haptics"
+        const val KEY_ANIMATIONS = "animations"
     }
 }

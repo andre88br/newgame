@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Idiomas que o app fala.
+
+  Declarar isto faz o Android 13 e mais novos mostrarem o newgame na lista de "idioma do
+  app", nos ajustes do sistema: dá para deixar o celular em inglês e o jogo em português,
+  ou o contrário. Sem esta lista o app simplesmente não aparece lá.
+-->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="pt-BR" />
+    <locale android:name="en" />
+</locale-config>

@@ -2,6 +2,8 @@ package io.github.andre88br.newgame.core.games.chess
 
 import io.github.andre88br.newgame.core.engine.GameState
 import io.github.andre88br.newgame.core.engine.Move
+import io.github.andre88br.newgame.core.engine.Reason
+import io.github.andre88br.newgame.core.engine.ReasonKey
 import io.github.andre88br.newgame.core.session.BoardInteractor
 import io.github.andre88br.newgame.core.session.PromotionChoice
 import io.github.andre88br.newgame.core.session.TapResult
@@ -67,23 +69,23 @@ object ChessInteractor : BoardInteractor {
         val destinations = ChessGame.movesFrom(state, square).map { it.to }.distinct()
         if (destinations.isEmpty()) {
             val reason = if (state.inCheck(state.turn)) {
-                "Seu rei está em xeque: só valem lances que resolvam isso"
+                ReasonKey.KING_IN_CHECK_ONLY_RESOLVING.reason()
             } else {
-                "Essa peça não tem lance disponível"
+                ReasonKey.PIECE_HAS_NO_MOVE.reason()
             }
             return TapResult.Rejected(reason)
         }
         return TapResult.Select(square, destinations)
     }
 
-    private fun rejectionFor(state: ChessState, from: Int, to: Int): String {
+    private fun rejectionFor(state: ChessState, from: Int, to: Int): Reason {
         // Distingue "a peça não anda assim" de "andaria, mas o rei ficaria em xeque" — a
         // segunda é a que deixa quem está aprendendo achando que o app travou.
         val pseudo = ChessMoves.pseudoLegal(state).any { it.from == from && it.to == to }
         return when {
-            pseudo && state.inCheck(state.turn) -> "Seu rei está em xeque: esse lance não resolve"
-            pseudo -> "Esse lance deixaria seu rei em xeque"
-            else -> "Essa peça não pode ir para aí"
+            pseudo && state.inCheck(state.turn) -> ReasonKey.KING_IN_CHECK_UNRESOLVED.reason()
+            pseudo -> ReasonKey.WOULD_EXPOSE_KING.reason()
+            else -> ReasonKey.PIECE_CANNOT_GO_THERE.reason()
         }
     }
 }

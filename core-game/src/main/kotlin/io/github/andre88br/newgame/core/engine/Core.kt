@@ -63,7 +63,9 @@ interface Move {
 sealed interface MoveResult<out S : GameState> {
     data class Ok<S : GameState>(val state: S) : MoveResult<S>
 
-    data class Illegal(val reason: String) : MoveResult<Nothing>
+    data class Illegal(val reason: Reason) : MoveResult<Nothing> {
+        constructor(key: ReasonKey) : this(key.reason())
+    }
 }
 
 /** Situação da partida. */
@@ -163,6 +165,16 @@ interface BoardGame<S : GameState, M : Move> {
     fun applyKnownLegal(state: S, move: M): S = applyOrThrow(state, move)
 
     fun outcome(state: S): Outcome
+
+    /**
+     * Se [move] tira peça do adversário do tabuleiro.
+     *
+     * Serve à camada de apresentação: captura merece som e destaque diferentes de um lance
+     * comum, e quem sabe dizer se houve captura é quem conhece a regra. Nos jogos em que a
+     * pergunta não faz sentido — no reversi todo lance vira peça, no dominó nada sai da
+     * mesa — a resposta é `false`, e a tela trata tudo como lance comum.
+     */
+    fun isCapture(state: S, move: M): Boolean = false
 
     /**
      * Se este jogo tem informação oculta — mão do adversário, monte de compra.

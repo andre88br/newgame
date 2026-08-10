@@ -6,6 +6,7 @@ import io.github.andre88br.newgame.core.engine.MoveResult
 import io.github.andre88br.newgame.core.engine.Outcome
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.applyOrThrow
+import io.github.andre88br.newgame.core.engine.ReasonKey
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -81,14 +82,14 @@ class ReversiTest {
     fun `nao vale jogar sem cercar ninguem`() {
         val result = ReversiGame.applyMove(start, ReversiMove(square(0, 0)))
         assertIs<MoveResult.Illegal>(result)
-        assertContains(result.reason, "cerca")
+        assertEquals(ReasonKey.REVERSI_NO_FLIP, result.reason.key)
     }
 
     @Test
     fun `nao vale jogar em casa ocupada`() {
         val result = ReversiGame.applyMove(start, ReversiMove(square(3, 3)))
         assertIs<MoveResult.Illegal>(result)
-        assertContains(result.reason, "ocupada")
+        assertEquals(ReasonKey.SQUARE_TAKEN, result.reason.key)
     }
 
     @Test

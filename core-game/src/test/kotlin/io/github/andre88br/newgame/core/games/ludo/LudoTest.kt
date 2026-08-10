@@ -7,6 +7,7 @@ import io.github.andre88br.newgame.core.engine.Outcome
 import io.github.andre88br.newgame.core.engine.Rng
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.applyOrThrow
+import io.github.andre88br.newgame.core.engine.ReasonKey
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -54,7 +55,7 @@ class LudoTest {
         val comTres = state(noCurral, listOf(10, LUDO_YARD, LUDO_YARD, LUDO_YARD), die = 3)
         val result = LudoGame.applyMove(comTres, LudoMove(0))
         assertIs<MoveResult.Illegal>(result)
-        assertContains(result.reason, "6")
+        assertEquals(ReasonKey.LUDO_NEEDS_SIX, result.reason.key)
     }
 
     // -------- lance extra --------
@@ -137,7 +138,7 @@ class LudoTest {
         val faltandoDois = state(listOf(LUDO_GOAL - 2, LUDO_GOAL, LUDO_GOAL, LUDO_GOAL), listOf(5, 6, 7, 8), die = 5)
         val result = LudoGame.applyMove(faltandoDois, LudoMove(0))
         assertIs<MoveResult.Illegal>(result)
-        assertContains(result.reason, "exata")
+        assertEquals(ReasonKey.LUDO_EXACT_FINISH, result.reason.key)
     }
 
     @Test

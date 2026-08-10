@@ -2,6 +2,7 @@ package io.github.andre88br.newgame.core.games.tictactoe
 
 import io.github.andre88br.newgame.core.engine.GameState
 import io.github.andre88br.newgame.core.engine.Move
+import io.github.andre88br.newgame.core.engine.ReasonKey
 import io.github.andre88br.newgame.core.session.BoardInteractor
 import io.github.andre88br.newgame.core.session.TapResult
 
@@ -15,7 +16,7 @@ object TicTacToeInteractor : BoardInteractor {
         val board = state as TicTacToeState
         if (TicTacToeGame.outcome(board).isOver) return TapResult.Ignored
         if (square !in 0..8) return TapResult.Ignored
-        if (!board.isEmpty(square)) return TapResult.Rejected("Essa casa já está ocupada")
+        if (!board.isEmpty(square)) return TapResult.Rejected(ReasonKey.SQUARE_TAKEN)
         return TapResult.Play(TicTacToeMove(square))
     }
 

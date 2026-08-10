@@ -8,6 +8,8 @@ import io.github.andre88br.newgame.core.engine.MatchConfig
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.MoveResult
 import io.github.andre88br.newgame.core.engine.Outcome
+import io.github.andre88br.newgame.core.engine.reasonOf
+import io.github.andre88br.newgame.core.engine.ReasonKey
 import io.github.andre88br.newgame.core.engine.Rng
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.opponent
@@ -172,20 +174,20 @@ object LudoGame : BoardGame<LudoState, LudoMove> {
         // Lista vazia aqui não quer dizer partida encerrada: quer dizer que este dado não
         // serve para peão nenhum. Confundir as duas coisas engolia o motivo verdadeiro da
         // recusa, que é justamente o que a tela mostra a quem tocou no peão errado.
-        if (outcome(state).isOver) return MoveResult.Illegal("A partida já terminou")
+        if (outcome(state).isOver) return MoveResult.Illegal(ReasonKey.GAME_OVER)
         val legal = legalMoves(state)
         if (move !in legal) {
-            if (move.token !in 0 until LUDO_TOKENS) return MoveResult.Illegal("Esse peão não existe")
+            if (move.token !in 0 until LUDO_TOKENS) return MoveResult.Illegal(ReasonKey.LUDO_NO_SUCH_TOKEN)
             val progress = state.tokensOf(state.turn)[move.token]
             return when {
                 progress == LUDO_YARD ->
-                    MoveResult.Illegal("Só um 6 tira peão do curral")
+                    MoveResult.Illegal(ReasonKey.LUDO_NEEDS_SIX)
                 progress >= LUDO_GOAL ->
-                    MoveResult.Illegal("Esse peão já chegou")
+                    MoveResult.Illegal(ReasonKey.LUDO_ALREADY_HOME)
                 progress + state.die > LUDO_GOAL ->
-                    MoveResult.Illegal("A chegada é exata: esse peão precisa de ${LUDO_GOAL - progress}")
+                    MoveResult.Illegal(reasonOf(ReasonKey.LUDO_EXACT_FINISH, LUDO_GOAL - progress))
                 else ->
-                    MoveResult.Illegal("Já há um peão seu nessa casa")
+                    MoveResult.Illegal(ReasonKey.LUDO_SQUARE_OCCUPIED)
             }
         }
         return MoveResult.Ok(applyKnownLegal(state, move))
@@ -240,6 +242,16 @@ object LudoGame : BoardGame<LudoState, LudoMove> {
             idle++
         }
         return current.copy(idleTurns = IDLE_LIMIT)
+    }
+
+    /** Pisar em peão adversário sozinho numa casa comum manda ele para o curral. */
+    override fun isCapture(state: LudoState, move: LudoMove): Boolean {
+        val progress = state.tokensOf(state.turn)[move.token]
+        val target = if (progress == LUDO_YARD) 0 else progress + state.die
+        val landing = absoluteSquare(state.turn, target) ?: return false
+        if (isSafeSquare(landing)) return false
+        val opponent = state.turn.opponent()
+        return state.tokensOf(opponent).any { absoluteSquare(opponent, it) == landing }
     }
 
     override fun outcome(state: LudoState): Outcome {

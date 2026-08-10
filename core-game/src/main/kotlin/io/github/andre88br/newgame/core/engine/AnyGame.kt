@@ -27,6 +27,9 @@ interface AnyGame {
 
     fun outcome(state: GameState): Outcome
 
+    /** Veja [BoardGame.isCapture]. */
+    fun isCapture(state: GameState, move: Move): Boolean
+
     /** Veja [BoardGame.hasHiddenInformation]. */
     val hasHiddenInformation: Boolean
 
@@ -46,6 +49,13 @@ interface AnyGame {
 
     fun decodeMove(json: String): Move
 }
+
+/** Como [BoardGame.applyOrThrow], para quem só tem a fachada sem genéricos. */
+fun AnyGame.applyOrThrow(state: GameState, move: Move): GameState =
+    when (val result = applyMove(state, move)) {
+        is MoveResult.Ok -> result.state
+        is MoveResult.Illegal -> error("Lance ilegal em $id: ${move.describe()} — ${result.reason}")
+    }
 
 /** Envolve um jogo tipado na fachada sem genéricos. */
 fun <S : GameState, M : Move> BoardGame<S, M>.asAny(): AnyGame = TypedFacade(this)
@@ -70,6 +80,9 @@ private class TypedFacade<S : GameState, M : Move>(
         }
 
     override fun outcome(state: GameState): Outcome = game.outcome(state.typed())
+
+    override fun isCapture(state: GameState, move: Move): Boolean =
+        game.isCapture(state.typed(), move.typed())
 
     override fun redactFor(state: GameState, viewer: Seat): GameState =
         game.redactFor(state.typed(), viewer)

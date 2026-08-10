@@ -6,6 +6,7 @@ import io.github.andre88br.newgame.core.engine.MoveResult
 import io.github.andre88br.newgame.core.engine.Outcome
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.applyOrThrow
+import io.github.andre88br.newgame.core.engine.ReasonKey
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -211,7 +212,7 @@ class ChessRulesTest {
     fun `nao se joga com peca do adversario`() {
         val result = ChessGame.applyMove(start, move("e7", "e5"))
         assertIs<MoveResult.Illegal>(result)
-        assertContains(result.reason, "não é sua")
+        assertEquals(ReasonKey.NOT_YOUR_PIECE, result.reason.key)
     }
 
     @Test
@@ -221,7 +222,7 @@ class ChessRulesTest {
         val result = ChessGame.applyMove(state, move("e2", "g3"))
 
         assertIs<MoveResult.Illegal>(result)
-        assertContains(result.reason, "xeque")
+        assertEquals(ReasonKey.WOULD_EXPOSE_KING, result.reason.key)
     }
 
     @Test

@@ -8,6 +8,7 @@ import io.github.andre88br.newgame.core.engine.MatchConfig
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.MoveResult
 import io.github.andre88br.newgame.core.engine.Outcome
+import io.github.andre88br.newgame.core.engine.ReasonKey
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.opponent
 import kotlinx.serialization.KSerializer
@@ -122,11 +123,11 @@ object ReversiGame : BoardGame<ReversiState, ReversiMove> {
 
     override fun applyMove(state: ReversiState, move: ReversiMove): MoveResult<ReversiState> {
         if (state.board[move.square] != REVERSI_EMPTY) {
-            return MoveResult.Illegal("Essa casa já está ocupada")
+            return MoveResult.Illegal(ReasonKey.SQUARE_TAKEN)
         }
         val flipped = flipsFor(state.board, state.turn, move.square)
         if (flipped.isEmpty()) {
-            return MoveResult.Illegal("Esse lance não cerca nenhuma peça do adversário")
+            return MoveResult.Illegal(ReasonKey.REVERSI_NO_FLIP)
         }
         return MoveResult.Ok(applyKnownLegal(state, move))
     }

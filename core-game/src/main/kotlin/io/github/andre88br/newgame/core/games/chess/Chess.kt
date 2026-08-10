@@ -8,6 +8,8 @@ import io.github.andre88br.newgame.core.engine.MatchConfig
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.MoveResult
 import io.github.andre88br.newgame.core.engine.Outcome
+import io.github.andre88br.newgame.core.engine.ReasonKey
+import io.github.andre88br.newgame.core.engine.Reason
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.opponent
 import kotlinx.serialization.KSerializer
@@ -88,7 +90,7 @@ object ChessGame : BoardGame<ChessState, ChessMove> {
     override fun applyMove(state: ChessState, move: ChessMove): MoveResult<ChessState> {
         val legal = ChessMoves.legal(state)
         if (move !in legal) return MoveResult.Illegal(rejectionReason(state, move, legal))
-        if (outcome(state).isOver) return MoveResult.Illegal("A partida já terminou")
+        if (outcome(state).isOver) return MoveResult.Illegal(ReasonKey.GAME_OVER)
         return MoveResult.Ok(applyKnownLegal(state, move))
     }
 
@@ -112,6 +114,12 @@ object ChessGame : BoardGame<ChessState, ChessMove> {
             enPassant = enPassant,
             halfmoveClock = if (piece.isPawn() || captured) 0 else state.halfmoveClock + 1,
         )
+    }
+
+    /** Captura comum, e também a en passant — em que a peça sai de uma casa vizinha. */
+    override fun isCapture(state: ChessState, move: ChessMove): Boolean {
+        if (state.board[move.to] != CHESS_EMPTY) return true
+        return move.to == state.enPassant && state.board[move.from].isPawn()
     }
 
     override fun outcome(state: ChessState): Outcome {
@@ -154,23 +162,23 @@ object ChessGame : BoardGame<ChessState, ChessMove> {
         state: ChessState,
         move: ChessMove,
         legal: List<ChessMove>,
-    ): String {
-        val piece = state.board.getOrNull(move.from) ?: return "Casa de origem inválida"
-        if (piece == CHESS_EMPTY) return "Não há peça nessa casa"
-        if (piece.pieceSeat() != state.turn) return "Essa peça não é sua"
+    ): Reason {
+        val piece = state.board.getOrNull(move.from) ?: return ReasonKey.INVALID_SQUARE.reason()
+        if (piece == CHESS_EMPTY) return ReasonKey.NO_PIECE_HERE.reason()
+        if (piece.pieceSeat() != state.turn) return ReasonKey.NOT_YOUR_PIECE.reason()
 
         // O caso que mais confunde: o lance seria natural, mas deixaria o rei em xeque.
         val pseudo = ChessMoves.pseudoLegal(state).any { it.from == move.from && it.to == move.to }
         if (pseudo) {
             return if (state.inCheck(state.turn)) {
-                "Seu rei está em xeque: o lance precisa resolver isso"
+                ReasonKey.KING_IN_CHECK_MUST_RESOLVE.reason()
             } else {
-                "Esse lance deixaria seu rei em xeque"
+                ReasonKey.WOULD_EXPOSE_KING.reason()
             }
         }
 
-        if (legal.none { it.from == move.from }) return "Essa peça não tem lance disponível"
-        return "Essa peça não pode ir para aí"
+        if (legal.none { it.from == move.from }) return ReasonKey.PIECE_HAS_NO_MOVE.reason()
+        return ReasonKey.PIECE_CANNOT_GO_THERE.reason()
     }
 
     /**

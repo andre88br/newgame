@@ -8,6 +8,7 @@ import io.github.andre88br.newgame.core.engine.MatchConfig
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.MoveResult
 import io.github.andre88br.newgame.core.engine.Outcome
+import io.github.andre88br.newgame.core.engine.ReasonKey
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.opponent
 import kotlinx.serialization.KSerializer
@@ -94,8 +95,8 @@ object TicTacToeGame : BoardGame<TicTacToeState, TicTacToeMove> {
     }
 
     override fun applyMove(state: TicTacToeState, move: TicTacToeMove): MoveResult<TicTacToeState> {
-        if (outcome(state).isOver) return MoveResult.Illegal("A partida já terminou")
-        if (!state.isEmpty(move.cell)) return MoveResult.Illegal("A casa ${move.cell} já está ocupada")
+        if (outcome(state).isOver) return MoveResult.Illegal(ReasonKey.GAME_OVER)
+        if (!state.isEmpty(move.cell)) return MoveResult.Illegal(ReasonKey.SQUARE_TAKEN)
         val cells = state.cells.toMutableList()
         cells[move.cell] = state.turn.index
         return MoveResult.Ok(

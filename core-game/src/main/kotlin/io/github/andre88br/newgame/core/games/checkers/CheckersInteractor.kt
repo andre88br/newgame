@@ -2,6 +2,7 @@ package io.github.andre88br.newgame.core.games.checkers
 
 import io.github.andre88br.newgame.core.engine.GameState
 import io.github.andre88br.newgame.core.engine.Move
+import io.github.andre88br.newgame.core.engine.ReasonKey
 import io.github.andre88br.newgame.core.session.BoardInteractor
 import io.github.andre88br.newgame.core.session.TapResult
 import io.github.andre88br.newgame.core.games.checkers.isPlayable as isDarkSquare
@@ -38,7 +39,7 @@ object CheckersInteractor : BoardInteractor {
             if (board.pieceAt(square).pieceOwner() == board.turn) {
                 return select(board, square)
             }
-            return TapResult.Rejected("Essa peça não pode ir para aí")
+            return TapResult.Rejected(ReasonKey.PIECE_CANNOT_GO_THERE)
         }
 
         if (board.pieceAt(square).pieceOwner() != board.turn) return TapResult.Ignored
@@ -55,7 +56,7 @@ object CheckersInteractor : BoardInteractor {
         val destinations = CheckersGame.movesFrom(state, square).map { it.to }.distinct()
         if (destinations.isEmpty()) {
             val reason = CheckersGame.explainNoMovesFrom(state, square)
-                ?: "Essa peça não tem para onde ir"
+                ?: ReasonKey.PIECE_HAS_NOWHERE_TO_GO.reason()
             return TapResult.Rejected(reason)
         }
         return TapResult.Select(square, destinations)

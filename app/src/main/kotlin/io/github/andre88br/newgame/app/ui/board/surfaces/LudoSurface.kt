@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -20,11 +21,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.andre88br.newgame.app.R
+import io.github.andre88br.newgame.app.ui.speechText
 import io.github.andre88br.newgame.app.ui.theme.BoardPalette
 import io.github.andre88br.newgame.app.ui.theme.LocalBoardPalette
+import io.github.andre88br.newgame.core.a11y.BoardSpeech
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.games.ludo.LUDO_GRID
@@ -32,6 +38,7 @@ import io.github.andre88br.newgame.core.games.ludo.LUDO_TOKENS
 import io.github.andre88br.newgame.core.games.ludo.LUDO_YARD
 import io.github.andre88br.newgame.core.games.ludo.LudoCell
 import io.github.andre88br.newgame.core.games.ludo.LudoCellKind
+import io.github.andre88br.newgame.core.games.ludo.LudoGame
 import io.github.andre88br.newgame.core.games.ludo.LudoLayout
 import io.github.andre88br.newgame.core.games.ludo.LudoMove
 import io.github.andre88br.newgame.core.games.ludo.LudoState
@@ -105,6 +112,49 @@ fun LudoSurface(
             onMove = onMove,
             modifier = Modifier.fillMaxWidth(),
         )
+
+        // Os peões de quem está na vez, em botões de verdade.
+        //
+        // A cruz é um desenho, e mirar num peão de meio centímetro não é razoável nem para
+        // quem enxerga bem. Esta fileira é o mesmo lance por outro caminho: cada botão diz
+        // onde o peão está e o que acontece se ele andar.
+        TokenButtons(
+            state = state,
+            enabled = enabled,
+            hintToken = hintToken,
+            onMove = onMove,
+        )
+    }
+}
+
+@Composable
+private fun TokenButtons(
+    state: LudoState,
+    enabled: Boolean,
+    hintToken: Int?,
+    onMove: (Move) -> Unit,
+) {
+    val movable = remember(state) { LudoGame.legalMoves(state).map { it.token }.toSet() }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        state.tokensOf(state.turn).forEachIndexed { token, progress ->
+            val description = speechText(BoardSpeech.token(token, progress))
+            OutlinedButton(
+                onClick = { onMove(LudoMove(token)) },
+                enabled = enabled && token in movable,
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics { contentDescription = description },
+            ) {
+                Text(
+                    text = "${token + 1}" + if (token == hintToken) " ★" else "",
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+        }
     }
 }
 
@@ -134,6 +184,7 @@ private fun Board(
     Canvas(
         modifier = modifier
             .aspectRatio(1f)
+            .clearAndSetSemantics { }
             .pointerInput(enabled, state) {
                 if (!enabled) return@pointerInput
                 detectTapGestures { offset ->

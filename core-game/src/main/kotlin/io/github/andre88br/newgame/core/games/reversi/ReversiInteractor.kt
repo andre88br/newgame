@@ -2,6 +2,7 @@ package io.github.andre88br.newgame.core.games.reversi
 
 import io.github.andre88br.newgame.core.engine.GameState
 import io.github.andre88br.newgame.core.engine.Move
+import io.github.andre88br.newgame.core.engine.ReasonKey
 import io.github.andre88br.newgame.core.session.BoardInteractor
 import io.github.andre88br.newgame.core.session.TapResult
 
@@ -17,10 +18,10 @@ object ReversiInteractor : BoardInteractor {
         if (square !in 0 until REVERSI_CELLS) return TapResult.Ignored
 
         if (board.discAt(square) != REVERSI_EMPTY) {
-            return TapResult.Rejected("Essa casa já está ocupada")
+            return TapResult.Rejected(ReasonKey.SQUARE_TAKEN)
         }
         if (ReversiGame.flipsFor(board.board, board.turn, square).isEmpty()) {
-            return TapResult.Rejected("Só vale jogar onde se cerca alguma peça do adversário")
+            return TapResult.Rejected(ReasonKey.REVERSI_MUST_FLIP)
         }
         return TapResult.Play(ReversiMove(square))
     }

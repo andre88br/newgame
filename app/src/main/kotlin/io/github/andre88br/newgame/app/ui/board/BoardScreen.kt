@@ -1,5 +1,7 @@
 package io.github.andre88br.newgame.app.ui.board
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,11 +27,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.andre88br.newgame.app.R
+import io.github.andre88br.newgame.app.data.Settings
+import io.github.andre88br.newgame.app.ui.feedback.rememberFeedback
 import io.github.andre88br.newgame.app.ui.board.painters.painterFor
 import io.github.andre88br.newgame.app.ui.board.surfaces.MoveSurface
 import io.github.andre88br.newgame.app.ui.gameName
+import io.github.andre88br.newgame.app.ui.reasonText
 import io.github.andre88br.newgame.core.engine.GameEntry
 import io.github.andre88br.newgame.core.engine.GameId
 import io.github.andre88br.newgame.core.engine.Outcome
@@ -40,15 +48,32 @@ import io.github.andre88br.newgame.core.engine.Seat
 fun BoardScreen(
     entry: GameEntry,
     viewModel: BoardViewModel,
+    settings: Settings,
     onBack: () -> Unit,
 ) {
     val ui by viewModel.ui.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val painter = remember(entry.id) { painterFor(entry.id) }
+    val feedback = rememberFeedback(settings.sound, settings.haptics)
+
+    // Som e vibração do último lance. Preso ao contador, e não ao evento: dois lances
+    // comuns seguidos são dois cliques, não um.
+    LaunchedEffect(ui.eventId) {
+        ui.event?.let(feedback::play)
+    }
+
+    // O destaque do último lance entra desvanecendo. É a única animação do tabuleiro, e
+    // resolve um problema de verdade: quando a IA joga, a peça simplesmente aparece em
+    // outro lugar, e sem o destaque surgindo o olho não pega o que mudou.
+    val highlight by animateFloatAsState(
+        targetValue = if (ui.lastMove.isEmpty()) 0f else 1f,
+        animationSpec = tween(durationMillis = if (settings.animations) 260 else 0),
+        label = "destaque do último lance",
+    )
 
     val message = ui.message
     val messageText = when (message) {
-        is BoardMessage.Reason -> message.text
+        is BoardMessage.Rejected -> reasonText(message.reason)
         is BoardMessage.Hint -> stringResource(R.string.board_hint_shown, message.notation)
         BoardMessage.NoHint -> stringResource(R.string.board_no_hint)
         null -> null
@@ -79,15 +104,19 @@ fun BoardScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            // Região viva: quando a vez muda ou a partida acaba, o leitor de tela avisa
+            // sozinho. Sem isto, quem não vê a tela só descobre o resultado se tocar nela.
             Text(
                 text = statusText(ui, entry.id),
                 style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
 
             Box(modifier = Modifier.fillMaxWidth()) {
                 val interactor = entry.interactor
                 if (interactor != null && painter != null) {
                     GridBoard(
+                        entry = entry,
                         state = ui.state,
                         interactor = interactor,
                         painter = painter,
@@ -95,6 +124,7 @@ fun BoardScreen(
                         selected = ui.selected,
                         highlighted = ui.hinted,
                         lastMove = ui.lastMove,
+                        lastMoveAlpha = highlight,
                         flipped = ui.humanSeat == Seat.SECOND,
                         enabled = ui.canPlay,
                         onSquareTap = viewModel::onSquareTap,

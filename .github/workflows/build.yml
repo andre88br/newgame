@@ -13,6 +13,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Rápido de propósito, e antes de tudo: só Python, sem Gradle, sem SDK.
+  #
+  # Confere que toda chave de texto do motor tem frase nos dois idiomas e que os
+  # marcadores batem. Nada disso quebra a compilação — uma chave sem tradução instala
+  # e roda, e o defeito só aparece com o app na mão de alguém, no idioma errado ou com
+  # um aviso vazio.
+  textos:
+    name: Textos e traduções
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Conferir os textos contra o catálogo do motor
+        run: python3 scripts/check_strings.py
+
+      - name: Conferir que os sons no repositório são os que o script gera
+        run: |
+          python3 scripts/make_sounds.py
+          git diff --exit-code -- app/src/main/res/raw \
+            || (echo "os .wav do repositório não batem com scripts/make_sounds.py" && exit 1)
+
   motor:
     name: Testes do motor
     runs-on: ubuntu-latest

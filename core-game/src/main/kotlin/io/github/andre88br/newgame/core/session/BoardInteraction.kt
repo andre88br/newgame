@@ -2,6 +2,8 @@ package io.github.andre88br.newgame.core.session
 
 import io.github.andre88br.newgame.core.engine.GameState
 import io.github.andre88br.newgame.core.engine.Move
+import io.github.andre88br.newgame.core.engine.Reason
+import io.github.andre88br.newgame.core.engine.ReasonKey
 
 /** O que um toque no tabuleiro produziu. */
 sealed interface TapResult {
@@ -31,8 +33,10 @@ sealed interface TapResult {
         val choices: List<PromotionChoice>,
     ) : TapResult
 
-    /** O toque não vale, e [reason] explica por quê, em português, para mostrar na tela. */
-    data class Rejected(val reason: String) : TapResult
+    /** O toque não vale, e [reason] diz por quê — em chave, para a tela traduzir. */
+    data class Rejected(val reason: Reason) : TapResult {
+        constructor(key: ReasonKey) : this(key.reason())
+    }
 
     /** Toque sem efeito (casa vazia sem nada escolhido, partida encerrada). */
     data object Ignored : TapResult

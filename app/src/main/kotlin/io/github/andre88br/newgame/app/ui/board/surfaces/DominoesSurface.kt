@@ -33,10 +33,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.andre88br.newgame.app.R
+import io.github.andre88br.newgame.app.ui.speechText
 import io.github.andre88br.newgame.app.ui.theme.BoardPalette
 import io.github.andre88br.newgame.app.ui.theme.LocalBoardPalette
+import io.github.andre88br.newgame.core.a11y.BoardSpeech
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.opponent
@@ -225,10 +229,15 @@ private fun HandTileView(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
+    // O que o leitor de tela lê: "peça 2 por 5, encaixa nas duas pontas". Sem isto a mão
+    // inteira seria uma fileira de desenhos mudos.
+    val description = speechText(BoardSpeech.tile(item.tile, item.ends))
+
     Canvas(
         modifier = Modifier
             .size(width = 44.dp, height = 84.dp)
-            .clickable(enabled = enabled, onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick)
+            .semantics { contentDescription = description },
     ) {
         drawTile(item.tile.low, item.tile.high, horizontal = false, palette = palette)
         if (hinted) drawRoundedOutline(palette.hint)

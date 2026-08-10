@@ -8,6 +8,8 @@ import io.github.andre88br.newgame.core.engine.MatchConfig
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.MoveResult
 import io.github.andre88br.newgame.core.engine.Outcome
+import io.github.andre88br.newgame.core.engine.reasonOf
+import io.github.andre88br.newgame.core.engine.ReasonKey
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.opponent
 import kotlinx.serialization.KSerializer
@@ -231,12 +233,12 @@ object DominoesGame : BoardGame<DominoesState, DominoesMove> {
 
     override fun applyMove(state: DominoesState, move: DominoesMove): MoveResult<DominoesState> {
         val legal = legalMoves(state)
-        if (legal.isEmpty()) return MoveResult.Illegal("A partida já terminou")
+        if (legal.isEmpty()) return MoveResult.Illegal(ReasonKey.GAME_OVER)
         if (move !in legal) {
             if (state.hand(state.turn).none { it == move.tile }) {
-                return MoveResult.Illegal("Você não tem a peça ${move.tile}")
+                return MoveResult.Illegal(reasonOf(ReasonKey.DOMINO_NOT_IN_HAND, move.tile))
             }
-            return MoveResult.Illegal("A peça ${move.tile} não encaixa nessa ponta")
+            return MoveResult.Illegal(reasonOf(ReasonKey.DOMINO_DOES_NOT_FIT, move.tile))
         }
         return MoveResult.Ok(applyKnownLegal(state, move))
     }

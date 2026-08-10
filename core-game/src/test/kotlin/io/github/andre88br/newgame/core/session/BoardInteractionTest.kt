@@ -14,6 +14,7 @@ import io.github.andre88br.newgame.core.games.checkers.squareAt
 import io.github.andre88br.newgame.core.games.tictactoe.TicTacToeGame
 import io.github.andre88br.newgame.core.games.tictactoe.TicTacToeInteractor
 import io.github.andre88br.newgame.core.games.tictactoe.TicTacToeMove
+import io.github.andre88br.newgame.core.engine.ReasonKey
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -38,7 +39,7 @@ class BoardInteractionTest {
         )
         val result = TicTacToeInteractor.tap(state, selected = null, square = 0)
         assertIs<TapResult.Rejected>(result)
-        assertTrue("ocupada" in result.reason)
+        assertEquals(ReasonKey.SQUARE_TAKEN, result.reason.key)
     }
 
     @Test
@@ -105,7 +106,7 @@ class BoardInteractionTest {
     fun `destino invalido e recusado sem perder a escolha`() {
         val result = CheckersInteractor.tap(simples, selected = squareAt(5, 2), square = squareAt(3, 0))
         assertIs<TapResult.Rejected>(result)
-        assertTrue("não pode ir" in result.reason, "motivo: ${result.reason}")
+        assertEquals(ReasonKey.PIECE_CANNOT_GO_THERE, result.reason.key, "motivo: ${result.reason}")
     }
 
     @Test
@@ -149,7 +150,7 @@ class BoardInteractionTest {
         // A peça em (6,5) não tem lance: a de (5,2) é obrigada a capturar.
         val result = CheckersInteractor.tap(state, selected = null, square = squareAt(6, 5))
         assertIs<TapResult.Rejected>(result)
-        assertTrue("obrigatória" in result.reason, "motivo: ${result.reason}")
+        assertEquals(ReasonKey.CAPTURE_MANDATORY_ELSEWHERE, result.reason.key, "motivo: ${result.reason}")
 
         // E a peça obrigada a capturar continua selecionável normalmente.
         val capture = CheckersInteractor.tap(state, selected = null, square = squareAt(5, 2))

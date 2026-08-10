@@ -8,6 +8,7 @@ import io.github.andre88br.newgame.core.engine.Outcome
 import io.github.andre88br.newgame.core.engine.Rng
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.applyOrThrow
+import io.github.andre88br.newgame.core.engine.ReasonKey
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -141,14 +142,14 @@ class DominoesTest {
     fun `jogar peca que nao se tem e recusado`() {
         val result = DominoesGame.applyMove(mesaAberta, DominoesMove(tile(6, 6), LineEnd.RIGHT))
         assertIs<MoveResult.Illegal>(result)
-        assertContains(result.reason, "não tem a peça")
+        assertEquals(ReasonKey.DOMINO_NOT_IN_HAND, result.reason.key)
     }
 
     @Test
     fun `jogar peca que nao encaixa e recusado`() {
         val result = DominoesGame.applyMove(mesaAberta, DominoesMove(tile(2, 2), LineEnd.RIGHT))
         assertIs<MoveResult.Illegal>(result)
-        assertContains(result.reason, "não encaixa")
+        assertEquals(ReasonKey.DOMINO_DOES_NOT_FIT, result.reason.key)
     }
 
     // -------- compra e passe --------

@@ -9,6 +9,7 @@ import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.games.checkers.CheckersState
 import io.github.andre88br.newgame.core.games.tictactoe.TicTacToeMove
 import io.github.andre88br.newgame.core.games.tictactoe.TicTacToeState
+import io.github.andre88br.newgame.core.engine.ReasonKey
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -75,7 +76,7 @@ class MatchSessionTest {
 
         val result = session.play(TicTacToeMove(4))
         assertIs<PlayResult.Rejected>(result)
-        assertTrue("ocupada" in result.reason, "motivo: ${result.reason}")
+        assertEquals(ReasonKey.SQUARE_TAKEN, result.reason.key, "motivo: ${result.reason}")
         assertEquals(1, session.record.ply, "a partida não deveria ter avançado")
     }
 

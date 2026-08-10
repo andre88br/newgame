@@ -5,6 +5,7 @@ import io.github.andre88br.newgame.core.engine.MoveResult
 import io.github.andre88br.newgame.core.engine.Outcome
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.applyOrThrow
+import io.github.andre88br.newgame.core.engine.ReasonKey
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -49,7 +50,7 @@ class CheckersRulesTest {
         val simple = CheckersMove(from = squareAt(5, 2), path = listOf(squareAt(4, 1)))
         val result = CheckersGame.applyMove(state, simple)
         assertIs<MoveResult.Illegal>(result)
-        assertContains(result.reason, "obrigatória")
+        assertEquals(ReasonKey.CAPTURE_MANDATORY, result.reason.key)
     }
 
     @Test
@@ -96,7 +97,7 @@ class CheckersRulesTest {
         )
         val result = CheckersGame.applyMove(state, single)
         assertIs<MoveResult.Illegal>(result)
-        assertContains(result.reason, "máximo")
+        assertEquals(ReasonKey.CAPTURE_MAXIMUM, result.reason.key)
     }
 
     @Test
@@ -363,6 +364,6 @@ class CheckersRulesTest {
         val blackMove = CheckersMove(from = squareAt(2, 1), path = listOf(squareAt(3, 0)))
         val result = CheckersGame.applyMove(start, blackMove)
         assertIs<MoveResult.Illegal>(result)
-        assertContains(result.reason, "peça sua")
+        assertEquals(ReasonKey.NO_PIECE_OF_YOURS_AT, result.reason.key)
     }
 }

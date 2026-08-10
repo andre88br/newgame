@@ -8,6 +8,9 @@ import io.github.andre88br.newgame.core.engine.MatchConfig
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.MoveResult
 import io.github.andre88br.newgame.core.engine.Outcome
+import io.github.andre88br.newgame.core.engine.reasonOf
+import io.github.andre88br.newgame.core.engine.ReasonKey
+import io.github.andre88br.newgame.core.engine.Reason
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.opponent
 import kotlinx.serialization.KSerializer
@@ -91,7 +94,7 @@ object CheckersGame : BoardGame<CheckersState, CheckersMove> {
 
     override fun applyMove(state: CheckersState, move: CheckersMove): MoveResult<CheckersState> {
         val legal = legalMoves(state)
-        if (legal.isEmpty()) return MoveResult.Illegal("A partida já terminou")
+        if (legal.isEmpty()) return MoveResult.Illegal(ReasonKey.GAME_OVER)
         if (move !in legal) return MoveResult.Illegal(rejectionReason(state, move))
         return MoveResult.Ok(applyKnownLegal(state, move))
     }
@@ -120,6 +123,8 @@ object CheckersGame : BoardGame<CheckersState, CheckersMove> {
         )
     }
 
+    override fun isCapture(state: CheckersState, move: CheckersMove): Boolean = move.isCapture
+
     override fun outcome(state: CheckersState): Outcome {
         if (state.countPieces(Seat.FIRST) == 0) return Outcome.Win(Seat.SECOND)
         if (state.countPieces(Seat.SECOND) == 0) return Outcome.Win(Seat.FIRST)
@@ -138,18 +143,18 @@ object CheckersGame : BoardGame<CheckersState, CheckersMove> {
      * captura obrigatória parece defeito do app — é a dúvida número um de quem está
      * aprendendo damas.
      */
-    fun explainNoMovesFrom(state: CheckersState, square: Int): String? {
-        val piece = state.board.getOrNull(square) ?: return "Casa inválida"
+    fun explainNoMovesFrom(state: CheckersState, square: Int): Reason? {
+        val piece = state.board.getOrNull(square) ?: return ReasonKey.INVALID_SQUARE.reason()
         if (piece == EMPTY) return null
-        if (piece.pieceOwner() != state.turn) return "Essa peça não é sua"
+        if (piece.pieceOwner() != state.turn) return ReasonKey.NOT_YOUR_PIECE.reason()
         if (movesFrom(state, square).isNotEmpty()) return null
 
         val captures = CheckersMoves.captures(state.board, state.turn)
         return if (captures.isEmpty()) {
-            "Essa peça não tem para onde ir"
+            ReasonKey.PIECE_HAS_NOWHERE_TO_GO.reason()
         } else {
             val most = captures.maxOf { it.captured.size }
-            "Captura é obrigatória: outra peça sua captura $most peça(s)"
+            reasonOf(ReasonKey.CAPTURE_MANDATORY_ELSEWHERE, most)
         }
     }
 
@@ -157,22 +162,23 @@ object CheckersGame : BoardGame<CheckersState, CheckersMove> {
      * Por que o lance foi recusado. Vale o trabalho: "captura é obrigatória" é a dúvida
      * número um de quem está aprendendo, e a tela pode mostrar o motivo direto.
      */
-    private fun rejectionReason(state: CheckersState, move: CheckersMove): String {
-        val piece = state.board.getOrNull(move.from) ?: return "Casa de origem inválida"
-        if (piece.pieceOwner() != state.turn) return "Não há peça sua na casa ${pdnNumber(move.from)}"
+    private fun rejectionReason(state: CheckersState, move: CheckersMove): Reason {
+        val piece = state.board.getOrNull(move.from) ?: return ReasonKey.INVALID_SQUARE.reason()
+        if (piece.pieceOwner() != state.turn) {
+            return reasonOf(ReasonKey.NO_PIECE_OF_YOURS_AT, pdnNumber(move.from))
+        }
 
         val captures = CheckersMoves.captures(state.board, state.turn)
-        if (captures.isEmpty()) return "Lance não permitido para esta peça"
+        if (captures.isEmpty()) return ReasonKey.MOVE_NOT_ALLOWED_FOR_PIECE.reason()
 
         val most = captures.maxOf { it.captured.size }
         if (!move.isCapture) {
-            return "Captura é obrigatória: existe lance que captura $most peça(s)"
+            return reasonOf(ReasonKey.CAPTURE_MANDATORY, most)
         }
         if (move.captured.size < most) {
-            return "É obrigatório capturar o máximo: $most peça(s), e este lance captura " +
-                "${move.captured.size}"
+            return reasonOf(ReasonKey.CAPTURE_MAXIMUM, most, move.captured.size)
         }
-        return "Sequência de captura inválida"
+        return ReasonKey.CAPTURE_SEQUENCE_INVALID.reason()
     }
 
     override val stateSerializer: KSerializer<CheckersState> = serializer()

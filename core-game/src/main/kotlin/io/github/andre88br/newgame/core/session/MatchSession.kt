@@ -9,6 +9,7 @@ import io.github.andre88br.newgame.core.engine.MatchRecord
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.MoveResult
 import io.github.andre88br.newgame.core.engine.Outcome
+import io.github.andre88br.newgame.core.engine.Reason
 import io.github.andre88br.newgame.core.engine.Replay
 import io.github.andre88br.newgame.core.engine.Seat
 
@@ -31,8 +32,8 @@ data class PlayedMove(
 sealed interface PlayResult {
     data class Ok(val move: Move, val state: GameState) : PlayResult
 
-    /** O lance existe mas não vale; [reason] já vem em português, pronto para a tela. */
-    data class Rejected(val reason: String) : PlayResult
+    /** O lance existe mas não vale; [reason] diz por quê, em chave que a tela traduz. */
+    data class Rejected(val reason: Reason) : PlayResult
 
     /** Não é a vez de quem tocou (a IA está pensando, por exemplo). */
     data object NotYourTurn : PlayResult
