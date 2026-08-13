@@ -6,10 +6,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -44,6 +46,7 @@ import io.github.andre88br.newgame.core.a11y.BoardSpeech
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.opponent
+import io.github.andre88br.newgame.core.games.dominoes.DominoesLayout
 import io.github.andre88br.newgame.core.games.dominoes.DominoesMove
 import io.github.andre88br.newgame.core.games.dominoes.DominoesState
 import io.github.andre88br.newgame.core.games.dominoes.HandTile
@@ -57,8 +60,8 @@ import io.github.andre88br.newgame.core.games.dominoes.handTiles
  *
  * O dominó não cabe numa grade de casas, e por isso não tem `BoardInteractor`: aqui o lance
  * nasce de tocar numa peça da própria mão. Quase tudo o que decide o que a tela mostra vem
- * pronto do `core-game` — [handTiles] diz em que pontas cada peça encaixa, e o estado já
- * chega com a mão do adversário virada para baixo.
+ * pronto do `core-game` — [handTiles] diz em que pontas cada peça encaixa, `DominoesLayout`
+ * diz onde cada peça fica na mesa, e o estado já chega com a mão do adversário virada.
  */
 @Composable
 fun DominoesSurface(
@@ -84,7 +87,14 @@ fun DominoesSurface(
     ) {
         OpponentHand(count = state.handSize(viewer.opponent()), boneyard = state.boneyard.size)
 
-        Line(line = state.line, palette = palette)
+        // A mesa fica com todo o espaço que sobrar: é a parte que precisa ser vista.
+        Table(
+            line = state.line,
+            palette = palette,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+        )
 
         Text(
             text = stringResource(R.string.dominoes_your_hand),
@@ -168,24 +178,26 @@ private fun OpponentHand(count: Int, boneyard: Int) {
 }
 
 /**
- * A linha na mesa, deitada e rolável.
+ * A mesa, em duas dimensões.
  *
- * Deitada de propósito: uma partida de dominó chega a vinte e tantas peças, e o serpenteado
- * do tabuleiro de verdade só existe porque a mesa acaba. Numa tela que rola, a linha reta é
- * mais fácil de ler — as duas pontas ficam sempre nas duas extremidades.
+ * A linha **serpenteia**: vai até a borda, desce e volta na direção contrária, com as
+ * carroças atravessadas — como numa mesa de verdade quando o espaço acaba. Em linha reta a
+ * partida vira uma fita que só cabe rolando, e quem joga perde de vista as duas pontas, que
+ * é exatamente o que precisa enxergar para decidir o lance.
+ *
+ * Onde cada peça fica é decidido em `DominoesLayout`, no `core-game`, onde os testes
+ * conferem que nada sai da mesa e que nenhuma peça cai por cima de outra. Aqui só se
+ * converte meia-peça em pixel.
  */
 @Composable
-private fun Line(line: List<PlacedTile>, palette: BoardPalette) {
-    val scroll = rememberScrollState()
-
-    // A ponta nova entra sempre num dos lados: acompanhar o fim mantém à vista o que acabou
-    // de ser jogado na direita, que é o caso comum.
-    LaunchedEffect(line.size) { scroll.animateScrollTo(scroll.maxValue) }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(84.dp)
+private fun Table(
+    line: List<PlacedTile>,
+    palette: BoardPalette,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(
+        modifier = modifier
+            .heightIn(min = 120.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(palette.darkSquare.copy(alpha = 0.25f)),
         contentAlignment = Alignment.Center,
@@ -196,19 +208,38 @@ private fun Line(line: List<PlacedTile>, palette: BoardPalette) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        } else {
-            Row(
-                modifier = Modifier
-                    .horizontalScroll(scroll)
-                    .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                for (placed in line) {
-                    Canvas(modifier = Modifier.size(width = 60.dp, height = 30.dp)) {
-                        drawTile(placed.a, placed.b, horizontal = true, palette = palette)
-                    }
-                }
+            return@BoxWithConstraints
+        }
+
+        // Mesa larga acomoda mais peças por fileira; mesa estreita serpenteia mais cedo.
+        val columns = DominoesLayout.columnsFor(maxWidth.value)
+        val table = remember(line, columns) { DominoesLayout.table(line, columns) }
+
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val padding = size.minDimension * 0.03f
+            val usableWidth = size.width - padding * 2
+            val usableHeight = size.height - padding * 2
+
+            // Cabe inteira, sempre: a mesa encolhe em vez de cortar peça ou pedir rolagem.
+            // Com no máximo 28 peças o pior caso ainda fica legível.
+            val unit = minOf(usableWidth / table.width, usableHeight / table.height)
+            val originX = (size.width - table.width * unit) / 2f
+            val originY = (size.height - table.height * unit) / 2f
+
+            for (laid in table.tiles) {
+                // Numa fileira que volta, a linha corre para a esquerda: o `a` da peça fica
+                // à direita. Sem inverter, os números das pontas não bateriam com o vizinho.
+                val first = if (laid.reversed && !laid.vertical) laid.tile.b else laid.tile.a
+                val second = if (laid.reversed && !laid.vertical) laid.tile.a else laid.tile.b
+
+                drawTileAt(
+                    first = first,
+                    second = second,
+                    topLeft = Offset(originX + laid.x * unit, originY + laid.y * unit),
+                    tileSize = Size(laid.width * unit, laid.height * unit),
+                    horizontal = !laid.vertical,
+                    palette = palette,
+                )
             }
         }
     }
@@ -239,19 +270,24 @@ private fun HandTileView(
             .clickable(enabled = enabled, onClick = onClick)
             .semantics { contentDescription = description },
     ) {
-        drawTile(item.tile.low, item.tile.high, horizontal = false, palette = palette)
-        if (hinted) drawRoundedOutline(palette.hint)
+        drawTileAt(
+            first = item.tile.low,
+            second = item.tile.high,
+            topLeft = Offset.Zero,
+            tileSize = size,
+            horizontal = false,
+            palette = palette,
+        )
+        if (hinted) {
+            val width = size.minDimension * 0.09f
+            drawRect(
+                color = palette.hint,
+                topLeft = Offset(width / 2f, width / 2f),
+                size = Size(size.width - width, size.height - width),
+                style = Stroke(width = width),
+            )
+        }
     }
-}
-
-private fun DrawScope.drawRoundedOutline(color: Color) {
-    val width = size.minDimension * 0.09f
-    drawRect(
-        color = color,
-        topLeft = Offset(width / 2f, width / 2f),
-        size = Size(size.width - width, size.height - width),
-        style = Stroke(width = width),
-    )
 }
 
 /**
@@ -260,41 +296,63 @@ private fun DrawScope.drawRoundedOutline(color: Color) {
  * [Tile.HIDDEN] desenha o verso: é como a mão do adversário chega aqui, já sem valor
  * nenhum — a tela não teria como mostrar o que não recebeu.
  */
-private fun DrawScope.drawTile(
-    a: Int,
-    b: Int,
+private fun DrawScope.drawTileAt(
+    first: Int,
+    second: Int,
+    topLeft: Offset,
+    tileSize: Size,
     horizontal: Boolean,
     palette: BoardPalette,
 ) {
-    val edge = size.minDimension * 0.06f
-    drawRect(color = palette.firstPiece, size = size)
-    drawRect(color = palette.firstPieceEdge, size = size, style = Stroke(width = edge))
+    val edge = minOf(tileSize.width, tileSize.height) * 0.08f
+    drawRect(color = palette.firstPiece, topLeft = topLeft, size = tileSize)
+    drawRect(
+        color = palette.firstPieceEdge,
+        topLeft = topLeft,
+        size = tileSize,
+        style = Stroke(width = edge),
+    )
 
-    if (a < 0 || b < 0) {
+    if (first < 0 || second < 0) {
         // Verso: sem pontos, só a marca que diz "há uma peça aqui".
         drawRect(
             color = palette.darkSquare,
-            topLeft = Offset(edge * 2f, edge * 2f),
-            size = Size(size.width - edge * 4f, size.height - edge * 4f),
+            topLeft = Offset(topLeft.x + edge * 2f, topLeft.y + edge * 2f),
+            size = Size(tileSize.width - edge * 4f, tileSize.height - edge * 4f),
         )
         return
     }
 
-    val halfWidth = if (horizontal) size.width / 2f else size.width
-    val halfHeight = if (horizontal) size.height else size.height / 2f
+    val halfSize = if (horizontal) {
+        Size(tileSize.width / 2f, tileSize.height)
+    } else {
+        Size(tileSize.width, tileSize.height / 2f)
+    }
 
     drawLine(
         color = palette.firstPieceEdge,
-        start = if (horizontal) Offset(size.width / 2f, 0f) else Offset(0f, size.height / 2f),
-        end = if (horizontal) Offset(size.width / 2f, size.height) else Offset(size.width, size.height / 2f),
+        start = if (horizontal) {
+            Offset(topLeft.x + tileSize.width / 2f, topLeft.y)
+        } else {
+            Offset(topLeft.x, topLeft.y + tileSize.height / 2f)
+        },
+        end = if (horizontal) {
+            Offset(topLeft.x + tileSize.width / 2f, topLeft.y + tileSize.height)
+        } else {
+            Offset(topLeft.x + tileSize.width, topLeft.y + tileSize.height / 2f)
+        },
         strokeWidth = edge,
     )
 
-    drawPips(a, Offset(0f, 0f), Size(halfWidth, halfHeight), palette)
+    drawPips(first, topLeft, halfSize, palette)
     drawPips(
-        b,
-        if (horizontal) Offset(size.width / 2f, 0f) else Offset(0f, size.height / 2f),
-        Size(halfWidth, halfHeight),
+        second,
+        if (horizontal) {
+            Offset(topLeft.x + tileSize.width / 2f, topLeft.y)
+        } else {
+            Offset(topLeft.x, topLeft.y + tileSize.height / 2f)
+        },
+        halfSize,
         palette,
     )
 }
@@ -309,7 +367,7 @@ private fun DrawScope.drawPips(
     if (value <= 0) return
     val radius = minOf(half.width, half.height) * 0.11f
 
-    // Colunas e linhas em terços: é a grade em que todo dado se desenha.
+    // Colunas e linhas em quartos: é a grade em que todo dado se desenha.
     fun spot(column: Int, row: Int) = Offset(
         origin.x + half.width * (column + 1) / 4f,
         origin.y + half.height * (row + 1) / 4f,

@@ -112,9 +112,11 @@ fun BoardScreen(
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
 
-            Box(modifier = Modifier.fillMaxWidth()) {
-                val interactor = entry.interactor
-                if (interactor != null && painter != null) {
+            val interactor = entry.interactor
+            if (interactor != null && painter != null) {
+                // Tabuleiro de grade é quadrado: a largura já determina a altura, e sobrar
+                // espaço embaixo é o certo.
+                Box(modifier = Modifier.fillMaxWidth()) {
                     GridBoard(
                         entry = entry,
                         state = ui.state,
@@ -129,18 +131,24 @@ fun BoardScreen(
                         enabled = ui.canPlay,
                         onSquareTap = viewModel::onSquareTap,
                     )
-                } else {
-                    // Dominó e ludo: a tela do próprio jogo monta o lance e o entrega pronto.
-                    MoveSurface(
-                        gameId = entry.id,
-                        state = ui.state,
-                        viewer = ui.viewer,
-                        enabled = ui.canPlay,
-                        hinted = ui.hintedMove,
-                        modifier = Modifier.fillMaxWidth(),
-                        onMove = viewModel::onMoveChosen,
-                    )
                 }
+            } else {
+                // Dominó e ludo: a tela do próprio jogo monta o lance e o entrega pronto.
+                //
+                // Estes ficam com **toda** a altura que sobrar, e não com a que a largura
+                // permitir: a mesa do dominó cresce a cada lance, e apertá-la numa faixa
+                // faria a linha virar uma fita ilegível.
+                MoveSurface(
+                    gameId = entry.id,
+                    state = ui.state,
+                    viewer = ui.viewer,
+                    enabled = ui.canPlay,
+                    hinted = ui.hintedMove,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    onMove = viewModel::onMoveChosen,
+                )
             }
 
             MoveHistory(history = ui.history)
