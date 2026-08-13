@@ -29,11 +29,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -211,18 +213,26 @@ private fun Table(
             return@BoxWithConstraints
         }
 
-        // Mesa larga acomoda mais peças por fileira; mesa estreita serpenteia mais cedo.
-        val columns = DominoesLayout.columnsFor(maxWidth.value)
+        // A largura da mesa sai das DUAS dimensões da área, e não só da largura: com a
+        // altura sobrando, vale estreitar e serpentear mais cedo, porque assim a peça sai
+        // maior. Escolher pela largura fazia a linha virar uma fita fina no meio do vazio.
+        val larguraDisponivel = maxWidth.value * (1f - MARGEM * 2)
+        val alturaDisponivel = maxHeight.value * (1f - MARGEM * 2)
+        val columns = remember(line, larguraDisponivel, alturaDisponivel) {
+            DominoesLayout.bestColumns(line, larguraDisponivel, alturaDisponivel)
+        }
         val table = remember(line, columns) { DominoesLayout.table(line, columns) }
+        val maxHalfTilePx = with(LocalDensity.current) { MAX_HALF_TILE.toPx() }
 
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val padding = size.minDimension * 0.03f
+            val padding = size.minDimension * MARGEM
             val usableWidth = size.width - padding * 2
             val usableHeight = size.height - padding * 2
 
             // Cabe inteira, sempre: a mesa encolhe em vez de cortar peça ou pedir rolagem.
-            // Com no máximo 28 peças o pior caso ainda fica legível.
+            // O teto evita o contrário — duas peças na mesa virando dois tijolos gigantes.
             val unit = minOf(usableWidth / table.width, usableHeight / table.height)
+                .coerceAtMost(maxHalfTilePx)
             val originX = (size.width - table.width * unit) / 2f
             val originY = (size.height - table.height * unit) / 2f
 
@@ -235,8 +245,8 @@ private fun Table(
                 drawTileAt(
                     first = first,
                     second = second,
-                    topLeft = Offset(originX + laid.x * unit, originY + laid.y * unit),
-                    tileSize = Size(laid.width * unit, laid.height * unit),
+                    outerTopLeft = Offset(originX + laid.x * unit, originY + laid.y * unit),
+                    outerSize = Size(laid.width * unit, laid.height * unit),
                     // Em pé na curva e atravessada na carroça: as metades ficam empilhadas.
                     stacked = laid.stacked,
                     palette = palette,
@@ -274,8 +284,8 @@ private fun HandTileView(
         drawTileAt(
             first = item.tile.low,
             second = item.tile.high,
-            topLeft = Offset.Zero,
-            tileSize = size,
+            outerTopLeft = Offset.Zero,
+            outerSize = size,
             stacked = true,
             palette = palette,
         )
@@ -300,28 +310,41 @@ private fun HandTileView(
 private fun DrawScope.drawTileAt(
     first: Int,
     second: Int,
-    topLeft: Offset,
-    tileSize: Size,
+    outerTopLeft: Offset,
+    outerSize: Size,
     /** As duas metades ficam uma sobre a outra, em vez de lado a lado. */
     stacked: Boolean,
     palette: BoardPalette,
 ) {
     val horizontal = !stacked
-    val edge = minOf(tileSize.width, tileSize.height) * 0.08f
-    drawRect(color = palette.firstPiece, topLeft = topLeft, size = tileSize)
-    drawRect(
+
+    // **A folga entre as peças.** Sem ela as peças encostam e a linha vira uma fita só,
+    // em que não se distingue onde uma acaba e a outra começa — era o pior defeito da
+    // mesa. O contorno sozinho não resolve: dois contornos colados leem como um traço.
+    val folga = minOf(outerSize.width, outerSize.height) * 0.07f
+    val topLeft = Offset(outerTopLeft.x + folga, outerTopLeft.y + folga)
+    val tileSize = Size(outerSize.width - folga * 2f, outerSize.height - folga * 2f)
+    if (tileSize.width <= 0f || tileSize.height <= 0f) return
+
+    val edge = minOf(tileSize.width, tileSize.height) * 0.07f
+    val canto = CornerRadius(minOf(tileSize.width, tileSize.height) * 0.16f)
+
+    drawRoundRect(color = palette.firstPiece, topLeft = topLeft, size = tileSize, cornerRadius = canto)
+    drawRoundRect(
         color = palette.firstPieceEdge,
         topLeft = topLeft,
         size = tileSize,
+        cornerRadius = canto,
         style = Stroke(width = edge),
     )
 
     if (first < 0 || second < 0) {
         // Verso: sem pontos, só a marca que diz "há uma peça aqui".
-        drawRect(
+        drawRoundRect(
             color = palette.darkSquare,
             topLeft = Offset(topLeft.x + edge * 2f, topLeft.y + edge * 2f),
             size = Size(tileSize.width - edge * 4f, tileSize.height - edge * 4f),
+            cornerRadius = canto,
         )
         return
     }
@@ -386,3 +409,14 @@ private fun DrawScope.drawPips(
     }
     spots.forEach { drawCircle(color = palette.secondPiece, radius = radius, center = it) }
 }
+
+/** Respiro em volta da mesa, como fração do lado menor. */
+private const val MARGEM = 0.04f
+
+/**
+ * Teto do tamanho da meia-peça.
+ *
+ * Sem teto, uma mesa com duas peças esticaria cada uma até ocupar meia tela — o desenho
+ * ficaria certo e a aparência, absurda.
+ */
+private val MAX_HALF_TILE = 44.dp

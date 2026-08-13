@@ -177,10 +177,37 @@ object DominoesLayout {
      */
     private const val MIN_COLUMNS = 4
 
+    /** Nenhuma serpentina razoável passa disto; mais do que isso vira peça microscópica. */
+    private const val MAX_COLUMNS = 16
+
     /**
-     * Quantas meias-peças cabem numa mesa de [availableDp] de largura, sem a peça ficar
-     * pequena demais para se enxergar o valor.
+     * A largura de mesa que faz as peças saírem **maiores**.
+     *
+     * Escolher a largura só pela largura da tela desperdiça a altura: uma linha de dez peças
+     * numa mesa larga vira uma fita fina no meio de uma área vazia — exatamente o que
+     * acontecia antes. O que importa é quanto cada peça mede no fim, e isso depende das duas
+     * dimensões ao mesmo tempo: menos colunas dá peça mais larga mas mais fileiras, e mais
+     * fileiras podem estourar a altura.
+     *
+     * Não há fórmula fechada porque as carroças ocupam menos que as peças comuns e mudam a
+     * conta. Como as opções são poucas — de [MIN_COLUMNS] a [MAX_COLUMNS] —, o jeito honesto
+     * é montar a mesa em cada largura e ficar com a que der a maior peça.
      */
-    fun columnsFor(availableDp: Float, halfTileDp: Float = 26f): Int =
-        (availableDp / halfTileDp).toInt().coerceIn(MIN_COLUMNS, 16)
+    fun bestColumns(line: List<PlacedTile>, boxWidth: Float, boxHeight: Float): Int {
+        if (line.isEmpty() || boxWidth <= 0f || boxHeight <= 0f) return MIN_COLUMNS
+
+        var melhor = MIN_COLUMNS
+        var maiorPeca = 0f
+
+        for (columns in MIN_COLUMNS..MAX_COLUMNS) {
+            val mesa = table(line, columns)
+            val peca = minOf(boxWidth / mesa.width, boxHeight / mesa.height)
+            // Empate fica com a mesa mais larga: menos fileiras é mais fácil de ler.
+            if (peca > maiorPeca) {
+                maiorPeca = peca
+                melhor = columns
+            }
+        }
+        return melhor
+    }
 }

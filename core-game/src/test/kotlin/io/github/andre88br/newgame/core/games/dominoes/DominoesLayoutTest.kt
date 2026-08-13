@@ -244,16 +244,84 @@ class DominoesLayoutTest {
                 state = DominoesGame.applyOrThrow(state, move)
             }
             assertTrue(guard > 1, "a partida de teste precisa avançar")
+
+            // Nenhuma peça **deitada** pode ser a última de uma fileira que tem fileira
+            // depois: descer dali é a quebra de linha de máquina de escrever, e é o defeito
+            // que fez esta mesa ser refeita. Descer só vale por peça em pé — ou por carroça,
+            // que é quadrada e vira a linha sozinha.
+            val mesaFinal = DominoesLayout.table(state.line, columns)
+            for (i in 1 until mesaFinal.tiles.size) {
+                val anterior = mesaFinal.tiles[i - 1]
+                if (mesaFinal.tiles[i].y > anterior.y) {
+                    assertTrue(
+                        anterior.facing != TileFacing.ALONG,
+                        "largura $columns: a linha desceu a partir de uma peça deitada — $anterior",
+                    )
+                }
+            }
+        }
+    }
+
+    // -------- escolha da largura --------
+
+    /** O tamanho da peça que uma mesa de [columns] colunas produziria naquela área. */
+    private fun tamanhoDaPeca(linha: List<PlacedTile>, columns: Int, w: Float, h: Float): Float {
+        val mesa = DominoesLayout.table(linha, columns)
+        return minOf(w / mesa.width, h / mesa.height)
+    }
+
+    @Test
+    fun `a largura escolhida e a que da a maior peca`() {
+        val linha = linha(1 to 2, 2 to 3, 3 to 4, 4 to 5, 5 to 6, 6 to 0, 0 to 1, 1 to 3, 3 to 6)
+        val (largura, altura) = 400f to 300f
+
+        val escolhida = DominoesLayout.bestColumns(linha, largura, altura)
+        val melhorTamanho = tamanhoDaPeca(linha, escolhida, largura, altura)
+
+        for (columns in 4..16) {
+            assertTrue(
+                tamanhoDaPeca(linha, columns, largura, altura) <= melhorTamanho + 0.001f,
+                "largura $columns daria peça maior do que a escolhida ($escolhida)",
+            )
+        }
+    }
+
+    /**
+     * O defeito da imagem: mesa larga e baixa, linha curta, e o desenho saía uma fita fina
+     * no meio de uma área vazia. Com a altura disponível, a mesa deve preferir menos colunas
+     * e mais fileiras — peça maior.
+     */
+    @Test
+    fun `area alta aproveita a altura em vez de espremer tudo numa fileira`() {
+        val linha = linha(1 to 2, 2 to 3, 3 to 4, 4 to 5, 5 to 6, 6 to 0, 0 to 1, 1 to 3)
+
+        val emAreaBaixa = DominoesLayout.bestColumns(linha, boxWidth = 400f, boxHeight = 80f)
+        val emAreaAlta = DominoesLayout.bestColumns(linha, boxWidth = 400f, boxHeight = 400f)
+
+        assertTrue(
+            emAreaAlta < emAreaBaixa,
+            "com altura sobrando a mesa devia estreitar e usar mais fileiras " +
+                "(baixa=$emAreaBaixa, alta=$emAreaAlta)",
+        )
+    }
+
+    @Test
+    fun `a peca sempre cabe na area escolhida`() {
+        val linha = linha(1 to 2, 2 to 3, 3 to 3, 3 to 5, 5 to 6, 6 to 0, 0 to 4, 4 to 4, 4 to 2)
+        for ((w, h) in listOf(400f to 300f, 200f to 500f, 1000f to 120f, 300f to 300f)) {
+            val columns = DominoesLayout.bestColumns(linha, w, h)
+            val mesa = DominoesLayout.table(linha, columns)
+            val peca = minOf(w / mesa.width, h / mesa.height)
+
+            assertTrue(peca > 0f, "área ${w}x$h: peça sem tamanho")
+            assertTrue(mesa.width * peca <= w + 0.001f, "área ${w}x$h: a mesa passou da largura")
+            assertTrue(mesa.height * peca <= h + 0.001f, "área ${w}x$h: a mesa passou da altura")
         }
     }
 
     @Test
-    fun `a largura da mesa acompanha a largura da tela`() {
-        assertTrue(DominoesLayout.columnsFor(360f) > DominoesLayout.columnsFor(200f))
-        assertTrue(
-            DominoesLayout.columnsFor(50f) >= 4,
-            "mesa minúscula ainda precisa caber uma peça deitada mais a curva",
-        )
-        assertTrue(DominoesLayout.columnsFor(4000f) <= 16, "mesa de tablet não vira peça microscópica")
+    fun `mesa sem peca nenhuma nao quebra a escolha de largura`() {
+        assertTrue(DominoesLayout.bestColumns(emptyList(), 400f, 300f) >= 4)
+        assertTrue(DominoesLayout.bestColumns(linha(1 to 2), 0f, 0f) >= 4)
     }
 }
