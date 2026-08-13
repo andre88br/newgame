@@ -229,15 +229,16 @@ private fun Table(
             for (laid in table.tiles) {
                 // Numa fileira que volta, a linha corre para a esquerda: o `a` da peça fica
                 // à direita. Sem inverter, os números das pontas não bateriam com o vizinho.
-                val first = if (laid.reversed && !laid.vertical) laid.tile.b else laid.tile.a
-                val second = if (laid.reversed && !laid.vertical) laid.tile.a else laid.tile.b
+                val first = if (laid.reversed) laid.tile.b else laid.tile.a
+                val second = if (laid.reversed) laid.tile.a else laid.tile.b
 
                 drawTileAt(
                     first = first,
                     second = second,
                     topLeft = Offset(originX + laid.x * unit, originY + laid.y * unit),
                     tileSize = Size(laid.width * unit, laid.height * unit),
-                    horizontal = !laid.vertical,
+                    // Em pé na curva e atravessada na carroça: as metades ficam empilhadas.
+                    stacked = laid.stacked,
                     palette = palette,
                 )
             }
@@ -275,7 +276,7 @@ private fun HandTileView(
             second = item.tile.high,
             topLeft = Offset.Zero,
             tileSize = size,
-            horizontal = false,
+            stacked = true,
             palette = palette,
         )
         if (hinted) {
@@ -301,9 +302,11 @@ private fun DrawScope.drawTileAt(
     second: Int,
     topLeft: Offset,
     tileSize: Size,
-    horizontal: Boolean,
+    /** As duas metades ficam uma sobre a outra, em vez de lado a lado. */
+    stacked: Boolean,
     palette: BoardPalette,
 ) {
+    val horizontal = !stacked
     val edge = minOf(tileSize.width, tileSize.height) * 0.08f
     drawRect(color = palette.firstPiece, topLeft = topLeft, size = tileSize)
     drawRect(

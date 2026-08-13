@@ -27,6 +27,7 @@ import io.github.andre88br.newgame.app.R
 import io.github.andre88br.newgame.app.ui.components.ChoiceRow
 import io.github.andre88br.newgame.app.ui.difficultyName
 import io.github.andre88br.newgame.app.ui.gameName
+import io.github.andre88br.newgame.app.ui.rules.HowToPlayDialog
 import io.github.andre88br.newgame.core.ai.Difficulty
 import io.github.andre88br.newgame.core.engine.GameEntry
 import io.github.andre88br.newgame.core.engine.Seat
@@ -49,6 +50,7 @@ fun SetupScreen(
     var mode by remember { mutableStateOf(MatchMode.AGAINST_PHONE) }
     var difficulty by remember { mutableStateOf(defaultDifficulty) }
     var humanSeat by remember { mutableStateOf(Seat.FIRST) }
+    var showingRules by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -56,6 +58,11 @@ fun SetupScreen(
                 title = { Text(gameName(entry)) },
                 navigationIcon = {
                     TextButton(onClick = onBack) { Text(stringResource(R.string.action_back)) }
+                },
+                actions = {
+                    TextButton(onClick = { showingRules = true }) {
+                        Text(stringResource(R.string.how_to_play))
+                    }
                 },
             )
         },
@@ -128,6 +135,10 @@ fun SetupScreen(
                         modifier = Modifier.padding(16.dp),
                     )
                 }
+            }
+
+            if (showingRules) {
+                HowToPlayDialog(entry = entry, onDismiss = { showingRules = false })
             }
 
             Button(

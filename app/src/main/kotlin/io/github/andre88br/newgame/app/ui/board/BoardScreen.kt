@@ -23,7 +23,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -38,6 +40,7 @@ import io.github.andre88br.newgame.app.ui.board.painters.painterFor
 import io.github.andre88br.newgame.app.ui.board.surfaces.MoveSurface
 import io.github.andre88br.newgame.app.ui.gameName
 import io.github.andre88br.newgame.app.ui.reasonText
+import io.github.andre88br.newgame.app.ui.rules.HowToPlayDialog
 import io.github.andre88br.newgame.core.engine.GameEntry
 import io.github.andre88br.newgame.core.engine.GameId
 import io.github.andre88br.newgame.core.engine.Outcome
@@ -55,6 +58,7 @@ fun BoardScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val painter = remember(entry.id) { painterFor(entry.id) }
     val feedback = rememberFeedback(settings.sound, settings.haptics)
+    var showingRules by remember { mutableStateOf(false) }
 
     // Som e vibração do último lance. Preso ao contador, e não ao evento: dois lances
     // comuns seguidos são dois cliques, não um.
@@ -91,6 +95,13 @@ fun BoardScreen(
                 title = { Text(gameName(entry)) },
                 navigationIcon = {
                     TextButton(onClick = onBack) { Text(stringResource(R.string.action_back)) }
+                },
+                actions = {
+                    // Alcançável no meio da partida, que é quando a dúvida aparece — em
+                    // geral logo depois de um lance ser recusado.
+                    TextButton(onClick = { showingRules = true }) {
+                        Text(stringResource(R.string.how_to_play))
+                    }
                 },
             )
         },
@@ -182,6 +193,10 @@ fun BoardScreen(
                 Text(stringResource(R.string.board_restart))
             }
         }
+    }
+
+    if (showingRules) {
+        HowToPlayDialog(entry = entry, onDismiss = { showingRules = false })
     }
 
     ui.promotion?.let { pending ->

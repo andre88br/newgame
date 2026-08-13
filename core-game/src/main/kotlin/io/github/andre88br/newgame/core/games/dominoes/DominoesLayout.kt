@@ -1,5 +1,17 @@
 package io.github.andre88br.newgame.core.games.dominoes
 
+/** Como a peça está posta na mesa. */
+enum class TileFacing {
+    /** Deitada, seguindo a fileira. */
+    ALONG,
+
+    /** Em pé: é a peça que faz a curva, ligando uma fileira à seguinte. */
+    TURN,
+
+    /** Carroça, atravessada na linha. */
+    CROSS,
+}
+
 /**
  * Uma peça já posicionada na mesa.
  *
@@ -13,14 +25,19 @@ data class LaidTile(
     val y: Float,
     val width: Float,
     val height: Float,
-    /** Carroça: entra atravessada na linha, como numa mesa de verdade. */
-    val vertical: Boolean,
+    val facing: TileFacing,
     /**
-     * A fileira corre da direita para a esquerda.
+     * As duas metades ficam uma **sobre** a outra, em vez de lado a lado.
      *
-     * Importa para o desenho: a peça continua sendo `a|b` na ordem da linha, mas numa
-     * fileira que anda para trás o `a` fica à direita. Desenhar sem isso faria os números
-     * das pontas não baterem com os vizinhos.
+     * Vale para a peça da curva e para a carroça; a peça deitada tem as metades lado a lado.
+     */
+    val stacked: Boolean,
+    /**
+     * O `a` da peça é desenhado na segunda metade.
+     *
+     * Numa fileira que corre da direita para a esquerda, o começo da peça fica à direita.
+     * Desenhar sem isso faria os números das pontas não baterem com os das peças vizinhas —
+     * e a linha pareceria errada, embora as regras estivessem certas.
      */
     val reversed: Boolean,
 )
@@ -33,12 +50,8 @@ data class DominoesTable(
 ) {
     val width: Float get() = columns.toFloat()
 
-    /** Cada fileira tem duas meias-peças de altura, para a carroça atravessada caber. */
-    val height: Float get() = (rows * ROW_PITCH).toFloat()
-
-    companion object {
-        const val ROW_PITCH = 2
-    }
+    /** Fileiras encostadas: é a peça em pé da curva que liga uma à outra. */
+    val height: Float get() = rows.toFloat()
 }
 
 /**
@@ -46,12 +59,18 @@ data class DominoesTable(
  *
  * Uma partida de dominó chega a vinte e tantas peças. Em linha reta isso vira uma fita que
  * só cabe rolando, e quem joga perde as duas pontas de vista — que é exatamente o que
- * precisa enxergar para decidir. Aqui a linha **serpenteia**: vai até a borda, desce e volta
- * na direção contrária, como numa mesa quando o espaço acaba.
+ * precisa enxergar para decidir. Aqui a linha **serpenteia**, como numa mesa quando o
+ * espaço acaba.
+ *
+ * O desenho é um **caminho por células**, e não fileiras independentes. A mesa é uma grade
+ * de meias-peças percorrida em bustrofédon — a primeira fileira da esquerda para a direita,
+ * a seguinte de volta, e assim por diante — e cada peça ocupa duas células seguidas desse
+ * caminho. Isso resolve sozinho a curva: quando as duas células caem em fileiras
+ * diferentes, elas são vizinhas na vertical, e a peça sai **em pé**, ligando uma fileira à
+ * outra. É como a curva acontece numa mesa de verdade.
  *
  * Fica no `core-game` pelo mesmo motivo de `LudoLayout`: é geometria pura com invariantes
- * que dá para conferir sozinho — nenhuma peça sai da mesa, nenhuma fica por cima de outra, e
- * a ordem da linha é preservada. Sobreposição de peça é o defeito clássico deste tipo de
+ * que dá para conferir sozinho. Sobreposição de peça é o defeito clássico deste tipo de
  * desenho, e é invisível até alguém jogar a décima peça.
  */
 object DominoesLayout {
@@ -59,7 +78,7 @@ object DominoesLayout {
     /** Comprimento de uma peça deitada, em meias-peças. */
     private const val TILE_LENGTH = 2
 
-    /** A carroça atravessada ocupa uma meia-peça de comprimento e duas de largura. */
+    /** A carroça entra atravessada e ocupa uma célula só. */
     private const val DOUBLE_LENGTH = 1
 
     /**
@@ -69,61 +88,99 @@ object DominoesLayout {
      * mais peças por fileira, mesa estreita serpenteia mais cedo.
      */
     fun table(line: List<PlacedTile>, columns: Int): DominoesTable {
-        require(columns >= TILE_LENGTH) { "A mesa precisa caber ao menos uma peça: veio $columns" }
+        require(columns >= MIN_COLUMNS) {
+            "A mesa precisa de ao menos $MIN_COLUMNS meias-peças de largura: veio $columns"
+        }
         if (line.isEmpty()) return DominoesTable(emptyList(), columns, rows = 1)
 
         val laid = ArrayList<LaidTile>(line.size)
         var row = 0
-        var cursor = 0
+        var column = 0
+        var direction = 1
 
-        for (placed in line) {
+        for ((index, placed) in line.withIndex()) {
             val double = placed.a == placed.b
-            val length = if (double) DOUBLE_LENGTH else TILE_LENGTH
+            val faltamPecas = index < line.lastIndex
 
-            // Não cabe no que sobrou da fileira: desce e recomeça do outro lado.
-            if (cursor + length > columns) {
-                row++
-                cursor = 0
-            }
-
-            val reversed = row % 2 == 1
-            // Nas fileiras que voltam, a mesma posição de percurso cai espelhada na tela.
-            val x = if (reversed) (columns - cursor - length).toFloat() else cursor.toFloat()
-            val top = (row * DominoesTable.ROW_PITCH).toFloat()
-
-            laid += if (double) {
-                LaidTile(
+            if (double) {
+                laid += LaidTile(
                     tile = placed,
-                    x = x,
-                    y = top,
-                    width = DOUBLE_LENGTH.toFloat(),
-                    height = DominoesTable.ROW_PITCH.toFloat(),
-                    vertical = true,
-                    reversed = reversed,
-                )
-            } else {
-                LaidTile(
-                    tile = placed,
-                    x = x,
-                    // Centrada na fileira: a carroça é que ocupa a altura inteira.
-                    y = top + 0.5f,
-                    width = TILE_LENGTH.toFloat(),
+                    x = column.toFloat(),
+                    y = row.toFloat(),
+                    width = 1f,
                     height = 1f,
-                    vertical = false,
-                    reversed = reversed,
+                    facing = TileFacing.CROSS,
+                    // Atravessada: as metades ficam uma sobre a outra, e não lado a lado.
+                    stacked = true,
+                    reversed = false,
                 )
+                column += direction
+                // A carroça não tem como ficar em pé — ela mede uma célula. Chegando na
+                // borda, a linha desce reta, e a peça seguinte fica logo abaixo desta.
+                if (column !in 0 until columns) {
+                    row++
+                    direction = -direction
+                    column += direction
+                }
+                continue
             }
 
-            cursor += length
+            val cabeDeitada = column + direction in 0 until columns
+            val terminaNaBorda = column + direction * TILE_LENGTH !in 0 until columns
+
+            // **A curva.** Peça que termina na borda com a linha ainda por vir fica em pé,
+            // ligando esta fileira à seguinte — é o que se faz numa mesa quando o espaço
+            // acaba. Sem esta condição a peça ia parar deitada na fileira de baixo, e a
+            // mesa virava quebra de linha de máquina de escrever.
+            if (!cabeDeitada || (terminaNaBorda && faltamPecas)) {
+                laid += LaidTile(
+                    tile = placed,
+                    x = column.toFloat(),
+                    y = row.toFloat(),
+                    width = 1f,
+                    height = TILE_LENGTH.toFloat(),
+                    facing = TileFacing.TURN,
+                    stacked = true,
+                    // Descendo: o começo da peça fica em cima.
+                    reversed = false,
+                )
+                row++
+                direction = -direction
+                // A metade de baixo da peça em pé já ocupa esta coluna na fileira nova.
+                column += direction
+                continue
+            }
+
+            laid += LaidTile(
+                tile = placed,
+                x = minOf(column, column + direction).toFloat(),
+                y = row.toFloat(),
+                width = TILE_LENGTH.toFloat(),
+                height = 1f,
+                facing = TileFacing.ALONG,
+                stacked = false,
+                // Fileira que volta: o começo da peça fica à direita.
+                reversed = direction < 0,
+            )
+            column += direction * TILE_LENGTH
         }
 
-        return DominoesTable(laid, columns, rows = row + 1)
+        val altura = laid.maxOf { it.y + it.height }
+        return DominoesTable(laid, columns, rows = altura.toInt())
     }
+
+    /**
+     * Largura mínima que a serpentina precisa para não virar escadinha.
+     *
+     * Abaixo disso a fileira não comporta nem uma peça deitada mais a curva, e toda peça
+     * acabaria em pé.
+     */
+    private const val MIN_COLUMNS = 4
 
     /**
      * Quantas meias-peças cabem numa mesa de [availableDp] de largura, sem a peça ficar
      * pequena demais para se enxergar o valor.
      */
     fun columnsFor(availableDp: Float, halfTileDp: Float = 26f): Int =
-        (availableDp / halfTileDp).toInt().coerceIn(TILE_LENGTH, 16)
+        (availableDp / halfTileDp).toInt().coerceIn(MIN_COLUMNS, 16)
 }

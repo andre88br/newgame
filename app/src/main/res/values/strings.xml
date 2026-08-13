@@ -182,4 +182,22 @@
     <string name="speech_token_home">peão %1$s, na chegada</string>
     <string name="speech_token_on_lane">peão %1$s, no corredor final, %2$s casas para chegar</string>
     <string name="speech_token_on_track">peão %1$s, andou %2$s casas</string>
+
+    <!-- Como jogar -->
+    <string name="how_to_play">Como jogar</string>
+    <string name="action_close">Fechar</string>
+    <string name="rules_missing">As regras deste jogo ainda não foram escritas.</string>
+    <string name="rules_common">Em qualquer jogo: toque em Dica para a máquina sugerir um lance, e em Desfazer para voltar. Quando um lance é recusado, o motivo aparece embaixo.</string>
+
+    <string name="rules_tic_tac_toe">Cada um marca uma casa por vez. Vence quem alinhar três marcas na horizontal, na vertical ou na diagonal. Com o tabuleiro cheio e ninguém alinhado, é empate.\n\nJogando certo dos dois lados, o jogo da velha sempre empata — por isso a máquina no nível difícil nunca perde.</string>
+
+    <string name="rules_checkers">Damas brasileiras, em tabuleiro de 8 por 8, nas casas escuras.\n\nA pedra anda uma casa na diagonal para a frente, mas captura para a frente E para trás. A dama anda quantas casas quiser na diagonal.\n\nCapturar é obrigatório, e é obrigatório capturar o máximo: se um lance tira três peças e outro tira uma, só o de três vale. Pular várias peças de uma vez é um lance só — toque na casa onde a peça termina.\n\nA pedra que chega na última fileira vira dama. Se ela só passar pela última fileira no meio de uma captura, não vira.\n\nVinte lances sem captura e sem pedra andando para a frente dão empate.</string>
+
+    <string name="rules_reversi">O tabuleiro começa com duas peças de cada cor no meio. Quem abre é o preto.\n\nSó vale jogar onde a peça nova cerca uma fileira do adversário entre ela e outra peça sua — na horizontal, na vertical ou na diagonal. Todas as peças cercadas viram de cor.\n\nQuem não tem lance passa a vez sozinho. O jogo acaba quando nenhum dos dois pode jogar, e vence quem tiver mais peças.\n\nOs cantos valem muito: peça em canto não pode ser cercada nunca mais.</string>
+
+    <string name="rules_chess">Xadrez completo. As brancas começam.\n\nO peão anda uma casa para a frente, ou duas na primeira vez, e captura na diagonal. Chegando na última fileira, ele vira a peça que você escolher — o app pergunta qual.\n\nEstão aqui as regras que costumam faltar: o roque (com as três condições), a captura en passant, o empate por afogamento, o empate por 50 lances sem captura nem lance de peão, o empate por material insuficiente e o empate por repetir a mesma posição três vezes.\n\nO rei nunca pode ficar em xeque no fim do seu lance. Sem lance legal e com o rei em xeque é xeque-mate; sem lance legal e sem xeque é afogamento, que dá empate.</string>
+
+    <string name="rules_dominoes">Dominó de bater, com as 28 peças. Cada um recebe sete e o resto fica no monte.\n\nAbre quem tiver a maior carroça; se ninguém tiver, quem tiver a peça mais alta.\n\nNa sua vez, toque numa peça da mão para encostá-la numa das pontas da mesa. Se ela servir nas duas, o app pergunta em qual. Sem peça que sirva, você compra do monte automaticamente até conseguir; com o monte vazio, passa a vez.\n\nVence quem ficar sem peça na mão. Se os dois passarem seguidos, o jogo fecha e ganha quem tiver menos pontos na mão.\n\nA mão do adversário fica escondida, inclusive da máquina: o que aparece é só quantas peças ele tem.</string>
+
+    <string name="rules_ludo">Ludo para dois, com quatro peões cada.\n\nO dado é rolado pelo app, não por você: quando chega a sua vez, o valor já está na tela e a escolha é qual peão anda.\n\nSó um 6 tira peão do curral. Tirar 6 também dá direito a jogar de novo.\n\nCair na casa de um peão adversário manda ele de volta para o curral — menos nas casas marcadas, que são seguras.\n\nA chegada é exata: faltando duas casas, um dado 5 não serve e o peão fica onde está. Vence quem levar os quatro peões à chegada.</string>
 </resources>

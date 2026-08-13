@@ -38,6 +38,104 @@ class DominoesLayoutTest {
         assertEquals(linha, mesa.tiles.map { it.tile }, "a mesa não pode reordenar a linha")
     }
 
+    // -------- a curva --------
+
+    /**
+     * Mesa de 8 meias-peças com peças comuns: três deitadas enchem a fileira e a quarta
+     * chega na borda. Ela é a curva.
+     */
+    private val comCurva = DominoesLayout.table(
+        linha(1 to 2, 2 to 3, 3 to 4, 4 to 5, 5 to 6, 6 to 0, 0 to 1, 1 to 3),
+        columns = 8,
+    )
+
+    /**
+     * O defeito que este arquivo existe para não deixar voltar: a peça que chegava na borda
+     * ia parar deitada na fileira de baixo, como quebra de linha de máquina de escrever. Numa
+     * mesa de dominó ela fica **em pé**, ligando uma fileira à outra.
+     */
+    @Test
+    fun `a peca que chega na borda fica em pe`() {
+        val curva = comCurva.tiles.firstOrNull { it.facing == TileFacing.TURN }
+
+        assertTrue(curva != null, "nenhuma peça fez a curva: a mesa voltou a quebrar linha")
+        assertTrue(curva.height > curva.width, "em pé quer dizer mais alta do que larga")
+        assertTrue(curva.stacked, "em pé, as metades ficam uma sobre a outra")
+    }
+
+    @Test
+    fun `a peca da curva liga uma fileira a seguinte`() {
+        val indice = comCurva.tiles.indexOfFirst { it.facing == TileFacing.TURN }
+        val antes = comCurva.tiles[indice - 1]
+        val curva = comCurva.tiles[indice]
+        val depois = comCurva.tiles[indice + 1]
+
+        assertEquals(antes.y, curva.y, "a curva começa na fileira de quem veio antes")
+        assertEquals(depois.y, curva.y + curva.height - depois.height, "e termina na fileira de baixo")
+        assertTrue(depois.y > antes.y, "a linha precisa ter descido")
+    }
+
+    @Test
+    fun `a curva acontece no fim da fileira, e nao no meio`() {
+        val curva = comCurva.tiles.first { it.facing == TileFacing.TURN }
+        val mesmaFileira = comCurva.tiles.filter { it.y == curva.y && it !== curva }
+
+        // Nada da fileira dela passa dela: a curva é o fim do caminho de ida.
+        assertTrue(
+            mesmaFileira.all { it.x + it.width <= curva.x + curva.width },
+            "há peça além da curva na mesma fileira",
+        )
+        assertTrue(
+            curva.x >= comCurva.columns - 2,
+            "a curva devia estar na borda, e está em ${curva.x} de ${comCurva.columns}",
+        )
+    }
+
+    @Test
+    fun `a fileira seguinte corre na direcao contraria`() {
+        val curva = comCurva.tiles.first { it.facing == TileFacing.TURN }
+        // Só a fileira logo abaixo: duas abaixo a linha já virou de novo e corre no sentido
+        // original, que é justamente o que serpentear quer dizer.
+        val deBaixo = comCurva.tiles.filter { it.y == curva.y + 1f && it.facing == TileFacing.ALONG }
+        val duasAbaixo = comCurva.tiles.filter { it.y == curva.y + 2f && it.facing == TileFacing.ALONG }
+
+        assertTrue(deBaixo.isNotEmpty(), "o teste precisa de peça deitada na fileira de baixo")
+        assertTrue(deBaixo.all { it.reversed }, "na fileira que volta a peça sai espelhada")
+        assertTrue(duasAbaixo.isNotEmpty(), "o teste precisa de uma terceira fileira")
+        assertTrue(duasAbaixo.none { it.reversed }, "duas fileiras abaixo a linha volta ao sentido de ida")
+    }
+
+    @Test
+    fun `a ultima peca da partida nao fica em pe a toa`() {
+        // Ficar em pé serve para virar. Sem linha depois dela, a peça deita como as outras.
+        val mesa = DominoesLayout.table(linha(1 to 2, 2 to 3, 3 to 4, 4 to 5), columns = 8)
+        assertEquals(TileFacing.ALONG, mesa.tiles.last().facing)
+    }
+
+    // -------- carroça --------
+
+    @Test
+    fun `a carroca entra atravessada`() {
+        val mesa = DominoesLayout.table(linha(1 to 2, 3 to 3, 3 to 4), columns = 8)
+        val carroca = mesa.tiles[1]
+
+        assertEquals(TileFacing.CROSS, carroca.facing)
+        assertTrue(carroca.stacked, "atravessada quer dizer metades uma sobre a outra")
+        assertEquals(carroca.width, carroca.height, "atravessada, a carroça ocupa uma célula só")
+
+        val comum = mesa.tiles[0]
+        assertEquals(TileFacing.ALONG, comum.facing)
+        assertTrue(comum.width > comum.height, "peça comum fica deitada")
+    }
+
+    @Test
+    fun `a carroca ocupa menos comprimento e adianta a serpentina`() {
+        val mesa = DominoesLayout.table(linha(1 to 1, 2 to 2, 3 to 3, 4 to 4, 5 to 5), columns = 5)
+        assertEquals(1, mesa.rows, "cinco carroças cabem numa fileira de cinco meias-peças")
+    }
+
+    // -------- invariantes do desenho --------
+
     @Test
     fun `nenhuma peca fica por cima de outra`() {
         val linha = linha(1 to 2, 2 to 3, 3 to 3, 3 to 5, 5 to 5, 5 to 6, 6 to 0, 0 to 4)
@@ -66,58 +164,52 @@ class DominoesLayoutTest {
         }
     }
 
+    /**
+     * O que faz a linha parecer uma linha: cada peça encosta na anterior. Se duas vizinhas
+     * ficarem separadas, a mesa vira um monte de peças soltas — e nenhum teste de
+     * sobreposição pegaria isso, porque estar longe demais também não é sobrepor.
+     */
     @Test
-    fun `a carroca entra atravessada`() {
-        val mesa = DominoesLayout.table(linha(1 to 2, 3 to 3, 3 to 4), columns = 8)
-        val carroca = mesa.tiles[1]
+    fun `cada peca encosta na anterior`() {
+        val linha = linha(1 to 2, 2 to 3, 3 to 3, 3 to 5, 5 to 6, 6 to 0, 0 to 4, 4 to 4)
+        val mesa = DominoesLayout.table(linha, columns = 6)
 
-        assertTrue(carroca.vertical, "carroça precisa entrar atravessada")
-        assertTrue(carroca.height > carroca.width, "atravessada quer dizer mais alta do que larga")
-
-        val comum = mesa.tiles[0]
-        assertTrue(!comum.vertical && comum.width > comum.height, "peça comum fica deitada")
+        for (i in 1 until mesa.tiles.size) {
+            val anterior = mesa.tiles[i - 1]
+            val atual = mesa.tiles[i]
+            val encosta = tocam(anterior, atual)
+            assertTrue(
+                encosta,
+                "peça $i não encosta na anterior: $anterior / $atual",
+            )
+        }
     }
 
-    @Test
-    fun `a linha desce e volta quando chega na borda`() {
-        // Mesa de 4 meias-peças: cabem duas peças por fileira.
-        val mesa = DominoesLayout.table(linha(1 to 2, 2 to 3, 3 to 4, 4 to 5), columns = 4)
+    /** Dois retângulos que dividem uma borda, ainda que só em parte. */
+    private fun tocam(a: LaidTile, b: LaidTile): Boolean {
+        val folga = 0.001f
+        val cruzaEmX = a.x < b.x + b.width - folga && b.x < a.x + a.width - folga
+        val cruzaEmY = a.y < b.y + b.height - folga && b.y < a.y + a.height - folga
 
-        assertEquals(2, mesa.rows, "quatro peças em mesa de duas deviam ocupar duas fileiras")
-        assertEquals(listOf(false, false, true, true), mesa.tiles.map { it.reversed })
+        val coladoNaHorizontal = cruzaEmY &&
+            (kotlin.math.abs(a.x + a.width - b.x) < folga || kotlin.math.abs(b.x + b.width - a.x) < folga)
+        val coladoNaVertical = cruzaEmX &&
+            (kotlin.math.abs(a.y + a.height - b.y) < folga || kotlin.math.abs(b.y + b.height - a.y) < folga)
 
-        // A terceira peça começa embaixo, e não à direita da segunda.
-        assertTrue(mesa.tiles[2].y > mesa.tiles[1].y, "a linha precisa descer")
-    }
-
-    @Test
-    fun `na fileira que volta a peca fica espelhada`() {
-        val mesa = DominoesLayout.table(linha(1 to 2, 2 to 3, 3 to 4, 4 to 5), columns = 4)
-
-        // Fileira que vai: a primeira peça encosta na esquerda.
-        assertEquals(0f, mesa.tiles[0].x)
-        // Fileira que volta: a primeira peça dela encosta na direita.
-        assertEquals(mesa.width - mesa.tiles[2].width, mesa.tiles[2].x)
-    }
-
-    @Test
-    fun `a carroca ocupa menos comprimento e adianta a serpentina`() {
-        // Cinco carroças cabem numa mesa em que só caberiam duas peças comuns e meia.
-        val mesa = DominoesLayout.table(linha(1 to 1, 2 to 2, 3 to 3, 4 to 4, 5 to 5), columns = 5)
-        assertEquals(1, mesa.rows, "cinco carroças cabem numa fileira de cinco meias-peças")
+        return coladoNaHorizontal || coladoNaVertical
     }
 
     @Test
     fun `mesa estreita ainda acomoda a peca mais comprida`() {
-        val mesa = DominoesLayout.table(linha(1 to 2, 2 to 3, 3 to 4), columns = 2)
-        assertEquals(3, mesa.rows, "com uma peça por fileira, três peças são três fileiras")
+        val mesa = DominoesLayout.table(linha(1 to 2, 2 to 3, 3 to 4), columns = 4)
         for (peca in mesa.tiles) {
             assertTrue(peca.x + peca.width <= mesa.width)
+            assertTrue(peca.y + peca.height <= mesa.height)
         }
     }
 
     @Test
-    fun `uma partida inteira cabe na mesa sem peca em cima de peca`() {
+    fun `uma partida inteira cabe na mesa, encostada e sem peca em cima de peca`() {
         // O caso de verdade: a linha crescendo lance a lance, em várias larguras de tela.
         for (columns in listOf(4, 6, 8, 12)) {
             var state = DominoesGame.initialState(MatchConfig(seed = 7))
@@ -128,16 +220,24 @@ class DominoesLayoutTest {
                 assertEquals(state.line.size, mesa.tiles.size, "sumiu peça da mesa")
 
                 for (i in mesa.tiles.indices) {
+                    val peca = mesa.tiles[i]
+                    assertTrue(
+                        peca.x >= 0f && peca.x + peca.width <= mesa.width + 0.001f &&
+                            peca.y >= 0f && peca.y + peca.height <= mesa.height + 0.001f,
+                        "largura $columns: peça $i saiu da mesa — $peca",
+                    )
+                    if (i > 0) {
+                        assertTrue(
+                            tocam(mesa.tiles[i - 1], peca),
+                            "largura $columns, lance ${state.ply}: peça $i soltou da linha",
+                        )
+                    }
                     for (j in i + 1 until mesa.tiles.size) {
                         assertTrue(
-                            !sobrepoe(mesa.tiles[i], mesa.tiles[j]),
+                            !sobrepoe(peca, mesa.tiles[j]),
                             "largura $columns, lance ${state.ply}: peças $i e $j se sobrepõem",
                         )
                     }
-                    assertTrue(
-                        mesa.tiles[i].x + mesa.tiles[i].width <= mesa.width + 0.001f,
-                        "largura $columns: peça $i saiu da mesa",
-                    )
                 }
 
                 val move = DominoesGame.legalMoves(state).firstOrNull() ?: break
@@ -150,7 +250,10 @@ class DominoesLayoutTest {
     @Test
     fun `a largura da mesa acompanha a largura da tela`() {
         assertTrue(DominoesLayout.columnsFor(360f) > DominoesLayout.columnsFor(200f))
-        assertTrue(DominoesLayout.columnsFor(50f) >= 2, "mesa minúscula ainda precisa caber uma peça")
+        assertTrue(
+            DominoesLayout.columnsFor(50f) >= 4,
+            "mesa minúscula ainda precisa caber uma peça deitada mais a curva",
+        )
         assertTrue(DominoesLayout.columnsFor(4000f) <= 16, "mesa de tablet não vira peça microscópica")
     }
 }

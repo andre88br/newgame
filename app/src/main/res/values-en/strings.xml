@@ -184,4 +184,22 @@
     <string name="speech_token_home">token %1$s, home</string>
     <string name="speech_token_on_lane">token %1$s, in the home lane, %2$s squares to go</string>
     <string name="speech_token_on_track">token %1$s, %2$s squares travelled</string>
+
+    <!-- How to play -->
+    <string name="how_to_play">How to play</string>
+    <string name="action_close">Close</string>
+    <string name="rules_missing">The rules for this game have not been written yet.</string>
+    <string name="rules_common">In every game: tap Hint for the phone to suggest a move, and Undo to take one back. When a move is refused, the reason appears at the bottom.</string>
+
+    <string name="rules_tic_tac_toe">Players take turns marking a square. You win by lining up three marks across, down or diagonally. A full board with no line is a draw.\n\nPlayed correctly by both sides, tic-tac-toe always draws — which is why the phone never loses on hard.</string>
+
+    <string name="rules_checkers">Brazilian draughts, on an 8 by 8 board, on the dark squares.\n\nA man moves one square diagonally forwards, but captures both forwards AND backwards. A king moves any distance diagonally.\n\nCapturing is compulsory, and you must capture the maximum: if one move takes three pieces and another takes one, only the three counts. Jumping several pieces is a single move — tap the square where the piece ends up.\n\nA man reaching the last rank becomes a king. If it only passes through the last rank mid-capture, it does not.\n\nTwenty moves with no capture and no man moving forwards is a draw.</string>
+
+    <string name="rules_reversi">The board starts with two discs of each colour in the middle. Black moves first.\n\nYou may only play where the new disc traps a line of your opponent\'s discs between it and another disc of yours — across, down or diagonally. Every trapped disc flips colour.\n\nA player with no legal move passes automatically. The game ends when neither can play, and whoever has more discs wins.\n\nCorners matter: a disc in a corner can never be trapped again.</string>
+
+    <string name="rules_chess">Full chess. White moves first.\n\nA pawn moves one square forwards, or two on its first move, and captures diagonally. Reaching the last rank it becomes any piece you choose — the app asks which.\n\nThe rules that are usually missing are all here: castling (with all three conditions), en passant capture, stalemate, the fifty-move rule, insufficient material, and the threefold repetition draw.\n\nYour king may never be left in check at the end of your move. No legal move with the king in check is checkmate; no legal move without check is stalemate, which is a draw.</string>
+
+    <string name="rules_dominoes">Block dominoes with the full set of 28. Each player gets seven and the rest go to the boneyard.\n\nWhoever holds the highest double opens; if neither has one, the highest tile opens.\n\nOn your turn, tap a tile in your hand to lay it against one end of the line. If it fits both ends, the app asks which. With nothing that fits you draw from the boneyard automatically until you can play; with the boneyard empty you pass.\n\nYou win by playing your last tile. If both players pass in a row the game is blocked, and whoever holds fewer pips wins.\n\nYour opponent\'s hand stays hidden — from the phone too: all you see is how many tiles they hold.</string>
+
+    <string name="rules_ludo">Ludo for two, four tokens each.\n\nThe app rolls the die, not you: when your turn comes the value is already on screen, and the choice is which token moves.\n\nOnly a 6 brings a token out of the yard. Rolling a 6 also earns another turn.\n\nLanding on an opponent token sends it back to the yard — except on the marked squares, which are safe.\n\nComing home is exact: two squares short, a 5 is no good and the token stays put. You win by bringing all four tokens home.</string>
 </resources>

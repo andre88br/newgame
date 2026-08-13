@@ -59,6 +59,12 @@ def chaves_do_motor() -> dict[str, str]:
     return fora
 
 
+def chaves_de_jogo() -> list[str]:
+    """As `nameKey` declaradas no catálogo — uma por jogo que o app oferece."""
+    catalogo = (MOTOR / "engine/GameCatalog.kt").read_text(encoding="utf-8")
+    return re.findall(r'nameKey\s*=\s*"([^"]+)"', catalogo)
+
+
 def textos(caminho: Path) -> dict[str, str]:
     if not caminho.exists():
         return {}
@@ -123,6 +129,13 @@ def main() -> int:
 
     for nome in sorted(set(en) - set(pt)):
         problemas.append(f"{nome}: existe em inglês e não em português")
+
+    # Todo jogo do catálogo precisa de regras escritas. Sem isto, um jogo novo entra e o
+    # botão "Como jogar" abre um diálogo dizendo que ninguém escreveu as regras dele.
+    for chave in chaves_de_jogo():
+        regras = "rules_" + chave.removeprefix("game_")
+        if regras not in pt:
+            problemas.append(f"{regras}: {chave} está no catálogo e não tem regras escritas")
 
     if problemas:
         print(f"textos com problema ({len(problemas)}):\n", file=sys.stderr)
