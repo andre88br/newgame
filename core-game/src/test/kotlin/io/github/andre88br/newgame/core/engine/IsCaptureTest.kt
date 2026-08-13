@@ -26,6 +26,9 @@ import kotlin.test.assertTrue
  */
 class IsCaptureTest {
 
+    /** As partidas destes testes são de dois, salvo onde se diz o contrário. */
+    private val DOIS = 2
+
     private fun at(name: String) = squareOf(name)!!
 
     @Test
@@ -83,10 +86,10 @@ class IsCaptureTest {
     @Test
     fun `no ludo pisar em peao adversario conta, e casa segura nao`() {
         val alvo = 3
-        val absoluta = absoluteSquare(Seat.FIRST, alvo)!!
+        val absoluta = absoluteSquare(Seat.FIRST, alvo, DOIS)!!
         assertFalse(isSafeSquare(absoluta), "a casa do teste precisa ser comum")
 
-        val progressoAdversario = (absoluta - startSquare(Seat.SECOND) + LUDO_TRACK) % LUDO_TRACK
+        val progressoAdversario = (absoluta - startSquare(Seat.SECOND, DOIS) + LUDO_TRACK) % LUDO_TRACK
         val comAlvo = LudoState(
             tokens = listOf(
                 listOf(0, LUDO_YARD, LUDO_YARD, LUDO_YARD),

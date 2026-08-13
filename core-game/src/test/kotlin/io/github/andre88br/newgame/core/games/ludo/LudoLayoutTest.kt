@@ -5,7 +5,6 @@ import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.applyOrThrow
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 /**
@@ -14,6 +13,13 @@ import kotlin.test.assertTrue
  * pegaria olhando o código.
  */
 class LudoLayoutTest {
+
+    /** As mesas possíveis: de dois a quatro. */
+    private val mesas = MatchConfig.MIN_SEATS..LUDO_ARMS
+
+    private fun cadeiras(seats: Int) = (0 until seats).map { Seat(it) }
+
+    // -------- a volta --------
 
     @Test
     fun `a volta tem as 52 casas, todas distintas e dentro da grade`() {
@@ -39,15 +45,45 @@ class LudoLayoutTest {
     }
 
     @Test
-    fun `a saida de cada cor cai no seu braco da cruz`() {
-        assertEquals(LudoLayout.ring[0], LudoLayout.trackCell(startSquare(Seat.FIRST)))
-        assertEquals(LudoLayout.ring[26], LudoLayout.trackCell(startSquare(Seat.SECOND)))
-        assertNotEquals(
-            LudoLayout.trackCell(startSquare(Seat.FIRST)),
-            LudoLayout.trackCell(startSquare(Seat.SECOND)),
-            "as duas cores não podem sair da mesma casa",
-        )
+    fun `os quatro bracos saem de casas igualmente espacadas`() {
+        val saidas = (0 until LUDO_ARMS).map { arm -> arm * (LUDO_TRACK / LUDO_ARMS) }
+        assertEquals(listOf(0, 13, 26, 39), saidas)
+        assertTrue(saidas.all { isSafeSquare(it) }, "casa de saída precisa ser segura")
     }
+
+    // -------- quem senta em qual braço --------
+
+    /**
+     * A partida de dois usa braços **opostos**. Em braços vizinhos, a saída de um ficaria a
+     * treze casas da do outro em vez de vinte e seis, e um dos dois passaria a partida
+     * inteira andando na frente do adversário.
+     */
+    @Test
+    fun `a mesa de dois usa bracos opostos`() {
+        assertEquals(0, armOf(Seat.FIRST, 2))
+        assertEquals(2, armOf(Seat.SECOND, 2))
+
+        val distancia = startSquare(Seat.SECOND, 2) - startSquare(Seat.FIRST, 2)
+        assertEquals(LUDO_TRACK / 2, distancia, "as saídas precisam ficar em lados opostos")
+    }
+
+    @Test
+    fun `as mesas de tres e quatro ocupam bracos em ordem`() {
+        for (seats in 3..LUDO_ARMS) {
+            val bracos = cadeiras(seats).map { armOf(it, seats) }
+            assertEquals((0 until seats).toList(), bracos, "mesa de $seats sentou fora de ordem")
+        }
+    }
+
+    @Test
+    fun `duas cadeiras nunca partem da mesma casa`() {
+        for (seats in mesas) {
+            val saidas = cadeiras(seats).map { startSquare(it, seats) }
+            assertEquals(seats, saidas.distinct().size, "mesa de $seats: saídas repetidas em $saidas")
+        }
+    }
+
+    // -------- corredor final --------
 
     /**
      * O contrato que liga desenho e regra: depois de dar a volta inteira, a última casa da
@@ -56,72 +92,96 @@ class LudoLayoutTest {
      */
     @Test
     fun `o corredor final comeca colado na ultima casa da volta`() {
-        for (seat in listOf(Seat.FIRST, Seat.SECOND)) {
-            val ultima = LudoLayout.cellFor(seat, LUDO_TRACK - 1, token = 0)
-            val primeira = LudoLayout.laneCell(seat, 0)
-            assertEquals(
-                1,
-                LudoLayout.stepsBetween(ultima, primeira),
-                "cadeira ${seat.index}: $ultima não encosta em $primeira",
-            )
+        for (seats in mesas) {
+            for (seat in cadeiras(seats)) {
+                val ultima = LudoLayout.cellFor(seat, LUDO_TRACK - 1, token = 0, seats = seats)
+                val primeira = LudoLayout.laneCell(armOf(seat, seats), 0)
+                assertEquals(
+                    1,
+                    LudoLayout.stepsBetween(ultima, primeira),
+                    "mesa de $seats, cadeira ${seat.index}: $ultima não encosta em $primeira",
+                )
+            }
         }
     }
 
     @Test
     fun `o corredor final anda casa a casa ate a chegada`() {
-        for (seat in listOf(Seat.FIRST, Seat.SECOND)) {
+        for (arm in 0 until LUDO_ARMS) {
             for (step in 0 until LUDO_HOME_LANE) {
                 assertEquals(
                     1,
-                    LudoLayout.stepsBetween(LudoLayout.laneCell(seat, step), LudoLayout.laneCell(seat, step + 1)),
-                    "cadeira ${seat.index}: buraco no corredor no passo $step",
+                    LudoLayout.stepsBetween(LudoLayout.laneCell(arm, step), LudoLayout.laneCell(arm, step + 1)),
+                    "braço $arm: buraco no corredor no passo $step",
                 )
             }
-            assertEquals(LudoCellKind.GOAL, LudoLayout.kindOf(LudoLayout.goalCell(seat)))
+            assertEquals(LudoCellKind.GOAL, LudoLayout.kindOf(LudoLayout.goalCell(arm)))
         }
     }
 
     @Test
-    fun `os dois corredores finais nao se cruzam`() {
-        val primeiro = (0..LUDO_HOME_LANE).map { LudoLayout.laneCell(Seat.FIRST, it) }
-        val segundo = (0..LUDO_HOME_LANE).map { LudoLayout.laneCell(Seat.SECOND, it) }
-        // Só a chegada é vizinha; nenhuma casa é a mesma.
-        assertTrue(primeiro.none { it in segundo }, "corredores sobrepostos: $primeiro / $segundo")
+    fun `os quatro corredores finais nao se cruzam`() {
+        val corredores = (0 until LUDO_ARMS).map { arm ->
+            (0 until LUDO_HOME_LANE).map { LudoLayout.laneCell(arm, it) }
+        }
+        val todas = corredores.flatten()
+        assertEquals(
+            todas.size,
+            todas.distinct().size,
+            "corredores sobrepostos: $corredores",
+        )
     }
+
+    // -------- currais --------
 
     @Test
     fun `cada peao no curral tem lugar so seu`() {
-        for (seat in listOf(Seat.FIRST, Seat.SECOND)) {
-            val lugares = (0 until LUDO_TOKENS).map { LudoLayout.yardCell(seat, it) }
+        for (arm in 0 until LUDO_ARMS) {
+            val lugares = (0 until LUDO_TOKENS).map { LudoLayout.yardCell(arm, it) }
             assertEquals(LUDO_TOKENS, lugares.distinct().size, "dois peões no mesmo lugar do curral")
-            val esperado = if (seat == Seat.FIRST) LudoCellKind.YARD_FIRST else LudoCellKind.YARD_SECOND
-            assertTrue(lugares.all { LudoLayout.kindOf(it) == esperado }, "peão fora do próprio curral")
+            assertTrue(
+                lugares.all { LudoLayout.kindOf(it) == LudoCellKind.YARD },
+                "braço $arm: peão fora de curral",
+            )
+            assertTrue(lugares.all { LudoLayout.armAt(it) == arm }, "braço $arm: peão no curral alheio")
         }
     }
 
     @Test
-    fun `os currais ficam em cantos opostos`() {
-        val primeiro = LudoLayout.yardCell(Seat.FIRST, 0)
-        val segundo = LudoLayout.yardCell(Seat.SECOND, 0)
+    fun `os quatro currais ficam em cantos diferentes`() {
+        val cantos = (0 until LUDO_ARMS).map { LudoLayout.yardCell(it, 0) }
+        assertEquals(LUDO_ARMS, cantos.distinct().size)
+        // Em cima ou embaixo, à esquerda ou à direita: os quatro cantos, um para cada braço.
+        val quadrantes = cantos.map { Pair(it.row < LUDO_GRID / 2, it.column < LUDO_GRID / 2) }
+        assertEquals(LUDO_ARMS, quadrantes.distinct().size, "dois currais no mesmo canto: $cantos")
+    }
+
+    @Test
+    fun `na mesa de dois os currais ficam em cantos opostos`() {
+        val primeiro = LudoLayout.yardCell(armOf(Seat.FIRST, 2), 0)
+        val segundo = LudoLayout.yardCell(armOf(Seat.SECOND, 2), 0)
         assertTrue(primeiro.row < LUDO_GRID / 2 && primeiro.column < LUDO_GRID / 2)
         assertTrue(segundo.row > LUDO_GRID / 2 && segundo.column > LUDO_GRID / 2)
     }
 
+    // -------- o desenho inteiro --------
+
     @Test
     fun `toda posicao possivel de peao tem uma casa no desenho`() {
-        for (seat in listOf(Seat.FIRST, Seat.SECOND)) {
-            for (token in 0 until LUDO_TOKENS) {
-                val posicoes = listOf(LUDO_YARD) + (0..LUDO_GOAL).toList()
-                for (progress in posicoes) {
-                    val cell = LudoLayout.cellFor(seat, progress, token)
-                    assertTrue(
-                        cell.row in 0 until LUDO_GRID && cell.column in 0 until LUDO_GRID,
-                        "progresso $progress caiu fora da grade: $cell",
-                    )
-                    assertTrue(
-                        LudoLayout.kindOf(cell) != LudoCellKind.OUTSIDE,
-                        "progresso $progress caiu fora da cruz: $cell",
-                    )
+        for (seats in mesas) {
+            for (seat in cadeiras(seats)) {
+                for (token in 0 until LUDO_TOKENS) {
+                    for (progress in listOf(LUDO_YARD) + (0..LUDO_GOAL).toList()) {
+                        val cell = LudoLayout.cellFor(seat, progress, token, seats)
+                        assertTrue(
+                            cell.row in 0 until LUDO_GRID && cell.column in 0 until LUDO_GRID,
+                            "mesa de $seats: progresso $progress caiu fora da grade: $cell",
+                        )
+                        assertTrue(
+                            LudoLayout.kindOf(cell) != LudoCellKind.OUTSIDE,
+                            "mesa de $seats: progresso $progress caiu fora da cruz: $cell",
+                        )
+                    }
                 }
             }
         }
@@ -137,16 +197,12 @@ class LudoLayoutTest {
                 val naCruz = (row in 6..8) || (column in 6..8)
                 val kind = LudoLayout.kindOf(LudoCell(row, column))
                 if (naCruz) {
-                    assertTrue(
-                        kind != LudoCellKind.OUTSIDE,
-                        "buraco na cruz em ($row,$column)",
-                    )
+                    assertTrue(kind != LudoCellKind.OUTSIDE, "buraco na cruz em ($row,$column)")
                 } else {
-                    assertTrue(
-                        kind == LudoCellKind.YARD_FIRST ||
-                            kind == LudoCellKind.YARD_SECOND ||
-                            kind == LudoCellKind.OUTSIDE,
-                        "($row,$column) devia ser canto, veio $kind",
+                    assertEquals(
+                        LudoCellKind.YARD,
+                        kind,
+                        "($row,$column) devia ser canto de curral, veio $kind",
                     )
                 }
             }
@@ -168,28 +224,36 @@ class LudoLayoutTest {
     @Test
     fun `dois peoes na mesma casa absoluta caem no mesmo lugar do desenho`() {
         // Sem isto, uma captura aconteceria com os dois peões desenhados longe um do outro.
-        val progressoAdversario = (0 - startSquare(Seat.SECOND) + LUDO_TRACK) % LUDO_TRACK
-        assertEquals(
-            LudoLayout.cellFor(Seat.FIRST, 0, token = 0),
-            LudoLayout.cellFor(Seat.SECOND, progressoAdversario, token = 0),
-        )
+        for (seats in mesas) {
+            for (outra in cadeiras(seats).drop(1)) {
+                val progresso = (0 - startSquare(outra, seats) + LUDO_TRACK) % LUDO_TRACK
+                assertEquals(
+                    LudoLayout.cellFor(Seat.FIRST, 0, token = 0, seats = seats),
+                    LudoLayout.cellFor(outra, progresso, token = 0, seats = seats),
+                    "mesa de $seats, cadeira ${outra.index}: mesma casa absoluta, lugares diferentes",
+                )
+            }
+        }
     }
 
     @Test
     fun `uma partida inteira nunca desenha peao fora da cruz`() {
-        var state = LudoGame.initialState(MatchConfig(seed = 99))
-        var guard = 0
-        while (!LudoGame.outcome(state).isOver && guard++ < 600) {
-            for (seat in listOf(Seat.FIRST, Seat.SECOND)) {
-                state.tokensOf(seat).forEachIndexed { token, progress ->
-                    val cell = LudoLayout.cellFor(seat, progress, token)
-                    assertTrue(
-                        LudoLayout.kindOf(cell) != LudoCellKind.OUTSIDE,
-                        "peão $token da cadeira ${seat.index} em $progress caiu em $cell",
-                    )
+        for (seats in mesas) {
+            var state = LudoGame.initialState(MatchConfig(seed = 99, seats = seats))
+            var guard = 0
+            while (!LudoGame.outcome(state).isOver && guard++ < 600) {
+                for (index in 0 until seats) {
+                    val seat = Seat(index)
+                    state.tokensOf(seat).forEachIndexed { token, progress ->
+                        val cell = LudoLayout.cellFor(seat, progress, token, seats)
+                        assertTrue(
+                            LudoLayout.kindOf(cell) != LudoCellKind.OUTSIDE,
+                            "mesa de $seats: peão $token da cadeira $index em $progress caiu em $cell",
+                        )
+                    }
                 }
+                state = LudoGame.applyOrThrow(state, LudoGame.legalMoves(state).first())
             }
-            state = LudoGame.applyOrThrow(state, LudoGame.legalMoves(state).first())
         }
     }
 }

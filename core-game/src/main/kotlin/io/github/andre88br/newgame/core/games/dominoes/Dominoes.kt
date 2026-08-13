@@ -11,7 +11,7 @@ import io.github.andre88br.newgame.core.engine.Outcome
 import io.github.andre88br.newgame.core.engine.reasonOf
 import io.github.andre88br.newgame.core.engine.ReasonKey
 import io.github.andre88br.newgame.core.engine.Seat
-import io.github.andre88br.newgame.core.engine.opponent
+import io.github.andre88br.newgame.core.engine.next
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.serializer
@@ -85,12 +85,19 @@ data class DominoesState(
     val boneyard: List<Tile> = emptyList(),
     override val turn: Seat = Seat.FIRST,
     override val ply: Int = 0,
-    /** Passes seguidos. Dois passes fecham o jogo. */
+    /** Passes seguidos. A mesa dando a volta sem ninguém jogar fecha o jogo. */
     val passes: Int = 0,
 ) : GameState {
 
     val leftEnd: Int? get() = line.firstOrNull()?.a
     val rightEnd: Int? get() = line.lastOrNull()?.b
+
+    /** Quantas pessoas nesta mesa. Sai da própria distribuição, não de um campo à parte. */
+    val seats: Int get() = hands.size
+
+    /** As cadeiras que não são [seat], na ordem em que jogam depois dela. */
+    fun others(seat: Seat): List<Seat> =
+        (1 until seats).map { Seat((seat.index + it) % seats) }
 
     fun hand(seat: Seat): List<Tile> = hands.getOrElse(seat.index) { emptyList() }
 
@@ -144,7 +151,7 @@ fun handTiles(state: DominoesState, seat: Seat): List<HandTile> {
 }
 
 /**
- * Dominó de bater, dois jogadores.
+ * Dominó de bater, de dois a quatro jogadores.
  *
  * É o primeiro jogo do projeto com **informação oculta**, e por isso o primeiro a usar
  * `redactFor`: a mão do adversário e o monte saem do estado antes de ele chegar à tela ou
@@ -155,8 +162,8 @@ fun handTiles(state: DominoesState, seat: Seat): List<HandTile> {
  *
  * - **A compra.** Quem não tem peça para jogar compra do monte até conseguir. Isso é
  *   obrigatório, não uma escolha, então não vira lance.
- * - **O passe.** Monte vazio e ainda sem peça: passa a vez. Dois passes seguidos fecham o
- *   jogo.
+ * - **O passe.** Monte vazio e ainda sem peça: passa a vez. Quando a mesa dá a volta
+ *   inteira só com passes, o jogo fecha.
  *
  * Assim `legalMoves` só devolve peças que dá para jogar, e nunca volta vazio numa partida
  * em andamento.
@@ -164,6 +171,11 @@ fun handTiles(state: DominoesState, seat: Seat): List<HandTile> {
 object DominoesGame : BoardGame<DominoesState, DominoesMove> {
 
     override val id: GameId = GameId.DOMINOES
+
+    /** De dois a quatro, como numa mesa. Com quatro as 28 peças acabam e não há monte. */
+    override val supportedSeats: IntRange = 2..4
+
+    override fun seatsIn(state: DominoesState): Int = state.seats
 
     override val hasHiddenInformation: Boolean = true
 
@@ -175,14 +187,16 @@ object DominoesGame : BoardGame<DominoesState, DominoesMove> {
         // tirar a próxima peça do monte, o que mantém tudo reproduzível pela semente.
         val tiles = config.rng().shuffle(Tile.fullSet()).value
 
-        val first = tiles.take(DOMINO_HAND_SIZE)
-        val second = tiles.drop(DOMINO_HAND_SIZE).take(DOMINO_HAND_SIZE)
-        val boneyard = tiles.drop(DOMINO_HAND_SIZE * 2)
+        // Sete peças para cada um, como na mesa. A quatro, as 28 acabam: não sobra monte, e
+        // quem não tem o que jogar passa direto — é assim que o dominó a quatro funciona.
+        val hands = (0 until config.seats).map { seat ->
+            tiles.drop(seat * DOMINO_HAND_SIZE).take(DOMINO_HAND_SIZE)
+        }
 
         return DominoesState(
-            hands = listOf(first, second),
-            boneyard = boneyard,
-            turn = openingSeat(first, second),
+            hands = hands,
+            boneyard = tiles.drop(DOMINO_HAND_SIZE * config.seats),
+            turn = openingSeat(hands),
         )
     }
 
@@ -190,20 +204,19 @@ object DominoesGame : BoardGame<DominoesState, DominoesMove> {
      * Quem abre: quem tiver a maior carroça; sem carroça na mesa, quem tiver a maior peça.
      * É a regra de mesa, e evita que abrir seja sempre da mesma cadeira.
      */
-    private fun openingSeat(first: List<Tile>, second: List<Tile>): Seat {
+    private fun openingSeat(hands: List<List<Tile>>): Seat {
         fun best(hand: List<Tile>): Pair<Int, Int> {
             val doubles = hand.filter { it.isDouble }
             return if (doubles.isNotEmpty()) 1 to doubles.maxOf { it.pips } else 0 to hand.maxOf { it.pips }
         }
 
-        val (firstHasDouble, firstScore) = best(first)
-        val (secondHasDouble, secondScore) = best(second)
-        return when {
-            firstHasDouble != secondHasDouble ->
-                if (firstHasDouble > secondHasDouble) Seat.FIRST else Seat.SECOND
-            firstScore >= secondScore -> Seat.FIRST
-            else -> Seat.SECOND
-        }
+        // Empate na força da mão fica com a cadeira mais baixa — sorteio já houve no
+        // embaralhamento, e desempatar de novo só acrescentaria aleatoriedade sem regra.
+        return hands.indices.maxByOrNull { index ->
+            val (temCarroca, pontos) = best(hands[index])
+            // Carroça ganha de qualquer peça comum, então entra como casa mais alta.
+            temCarroca * 100 + pontos
+        }?.let { Seat(it) } ?: Seat.FIRST
     }
 
     override fun legalMoves(state: DominoesState): List<DominoesMove> {
@@ -254,7 +267,7 @@ object DominoesGame : BoardGame<DominoesState, DominoesMove> {
         val played = state.copy(
             line = line,
             hands = hands,
-            turn = state.turn.opponent(),
+            turn = state.turn.next(state.seats),
             ply = state.ply + 1,
             passes = 0,
         )
@@ -285,7 +298,8 @@ object DominoesGame : BoardGame<DominoesState, DominoesMove> {
      */
     private fun settleTurn(start: DominoesState): DominoesState {
         var state = start
-        while (state.passes < 2) {
+        // O jogo fecha quando a mesa dá a volta inteira sem ninguém poder jogar.
+        while (state.passes < state.seats) {
             // Alguém bateu: a partida acabou, não há o que comprar.
             if (state.hands.any { it.isEmpty() }) return state
             if (movesFor(state, state.turn).isNotEmpty()) return state
@@ -295,7 +309,7 @@ object DominoesGame : BoardGame<DominoesState, DominoesMove> {
                 continue
             }
 
-            state = state.copy(turn = state.turn.opponent(), passes = state.passes + 1)
+            state = state.copy(turn = state.turn.next(state.seats), passes = state.passes + 1)
         }
         return state
     }
@@ -321,16 +335,14 @@ object DominoesGame : BoardGame<DominoesState, DominoesMove> {
             if (state.hands[index].isEmpty()) return Outcome.Win(Seat(index))
         }
 
-        if (state.passes < 2) return null
+        if (state.seats == 0 || state.passes < state.seats) return null
 
-        // Jogo fechado: ninguém tem o que jogar. Vence quem tiver menos pontos na mão.
-        val firstPips = state.pipsInHand(Seat.FIRST)
-        val secondPips = state.pipsInHand(Seat.SECOND)
-        return when {
-            firstPips < secondPips -> Outcome.Win(Seat.FIRST)
-            secondPips < firstPips -> Outcome.Win(Seat.SECOND)
-            else -> Outcome.Draw(DrawReason.BLOCKED)
-        }
+        // Jogo fechado: ninguém tem o que jogar. Vence quem tiver menos pontos na mão, e
+        // empate na contagem é empate de verdade — não há critério seguinte na regra.
+        val pontos = (0 until state.seats).map { state.pipsInHand(Seat(it)) }
+        val menor = pontos.min()
+        val comMenor = pontos.count { it == menor }
+        return if (comMenor == 1) Outcome.Win(Seat(pontos.indexOf(menor))) else Outcome.Draw(DrawReason.BLOCKED)
     }
 
     /**

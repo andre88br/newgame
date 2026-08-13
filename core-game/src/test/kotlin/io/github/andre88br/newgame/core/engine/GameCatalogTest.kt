@@ -31,7 +31,7 @@ class GameCatalogTest {
             // dupla, e no ludo abre quem tirou um dado que serve. O contrato é a cadeira
             // existir na mesa, não ser a de índice zero.
             assertTrue(
-                state.turn.index in 0 until entry.rules.seatCount,
+                state.turn.index in 0 until entry.rules.seatsIn(state),
                 "${entry.id} começa numa cadeira que não existe: ${state.turn}",
             )
             assertEquals(
@@ -114,7 +114,7 @@ class GameCatalogTest {
 
         for (entry in ocultos) {
             val state = entry.rules.initialState(MatchConfig(seed = 7))
-            for (index in 0 until entry.rules.seatCount) {
+            for (index in 0 until entry.rules.seatsIn(state)) {
                 val viewer = Seat(index)
                 val visto = entry.rules.redactFor(state, viewer)
                 assertTrue(

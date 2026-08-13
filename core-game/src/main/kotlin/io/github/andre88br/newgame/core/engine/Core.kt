@@ -117,17 +117,34 @@ enum class DrawReason {
 @Serializable
 data class MatchConfig(
     val seed: Long,
+    /**
+     * Quantas pessoas sentam à mesa.
+     *
+     * A maioria dos jogos só existe com duas; o dominó e o ludo aceitam até quatro. Fica
+     * na configuração, e não numa opção de texto, porque o número de cadeiras muda a
+     * distribuição inicial — e o registro da partida precisa dele para reconstruir o mesmo
+     * tabuleiro ao ser reaberto.
+     */
+    val seats: Int = 2,
     val options: Map<String, String> = emptyMap(),
 ) {
+
+    init {
+        require(seats in MIN_SEATS..MAX_SEATS) { "Cadeiras fora da faixa: $seats" }
+    }
     fun rng(): Rng = Rng.seeded(seed)
 
     fun option(key: String): String? = options[key]
 
     companion object {
+        const val MIN_SEATS: Int = 2
+        const val MAX_SEATS: Int = 4
+
         /** Configuração sem aleatoriedade relevante — útil para jogos determinísticos e testes. */
         val DETERMINISTIC: MatchConfig = MatchConfig(seed = 0L)
 
-        fun random(): MatchConfig = MatchConfig(seed = java.security.SecureRandom().nextLong())
+        fun random(seats: Int = MIN_SEATS): MatchConfig =
+            MatchConfig(seed = java.security.SecureRandom().nextLong(), seats = seats)
     }
 }
 
@@ -140,8 +157,22 @@ data class MatchConfig(
 interface BoardGame<S : GameState, M : Move> {
     val id: GameId
 
-    /** Quantidade de cadeiras da mesa (2 para a maioria; o ludo aceita até 4). */
-    val seatCount: Int get() = 2
+    /**
+     * Quantas pessoas este jogo aceita à mesa.
+     *
+     * A maioria só existe com duas; o dominó e o ludo vão até quatro. Quem monta a tela de
+     * configuração lê isto para decidir se oferece a escolha.
+     */
+    val supportedSeats: IntRange get() = 2..2
+
+    /**
+     * Quantas cadeiras esta partida tem.
+     *
+     * Sai do estado, e não de um campo fixo: uma partida de dominó a três e outra a quatro
+     * são o mesmo jogo com tabuleiros diferentes, e quem recebe um estado guardado precisa
+     * descobrir isso olhando para ele.
+     */
+    fun seatsIn(state: S): Int = 2
 
     fun initialState(config: MatchConfig): S
 

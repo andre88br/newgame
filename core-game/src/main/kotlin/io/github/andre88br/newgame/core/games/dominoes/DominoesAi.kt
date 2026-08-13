@@ -7,28 +7,37 @@ import io.github.andre88br.newgame.core.ai.MoveOrdering
 import io.github.andre88br.newgame.core.ai.SearchLimits
 import io.github.andre88br.newgame.core.engine.Rng
 import io.github.andre88br.newgame.core.engine.Seat
-import io.github.andre88br.newgame.core.engine.opponent
 
 /**
  * Avaliação do dominó.
  *
- * O que decide uma partida de dois é sair das peças pesadas antes de ficar preso com elas,
+ * O que decide a partida é sair das peças pesadas antes de ficar preso com elas,
  * e não deixar o adversário sem encaixe por acaso. Daí a conta: pontos na mão pesam
  * negativo — é isso que se perde ao fechar o jogo —, mão menor pesa positivo, e ter peça
  * para as duas pontas vale um bônus, porque a pior situação do dominó é comprar meio monte.
  */
 object DominoesEvaluator : Evaluator<DominoesState> {
 
+    /**
+     * A comparação é sempre com quem está **melhor** entre os outros.
+     *
+     * Numa mesa de três ou quatro, medir contra a média deixaria a máquina tranquila
+     * enquanto alguém está prestes a bater. Quem decide a partida é o mais adiantado.
+     */
     override fun evaluate(state: DominoesState, seat: Seat): Int {
-        val opponent = seat.opponent()
+        val outros = state.others(seat)
+        if (outros.isEmpty()) return 0
+
+        // Quem está mais perto de bater: menos peças na mão, e a mão menor desempata.
+        val lider = outros.minByOrNull { state.handSize(it) * 100 + state.pipsInHand(it) } ?: outros.first()
 
         // Ponto na mão é ponto que se entrega se o jogo fechar.
-        val pips = (state.pipsInHand(opponent) - state.pipsInHand(seat)) * 10
+        val pips = (state.pipsInHand(lider) - state.pipsInHand(seat)) * 10
 
         // Estar mais perto de bater vale muito: bater é a vitória.
-        val tiles = (state.handSize(opponent) - state.handSize(seat)) * 40
+        val tiles = (state.handSize(lider) - state.handSize(seat)) * 40
 
-        val flexibility = (playableCount(state, seat) - playableCount(state, opponent)) * 8
+        val flexibility = (playableCount(state, seat) - playableCount(state, lider)) * 8
 
         return pips + tiles + flexibility
     }

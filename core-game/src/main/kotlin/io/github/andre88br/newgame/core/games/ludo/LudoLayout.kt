@@ -17,29 +17,14 @@ enum class LudoCellKind {
     /** Casa marcada da volta: peão parado ali não é capturado. */
     SAFE,
 
-    /** Corredor final da primeira cadeira. */
-    HOME_FIRST,
-
-    /** Corredor final da segunda cadeira. */
-    HOME_SECOND,
+    /** Corredor final de um braço. Qual braço vem de [LudoLayout.armAt]. */
+    HOME,
 
     /** O centro da cruz: é onde os peões chegam. */
     GOAL,
 
-    /** Curral da primeira cadeira. */
-    YARD_FIRST,
-
-    /** Curral da segunda cadeira. */
-    YARD_SECOND,
-
-    /**
-     * Corredor das duas cores que não jogam nesta partida.
-     *
-     * A cruz tem quatro braços porque o ludo tem quatro cores; a partida de dois usa duas.
-     * Desenhar os outros dois corredores em cinza é mais honesto do que deixar um buraco no
-     * meio do braço.
-     */
-    LANE_UNUSED,
+    /** Curral de um braço. */
+    YARD,
 
     /** Fora da cruz: não faz parte do jogo. */
     OUTSIDE,
@@ -62,8 +47,8 @@ object LudoLayout {
     /**
      * As 52 casas da volta, na ordem em que se anda.
      *
-     * O índice é a casa absoluta que [absoluteSquare] devolve: `ring[0]` é a saída da primeira
-     * cadeira e `ring[26]` a da segunda, diagonalmente oposta.
+     * O índice é a casa absoluta que [absoluteSquare] devolve: `ring[0]`, `ring[13]`,
+     * `ring[26]` e `ring[39]` são as saídas dos quatro braços.
      */
     val ring: List<LudoCell> = buildList {
         add(LudoCell(6, 0))
@@ -85,33 +70,56 @@ object LudoLayout {
     fun trackCell(absolute: Int): LudoCell = ring[Math.floorMod(absolute, LUDO_TRACK)]
 
     /**
+     * O braço a que a casa pertence, ou `-1` se ela for da volta, do centro ou de fora.
+     *
+     * Serve ao desenho: cada braço tem a sua cor, e o corredor de um braço que não está em
+     * jogo aparece apagado em vez de somer.
+     */
+    fun armAt(cell: LudoCell): Int = when {
+        cell.row == 7 && cell.column in 1..5 -> 0
+        cell.column == 7 && cell.row in 1..5 -> 1
+        cell.row == 7 && cell.column in 9..13 -> 2
+        cell.column == 7 && cell.row in 9..13 -> 3
+        cell.row in 0..5 && cell.column in 0..5 -> 0
+        cell.row in 0..5 && cell.column in 9..14 -> 1
+        cell.row in 9..14 && cell.column in 9..14 -> 2
+        cell.row in 9..14 && cell.column in 0..5 -> 3
+        else -> -1
+    }
+
+    /**
      * Casa do corredor final, com [step] indo de 0 (a primeira depois da volta) até
      * [LUDO_HOME_LANE] — que já é a chegada.
      *
      * Os dois corredores ocupam a linha do meio, um vindo de cada lado, e se encontram no
      * centro. Cada cor entra no seu logo depois de completar a volta.
      */
-    fun laneCell(seat: Seat, step: Int): LudoCell {
+    fun laneCell(arm: Int, step: Int): LudoCell {
         require(step in 0..LUDO_HOME_LANE) { "Passo $step fora do corredor final" }
-        return if (seat == Seat.FIRST) {
-            LudoCell(7, 1 + step)
-        } else {
-            LudoCell(7, 13 - step)
+        // Cada braço entra no centro pelo seu lado: da esquerda, de cima, da direita, de
+        // baixo. Todos terminam encostando no bloco do meio, que é a chegada.
+        return when (arm) {
+            0 -> LudoCell(7, 1 + step)
+            1 -> LudoCell(1 + step, 7)
+            2 -> LudoCell(7, 13 - step)
+            else -> LudoCell(13 - step, 7)
         }
     }
 
-    /** A chegada de cada cor, no centro do tabuleiro. */
-    fun goalCell(seat: Seat): LudoCell = laneCell(seat, LUDO_HOME_LANE)
+    /** A chegada de cada braço, no centro do tabuleiro. */
+    fun goalCell(arm: Int): LudoCell = laneCell(arm, LUDO_HOME_LANE)
 
-    /** Onde fica o peão [token] enquanto está no curral. */
-    fun yardCell(seat: Seat, token: Int): LudoCell {
+    /** Onde fica o peão [token] enquanto está no curral do braço [arm]. */
+    fun yardCell(arm: Int, token: Int): LudoCell {
         require(token in 0 until LUDO_TOKENS) { "Peão $token não existe" }
         val row = if (token < 2) 1 else 4
         val column = if (token % 2 == 0) 1 else 4
-        return if (seat == Seat.FIRST) {
-            LudoCell(row, column)
-        } else {
-            LudoCell(row + 9, column + 9)
+        // Os quatro cantos, no mesmo sentido em que os braços se sucedem na volta.
+        return when (arm) {
+            0 -> LudoCell(row, column)
+            1 -> LudoCell(row, column + 9)
+            2 -> LudoCell(row + 9, column + 9)
+            else -> LudoCell(row + 9, column)
         }
     }
 
@@ -119,10 +127,13 @@ object LudoLayout {
      * Onde desenhar o peão [token] de [seat], seja qual for a situação dele: curral, volta,
      * corredor final ou chegada.
      */
-    fun cellFor(seat: Seat, progress: Int, token: Int): LudoCell = when {
-        progress == LUDO_YARD -> yardCell(seat, token)
-        progress >= LUDO_TRACK -> laneCell(seat, progress - LUDO_TRACK)
-        else -> trackCell(absoluteSquare(seat, progress)!!)
+    fun cellFor(seat: Seat, progress: Int, token: Int, seats: Int): LudoCell {
+        val arm = armOf(seat, seats)
+        return when {
+            progress == LUDO_YARD -> yardCell(arm, token)
+            progress >= LUDO_TRACK -> laneCell(arm, progress - LUDO_TRACK)
+            else -> trackCell(absoluteSquare(seat, progress, seats)!!)
+        }
     }
 
     /** Para que serve a casa — o desenho pinta cada tipo de um jeito. */
@@ -132,12 +143,14 @@ object LudoLayout {
 
         if (cell.row in 6..8 && cell.column in 6..8) return LudoCellKind.GOAL
 
-        if (cell.row == 7 && cell.column in 1..5) return LudoCellKind.HOME_FIRST
-        if (cell.row == 7 && cell.column in 9..13) return LudoCellKind.HOME_SECOND
-        if (cell.column == 7 && (cell.row in 1..5 || cell.row in 9..13)) return LudoCellKind.LANE_UNUSED
+        val naLinhaDoMeio = cell.row == 7 && (cell.column in 1..5 || cell.column in 9..13)
+        val naColunaDoMeio = cell.column == 7 && (cell.row in 1..5 || cell.row in 9..13)
+        if (naLinhaDoMeio || naColunaDoMeio) return LudoCellKind.HOME
 
-        if (cell.row in 0..5 && cell.column in 0..5) return LudoCellKind.YARD_FIRST
-        if (cell.row in 9..14 && cell.column in 9..14) return LudoCellKind.YARD_SECOND
+        if (cell.row in 0..5 && cell.column in 0..5) return LudoCellKind.YARD
+        if (cell.row in 0..5 && cell.column in 9..14) return LudoCellKind.YARD
+        if (cell.row in 9..14 && cell.column in 9..14) return LudoCellKind.YARD
+        if (cell.row in 9..14 && cell.column in 0..5) return LudoCellKind.YARD
 
         return LudoCellKind.OUTSIDE
     }

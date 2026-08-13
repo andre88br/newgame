@@ -12,7 +12,7 @@ import io.github.andre88br.newgame.core.engine.reasonOf
 import io.github.andre88br.newgame.core.engine.ReasonKey
 import io.github.andre88br.newgame.core.engine.Rng
 import io.github.andre88br.newgame.core.engine.Seat
-import io.github.andre88br.newgame.core.engine.opponent
+import io.github.andre88br.newgame.core.engine.next
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.serializer
@@ -42,16 +42,28 @@ const val LUDO_YARD = -1
 /** Passos até chegar: 52 da volta mais o corredor final. */
 const val LUDO_GOAL = LUDO_TRACK + LUDO_HOME_LANE
 
-/** Casas de saída de cada cadeira, na numeração absoluta da volta. */
-fun startSquare(seat: Seat): Int = if (seat == Seat.FIRST) 0 else LUDO_TRACK / 2
+/** Braços da cruz. São quatro, com ou sem quatro jogadores. */
+const val LUDO_ARMS = 4
+
+/**
+ * Em qual braço da cruz esta cadeira joga.
+ *
+ * A partida de dois usa braços **opostos** — jogar de lados adjacentes desequilibraria o
+ * percurso, já que a saída de um ficaria a treze casas da do outro em vez de vinte e seis.
+ * Com três ou quatro, cada cadeira pega um braço em ordem.
+ */
+fun armOf(seat: Seat, seats: Int): Int = if (seats == 2) seat.index * 2 else seat.index
+
+/** Casa de saída de cada cadeira, na numeração absoluta da volta. */
+fun startSquare(seat: Seat, seats: Int): Int = armOf(seat, seats) * (LUDO_TRACK / LUDO_ARMS)
 
 /**
  * Casa absoluta de um peão, ou `null` se ele estiver no curral ou no corredor final —
  * lugares onde ninguém pode ser capturado.
  */
-fun absoluteSquare(seat: Seat, progress: Int): Int? {
+fun absoluteSquare(seat: Seat, progress: Int, seats: Int): Int? {
     if (progress < 0 || progress >= LUDO_TRACK) return null
-    return (startSquare(seat) + progress) % LUDO_TRACK
+    return (startSquare(seat, seats) + progress) % LUDO_TRACK
 }
 
 /**
@@ -59,15 +71,12 @@ fun absoluteSquare(seat: Seat, progress: Int): Int? {
  * parado numa delas não é capturado.
  */
 fun isSafeSquare(square: Int): Boolean =
-    square % (LUDO_TRACK / 4) == 0 || square % (LUDO_TRACK / 4) == 8
+    square % (LUDO_TRACK / LUDO_ARMS) == 0 || square % (LUDO_TRACK / LUDO_ARMS) == 8
 
 @Serializable
 data class LudoState(
     /** Progresso de cada peão, por cadeira. [LUDO_YARD] no curral, [LUDO_GOAL] na chegada. */
-    val tokens: List<List<Int>> = listOf(
-        List(LUDO_TOKENS) { LUDO_YARD },
-        List(LUDO_TOKENS) { LUDO_YARD },
-    ),
+    val tokens: List<List<Int>> = List(2) { List(LUDO_TOKENS) { LUDO_YARD } },
     override val turn: Seat = Seat.FIRST,
     override val ply: Int = 0,
     /** O dado já rolado, à espera de um peão para mover. */
@@ -78,7 +87,14 @@ data class LudoState(
     val idleTurns: Int = 0,
 ) : GameState {
 
+    /** Quantas pessoas nesta mesa. Sai do próprio tabuleiro, não de um campo à parte. */
+    val seats: Int get() = tokens.size
+
     fun tokensOf(seat: Seat): List<Int> = tokens[seat.index]
+
+    /** As cadeiras que não são [seat]. */
+    fun others(seat: Seat): List<Seat> =
+        (1 until seats).map { Seat((seat.index + it) % seats) }
 
     fun finished(seat: Seat): Int = tokensOf(seat).count { it >= LUDO_GOAL }
 
@@ -99,7 +115,7 @@ data class LudoMove(val token: Int) : Move {
 }
 
 /**
- * Ludo para dois.
+ * Ludo de dois a quatro.
  *
  * O dado é rolado **pelo motor**, não pelo jogador: quando a vez chega, o valor já está em
  * [LudoState.die], e o lance é escolher qual peão anda. É o que permite manter a promessa
@@ -122,6 +138,11 @@ object LudoGame : BoardGame<LudoState, LudoMove> {
 
     override val id: GameId = GameId.LUDO
 
+    /** De dois a quatro: a cruz tem quatro braços desde sempre. */
+    override val supportedSeats: IntRange = 2..LUDO_ARMS
+
+    override fun seatsIn(state: LudoState): Int = state.seats
+
     /** Abre quem tirar um dado que sirva, e isso é o primeiro sorteio da partida. */
     override val decidesWhoStarts: Boolean = true
 
@@ -133,13 +154,17 @@ object LudoGame : BoardGame<LudoState, LudoMove> {
      * zero. [rollFor] é a mesma rolagem usada entre lances, que passa a vez e rola de novo
      * até alguém poder jogar.
      */
-    override fun initialState(config: MatchConfig): LudoState =
-        rollFor(LudoState(rng = config.rng()), Seat.FIRST)
+    override fun initialState(config: MatchConfig): LudoState = rollFor(
+        LudoState(
+            tokens = List(config.seats) { List(LUDO_TOKENS) { LUDO_YARD } },
+            rng = config.rng(),
+        ),
+        Seat.FIRST,
+    )
 
     override fun legalMoves(state: LudoState): List<LudoMove> {
         if (state.idleTurns >= IDLE_LIMIT) return emptyList()
-        if (state.finished(Seat.FIRST) == LUDO_TOKENS) return emptyList()
-        if (state.finished(Seat.SECOND) == LUDO_TOKENS) return emptyList()
+        if ((0 until state.seats).any { state.finished(Seat(it)) == LUDO_TOKENS }) return emptyList()
         return movesFor(state, state.turn, state.die)
     }
 
@@ -204,19 +229,21 @@ object LudoGame : BoardGame<LudoState, LudoMove> {
         val tokens = state.tokens.toMutableList()
         tokens[seat.index] = mine
 
-        // Captura: peão adversário sozinho numa casa comum volta para o curral.
-        val landing = absoluteSquare(seat, target)
+        // Captura: peão adversário numa casa comum volta para o curral. Com três ou quatro
+        // na mesa, um lance pode mandar embora peão de mais de uma cor ao mesmo tempo.
+        val landing = absoluteSquare(seat, target, state.seats)
         if (landing != null && !isSafeSquare(landing)) {
-            val opponent = seat.opponent()
-            tokens[opponent.index] = state.tokensOf(opponent).map { theirs ->
-                if (absoluteSquare(opponent, theirs) == landing) LUDO_YARD else theirs
+            for (other in state.others(seat)) {
+                tokens[other.index] = state.tokensOf(other).map { theirs ->
+                    if (absoluteSquare(other, theirs, state.seats) == landing) LUDO_YARD else theirs
+                }
             }
         }
 
         val afterMove = state.copy(tokens = tokens, ply = state.ply + 1, idleTurns = 0)
 
         // Tirar 6 dá direito a jogar de novo.
-        val next = if (state.die == LUDO_ENTRY_ROLL) seat else seat.opponent()
+        val next = if (state.die == LUDO_ENTRY_ROLL) seat else seat.next(state.seats)
         return rollFor(afterMove, next)
     }
 
@@ -238,25 +265,27 @@ object LudoGame : BoardGame<LudoState, LudoMove> {
                 return current.copy(idleTurns = 0)
             }
             // Sem lance com este dado: a vez passa e rola-se outro.
-            who = who.opponent()
+            who = who.next(current.seats)
             idle++
         }
         return current.copy(idleTurns = IDLE_LIMIT)
     }
 
-    /** Pisar em peão adversário sozinho numa casa comum manda ele para o curral. */
+    /** Pisar em peão adversário numa casa comum manda ele para o curral. */
     override fun isCapture(state: LudoState, move: LudoMove): Boolean {
         val progress = state.tokensOf(state.turn)[move.token]
         val target = if (progress == LUDO_YARD) 0 else progress + state.die
-        val landing = absoluteSquare(state.turn, target) ?: return false
+        val landing = absoluteSquare(state.turn, target, state.seats) ?: return false
         if (isSafeSquare(landing)) return false
-        val opponent = state.turn.opponent()
-        return state.tokensOf(opponent).any { absoluteSquare(opponent, it) == landing }
+        return state.others(state.turn).any { other ->
+            state.tokensOf(other).any { absoluteSquare(other, it, state.seats) == landing }
+        }
     }
 
     override fun outcome(state: LudoState): Outcome {
-        if (state.finished(Seat.FIRST) == LUDO_TOKENS) return Outcome.Win(Seat.FIRST)
-        if (state.finished(Seat.SECOND) == LUDO_TOKENS) return Outcome.Win(Seat.SECOND)
+        for (index in 0 until state.seats) {
+            if (state.finished(Seat(index)) == LUDO_TOKENS) return Outcome.Win(Seat(index))
+        }
         if (state.idleTurns >= IDLE_LIMIT) return Outcome.Draw(DrawReason.BLOCKED)
         return Outcome.InProgress
     }

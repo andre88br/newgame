@@ -6,7 +6,6 @@ import io.github.andre88br.newgame.core.ai.MoveOrdering
 import io.github.andre88br.newgame.core.ai.SearchBasedAi
 import io.github.andre88br.newgame.core.ai.SearchLimits
 import io.github.andre88br.newgame.core.engine.Seat
-import io.github.andre88br.newgame.core.engine.opponent
 
 /**
  * Avaliação do ludo.
@@ -22,8 +21,18 @@ object LudoEvaluator : Evaluator<LudoState> {
     private const val OUT_OF_YARD = 60
     private const val DANGER = 25
 
-    override fun evaluate(state: LudoState, seat: Seat): Int =
-        sideScore(state, seat) - sideScore(state, seat.opponent())
+    /**
+     * A vantagem sobre quem está **melhor** entre os outros, e não sobre a média.
+     *
+     * Numa mesa de três ou quatro, comparar com a média deixaria a máquina satisfeita
+     * enquanto um adversário dispara na frente. O que decide a partida é quem está na
+     * liderança, então é com ele que a conta é feita.
+     */
+    override fun evaluate(state: LudoState, seat: Seat): Int {
+        val meu = sideScore(state, seat)
+        val melhorDosOutros = state.others(seat).maxOfOrNull { sideScore(state, it) } ?: 0
+        return meu - melhorDosOutros
+    }
 
     private fun sideScore(state: LudoState, seat: Seat): Int {
         var score = 0
@@ -36,7 +45,7 @@ object LudoEvaluator : Evaluator<LudoState> {
                     score += OUT_OF_YARD + progress
                     if (progress >= LUDO_TRACK) score += 80
 
-                    val square = absoluteSquare(seat, progress)
+                    val square = absoluteSquare(seat, progress, state.seats)
                     if (square != null && !isSafeSquare(square)) score -= DANGER
                 }
             }

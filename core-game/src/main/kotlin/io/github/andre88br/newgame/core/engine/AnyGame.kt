@@ -17,7 +17,11 @@ val GameJson: Json = Json {
  */
 interface AnyGame {
     val id: GameId
-    val seatCount: Int
+    /** Veja [BoardGame.supportedSeats]. */
+    val supportedSeats: IntRange
+
+    /** Veja [BoardGame.seatsIn]. */
+    fun seatsIn(state: GameState): Int
 
     fun initialState(config: MatchConfig): GameState
 
@@ -65,7 +69,9 @@ private class TypedFacade<S : GameState, M : Move>(
 ) : AnyGame {
 
     override val id: GameId get() = game.id
-    override val seatCount: Int get() = game.seatCount
+    override val supportedSeats: IntRange get() = game.supportedSeats
+
+    override fun seatsIn(state: GameState): Int = game.seatsIn(state.typed())
     override val hasHiddenInformation: Boolean get() = game.hasHiddenInformation
     override val decidesWhoStarts: Boolean get() = game.decidesWhoStarts
 

@@ -16,6 +16,9 @@ import kotlin.test.assertTrue
 
 class LudoTest {
 
+    /** As partidas destes testes são de dois, salvo onde se diz o contrário. */
+    private val DOIS = 2
+
     private fun state(
         first: List<Int>,
         second: List<Int>,
@@ -80,11 +83,11 @@ class LudoTest {
     fun `pisar em peao adversario manda ele para o curral`() {
         // A cadeira 0 anda 3 casas e cai onde está um peão da cadeira 1.
         val alvo = 3
-        val absoluta = absoluteSquare(Seat.FIRST, alvo)!!
+        val absoluta = absoluteSquare(Seat.FIRST, alvo, DOIS)!!
         assertTrue(!isSafeSquare(absoluta), "a casa do teste precisa ser comum, não segura")
 
         // Progresso do adversário que resulta na mesma casa absoluta.
-        val progressoAdversario = (absoluta - startSquare(Seat.SECOND) + LUDO_TRACK) % LUDO_TRACK
+        val progressoAdversario = (absoluta - startSquare(Seat.SECOND, DOIS) + LUDO_TRACK) % LUDO_TRACK
         val antes = state(
             first = listOf(0, LUDO_YARD, LUDO_YARD, LUDO_YARD),
             second = listOf(progressoAdversario, LUDO_YARD, LUDO_YARD, LUDO_YARD),
@@ -99,10 +102,10 @@ class LudoTest {
     @Test
     fun `peao em casa segura nao e capturado`() {
         // A casa de saída da cadeira 1 é segura por definição.
-        val absoluta = startSquare(Seat.SECOND)
+        val absoluta = startSquare(Seat.SECOND, DOIS)
         assertTrue(isSafeSquare(absoluta))
 
-        val passos = (absoluta - startSquare(Seat.FIRST) + LUDO_TRACK) % LUDO_TRACK
+        val passos = (absoluta - startSquare(Seat.FIRST, DOIS) + LUDO_TRACK) % LUDO_TRACK
         val antes = state(
             first = listOf(passos - 2, LUDO_YARD, LUDO_YARD, LUDO_YARD),
             second = listOf(0, LUDO_YARD, LUDO_YARD, LUDO_YARD),
@@ -116,7 +119,7 @@ class LudoTest {
     @Test
     fun `peao no corredor final nao pode ser capturado`() {
         val noCorredor = LUDO_TRACK + 2
-        assertEquals(null, absoluteSquare(Seat.SECOND, noCorredor), "corredor não tem casa absoluta")
+        assertEquals(null, absoluteSquare(Seat.SECOND, noCorredor, DOIS), "corredor não tem casa absoluta")
     }
 
     // -------- chegada --------
