@@ -56,6 +56,7 @@ fun NewgameNavHost(container: AppContainer) {
         composable(Routes.HOME) {
             HomeScreen(
                 store = container.matchStore,
+                animationsEnabled = container.preferences.settings.value.animations,
                 onPlay = { entry -> navController.navigate(Routes.setup(entry.id)) },
                 onResume = { gameId, matchId ->
                     navController.navigate(Routes.resumeMatch(gameId, matchId))

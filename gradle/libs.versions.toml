@@ -17,6 +17,8 @@ junit = "5.14.4"
 # estar para o classloader bater com o do Kotlin. O AGP 9 exige Gradle 9 — mexeu numa,
 # confira o wrapper junto.
 androidxCore = "1.17.0"
+# Única versão estável, e parada desde 2022: a API é pequena e não mudou.
+splashScreen = "1.0.1"
 activityCompose = "1.12.0"
 lifecycle = "2.9.4"
 navigationCompose = "2.9.5"
@@ -27,6 +29,7 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
 
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
+androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "splashScreen" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }

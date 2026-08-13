@@ -13,4 +13,21 @@
         <item name="android:statusBarColor">@color/window_background</item>
         <item name="android:navigationBarColor">@color/window_background</item>
     </style>
+
+    <!--
+      Tela de abertura.
+
+      No Android 12 e acima o sistema mostra uma sozinho, quer o app peça ou não. Esta
+      declaração serve para duas coisas: escolher o que aparece nela em vez de aceitar o
+      padrão, e — o motivo de valer uma dependência — **fazer o mesmo do Android 7 ao 11**,
+      onde não existe tela de abertura nenhuma e o app abriria num retângulo liso.
+
+      `postSplashScreenTheme` é o tema que entra assim que a abertura sai; sem ele a janela
+      ficaria com o fundo da abertura por baixo do app inteiro.
+    -->
+    <style name="Theme.Newgame.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/launcher_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Newgame</item>
+    </style>
 </resources>
