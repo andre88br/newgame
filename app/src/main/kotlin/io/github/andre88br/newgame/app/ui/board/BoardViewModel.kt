@@ -20,6 +20,7 @@ import io.github.andre88br.newgame.core.session.PlayedMove
 import io.github.andre88br.newgame.core.session.Player
 import io.github.andre88br.newgame.core.session.PromotionChoice
 import io.github.andre88br.newgame.core.session.TapResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -225,21 +226,42 @@ class BoardViewModel(
         }
     }
 
+    /**
+     * Joga a IA até a vez voltar para uma pessoa.
+     *
+     * Um só [MatchSession.playAiTurn] joga um lance só. No ludo, tirar 6 dá o dado de novo
+     * para quem tirou — inclusive a máquina —, e numa mesa de mais de duas cadeiras uma IA
+     * pode jogar logo depois da outra. Chamar a busca uma única vez deixaria a tela presa em
+     * "pensando" sem ninguém para tirar dali: nada dispara um novo lance sozinho.
+     */
     private fun maybePlayAiTurn() {
         if (!session.awaitingAi) return
         _ui.value = snapshot(status = BoardStatus.Thinking)
 
         viewModelScope.launch {
-            // A busca do nível difícil leva segundos: fora da thread da interface, sempre.
-            val before = session.state
-            val move = withContext(Dispatchers.Default) { session.playAiTurn() }
-            if (move != null) {
-                lastMoveSquares = entry.interactor?.squaresOf(move).orEmpty().toSet()
-                lastPlayedMove = move
-                noteEvent(before, move)
+            try {
+                while (session.awaitingAi) {
+                    // A busca do nível difícil leva segundos: fora da thread da interface, sempre.
+                    val before = session.state
+                    val move = withContext(Dispatchers.Default) { session.playAiTurn() } ?: break
+                    lastMoveSquares = entry.interactor?.squaresOf(move).orEmpty().toSet()
+                    lastPlayedMove = move
+                    noteEvent(before, move)
+                    // Atualiza a cada lance, e não só no final: com várias jogadas da IA em
+                    // fila — tirar 6 no ludo, ou três cadeiras de máquina numa mesa de
+                    // quatro —, é assim que cada uma aparece na tela com seu som, em vez de
+                    // a partida pular direto para o resultado da última.
+                    _ui.value = snapshot()
+                    persist()
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                // A busca não devia falhar, mas travar a tela em "pensando" pra sempre —
+                // obrigando quem joga a fechar e abrir o app de novo — é pior do que deixar
+                // a partida como está e a pessoa tentar outro lance.
             }
             _ui.value = snapshot()
-            persist()
         }
     }
 
