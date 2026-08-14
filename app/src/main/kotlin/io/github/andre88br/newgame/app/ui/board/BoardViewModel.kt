@@ -97,10 +97,11 @@ data class BoardUiState(
 )
 
 /**
- * Pausa entre um lance da IA e o seguinte, quando há mais de um em fila.
+ * Quanto a máquina "pensa" na tela antes de cada lance dela.
  *
- * Sem ela a tela troca de tabuleiro assim que a busca termina — que para uma jogada fácil é
- * quase instantâneo —, e quem está assistindo não chega a ver nem o dado nem o peão andando.
+ * Sem esta pausa a tela troca de tabuleiro assim que a busca termina — que para uma jogada
+ * fácil é quase instantâneo —, e quem está assistindo não vê o lance acontecer: no ludo, nem
+ * o dado que ela tirou nem o peão andando chegam a aparecer.
  */
 private const val AI_MOVE_PACE_MS = 1_200L
 
@@ -251,6 +252,13 @@ class BoardViewModel(
         viewModelScope.launch {
             try {
                 while (session.awaitingAi) {
+                    // A pausa vem **antes** do lance, e não depois, porque o que a tela
+                    // precisa mostrar acontece antes dele: no ludo o dado da vez da máquina
+                    // já está neste estado, e é rolando agora. Jogar na hora trocaria o
+                    // tabuleiro no meio da rolagem, e ninguém chegaria a ver com quanto ela
+                    // andou — que é exatamente o que parecia "a IA joga rápido demais".
+                    delay(AI_MOVE_PACE_MS)
+
                     // A busca do nível difícil leva segundos: fora da thread da interface, sempre.
                     val before = session.state
                     val move = withContext(Dispatchers.Default) { session.playAiTurn() } ?: break
@@ -263,12 +271,6 @@ class BoardViewModel(
                     // a partida pular direto para o resultado da última.
                     _ui.value = snapshot()
                     persist()
-
-                    // Sem esta pausa, um lance da IA sobrescreve o anterior antes da tela
-                    // acabar de mostrá-lo — o dado rolado e o peão andando casa por casa
-                    // (quando há animação) não têm tempo de aparecer, e a partida parece
-                    // pular direto de um tabuleiro para o outro.
-                    if (session.awaitingAi) delay(AI_MOVE_PACE_MS)
                 }
             } catch (e: CancellationException) {
                 throw e

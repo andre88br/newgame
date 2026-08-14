@@ -43,9 +43,12 @@ class DominoesLayoutTest {
     /**
      * Mesa de 8 meias-peças com peças comuns: três deitadas enchem a fileira e a quarta
      * chega na borda. Ela é a curva.
+     *
+     * A linha é longa o bastante para chegar à terceira fileira, que é onde se vê que o
+     * serpenteio de fato volta ao sentido de ida.
      */
     private val comCurva = DominoesLayout.table(
-        linha(1 to 2, 2 to 3, 3 to 4, 4 to 5, 5 to 6, 6 to 0, 0 to 1, 1 to 3),
+        linha(1 to 2, 2 to 3, 3 to 4, 4 to 5, 5 to 6, 6 to 0, 0 to 1, 1 to 3, 3 to 5, 5 to 0),
         columns = 8,
     )
 
@@ -71,7 +74,9 @@ class DominoesLayoutTest {
         val depois = comCurva.tiles[indice + 1]
 
         assertEquals(antes.y, curva.y, "a curva começa na fileira de quem veio antes")
-        assertEquals(depois.y, curva.y + curva.height - depois.height, "e termina na fileira de baixo")
+        // A peça em pé vai do começo ao fim do vão entre as fileiras: onde ela acaba é
+        // exatamente onde a fileira de baixo começa, e é assim que as duas se encostam.
+        assertEquals(depois.y, curva.y + curva.height, "e termina onde a fileira de baixo começa")
         assertTrue(depois.y > antes.y, "a linha precisa ter descido")
     }
 
@@ -96,8 +101,8 @@ class DominoesLayoutTest {
         val curva = comCurva.tiles.first { it.facing == TileFacing.TURN }
         // Só a fileira logo abaixo: duas abaixo a linha já virou de novo e corre no sentido
         // original, que é justamente o que serpentear quer dizer.
-        val deBaixo = comCurva.tiles.filter { it.y == curva.y + 1f && it.facing == TileFacing.ALONG }
-        val duasAbaixo = comCurva.tiles.filter { it.y == curva.y + 2f && it.facing == TileFacing.ALONG }
+        val deBaixo = comCurva.tiles.filter { it.y == curva.y + 2f && it.facing == TileFacing.ALONG }
+        val duasAbaixo = comCurva.tiles.filter { it.y == curva.y + 4f && it.facing == TileFacing.ALONG }
 
         assertTrue(deBaixo.isNotEmpty(), "o teste precisa de peça deitada na fileira de baixo")
         assertTrue(deBaixo.all { it.reversed }, "na fileira que volta a peça sai espelhada")
@@ -146,13 +151,41 @@ class DominoesLayoutTest {
     }
 
     /**
-     * O defeito que apareceu na tela: uma carroça cedo na fileira empurra a altura dela
-     * para duas meias-peças, e se a curva que fecha essa MESMA fileira somasse essa altura
-     * com a da fileira seguinte — o que uma versão anterior deste código fazia —, a curva
-     * esticava por causa de uma peça que nem está na coluna dela, e se separava da vizinha.
+     * **A peça nunca muda de tamanho.**
+     *
+     * É o defeito que voltou três vezes, e sempre pelo mesmo caminho: alguma peça em pé
+     * ganhava altura emprestada da fileira (uma carroça noutra coluna esticava a curva, por
+     * exemplo). Uma peça de dominó é um retângulo de dois por um, virado ou não — e conferir
+     * isso na mesa inteira, peça a peça, é o único jeito de a conta não escapar de novo.
      */
     @Test
-    fun `a curva continua encostada quando a propria fileira tem carroca`() {
+    fun `toda peca mede sempre dois por um, virada ou nao`() {
+        for (columns in listOf(4, 5, 6, 8, 12)) {
+            var state = DominoesGame.initialState(MatchConfig(seed = 7))
+            var guard = 0
+
+            while (!DominoesGame.outcome(state).isOver && guard++ < 40) {
+                for (peca in DominoesLayout.table(state.line, columns).tiles) {
+                    val deitada = peca.width == 2f && peca.height == 1f
+                    val emPe = peca.width == 1f && peca.height == 2f
+                    assertTrue(
+                        deitada || emPe,
+                        "largura $columns, lance ${state.ply}: peça fora do tamanho — $peca",
+                    )
+                }
+                val move = DominoesGame.legalMoves(state).firstOrNull() ?: break
+                state = DominoesGame.applyOrThrow(state, move)
+            }
+        }
+    }
+
+    /**
+     * A carroça cedo numa fileira era o gatilho do defeito antigo: a curva que fechava a
+     * MESMA fileira somava a altura dela com a da seguinte e crescia por causa de uma peça
+     * que nem está na coluna dela — e ainda se soltava da vizinha.
+     */
+    @Test
+    fun `a curva continua do tamanho certo quando a propria fileira tem carroca`() {
         val mesa = DominoesLayout.table(
             linha(1 to 1, 2 to 3, 3 to 4, 4 to 5, 5 to 5, 5 to 6),
             columns = 4,
@@ -161,7 +194,7 @@ class DominoesLayoutTest {
         val carroca = mesa.tiles.first { it.facing == TileFacing.CROSS }
         val curva = mesa.tiles.first { it.facing == TileFacing.TURN }
         assertEquals(carroca.y, curva.y, "o teste precisa de carroça e curva na mesma fileira")
-        assertEquals(3f, curva.height, "a curva mede a própria fileira (2) mais a meia-peça que desce")
+        assertEquals(carroca.height, curva.height, "as duas estão em pé: medem o mesmo")
 
         for (i in 1 until mesa.tiles.size) {
             assertTrue(

@@ -213,6 +213,7 @@
     <string name="ludo_roll">Roll the die</string>
     <string name="ludo_rolling">Rolling…</string>
     <string name="ludo_die_hidden">Die: roll to see</string>
+    <string name="ludo_die_last">Last roll: %1$d</string>
 
     <!-- Ludo colours, in arm order: red, blue, yellow, green -->
     <string name="ludo_color_red">Red</string>

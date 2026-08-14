@@ -109,7 +109,12 @@ fun LudoSurface(
     var rolando by remember(state) { mutableStateOf(false) }
     var face by remember(state) { mutableIntStateOf(state.die) }
 
-    val mostrandoDado = revelado
+    // **O último dado rolado fica na tela.**
+    //
+    // Sem isto o dado da máquina aparecia e sumia junto com a vez dela, e quem joga nunca
+    // via com quanto ela andou. Este valor atravessa a troca de estado de propósito — é o
+    // que continua visível enquanto você ainda não rolou o seu.
+    var ultimoDado by remember { mutableStateOf<Int?>(null) }
 
     // Fora da vez é a IA jogando: ninguém aperta o botão por ela, mas o dado dela rola do
     // mesmo jeito.
@@ -132,6 +137,7 @@ fun LudoSurface(
         face = state.die
         rolando = false
         revelado = true
+        ultimoDado = state.die
     }
 
     // **Os peões andam casa por casa, não teleportam.**
@@ -142,9 +148,13 @@ fun LudoSurface(
     // ele persegue `state.tokens` uma casa de cada vez, e só alcança de verdade quando a
     // última passada termina. Peão capturado (ou voltando ao curral) não anda de ré: salta
     // direto, porque não foi ele que contou os passos.
+    //
+    // A caminhada começa assim que o peão é escolhido, e **não** espera dado nenhum: o
+    // dado que interessa a ela já foi rolado — é o que produziu este lance. Esperar pelo
+    // próximo deixava o peão parado até a pessoa rolar de novo, que era como se o lance só
+    // acontecesse uma jogada depois.
     var displayTokens by remember { mutableStateOf(state.tokens) }
-    LaunchedEffect(state, revelado) {
-        if (!revelado) return@LaunchedEffect
+    LaunchedEffect(state) {
         val alvo = state.tokens
         if (!animated) {
             displayTokens = alvo
@@ -178,8 +188,12 @@ fun LudoSurface(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Rolando ou já revelado, o dado mostra a face desta vez; antes disso, fica o
+            // último que rolou — em geral o da máquina, que é justamente o que se quer ver.
+            val naMao = revelado || rolando
+            val anterior = ultimoDado
             Die(
-                value = if (mostrandoDado) face else null,
+                value = if (naMao) face else anterior,
                 rolling = rolando,
                 animated = animated,
                 palette = palette,
@@ -191,10 +205,11 @@ fun LudoSurface(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (mostrandoDado) {
-                        stringResource(R.string.ludo_die, face)
-                    } else {
-                        stringResource(R.string.ludo_die_hidden)
+                    text = when {
+                        revelado -> stringResource(R.string.ludo_die, face)
+                        rolando -> stringResource(R.string.ludo_rolling)
+                        anterior != null -> stringResource(R.string.ludo_die_last, anterior)
+                        else -> stringResource(R.string.ludo_die_hidden)
                     },
                     style = MaterialTheme.typography.titleMedium,
                 )
@@ -210,7 +225,9 @@ fun LudoSurface(
             }
 
             if (enabled && !revelado) {
-                Button(onClick = { rolando = true }, enabled = !rolando) {
+                // Enquanto o peão do lance anterior ainda anda, rolar de novo atropelaria a
+                // contagem — e o dado da máquina sumiria antes de ser visto.
+                Button(onClick = { rolando = true }, enabled = !rolando && assentado) {
                     Text(
                         stringResource(
                             if (rolando) R.string.ludo_rolling else R.string.ludo_roll,
