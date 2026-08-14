@@ -360,7 +360,7 @@ private fun Board(
                     tokenNumberPaint.color = android.graphics.Color.WHITE
                     canvas.nativeCanvas.drawText(texto, centerX, baseline, tokenNumberPaint)
 
-                    // Contorno escuro: sem ele o número sumiria em cima do peão creme.
+                    // Contorno escuro: sem ele o número sumiria em cima do peão amarelo.
                     tokenNumberPaint.style = Paint.Style.STROKE
                     tokenNumberPaint.strokeWidth = radius * 0.12f
                     tokenNumberPaint.color = android.graphics.Color.BLACK
@@ -381,10 +381,10 @@ private fun Board(
  * parecidas demais no tema escuro.
  */
 private val SEAT_COLORS = listOf(
-    Color(0xFFE8E2D4), // creme
     Color(0xFFD93B3B), // vermelho
-    Color(0xFF23272B), // grafite
     Color(0xFF3E8FD9), // azul
+    Color(0xFFE8C020), // amarelo
+    Color(0xFF3FAF4A), // verde
 )
 
 private fun seatColor(index: Int): Color = SEAT_COLORS[index % SEAT_COLORS.size]
