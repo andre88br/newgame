@@ -118,20 +118,31 @@ class DominoesLayoutTest {
     fun `a carroca entra atravessada`() {
         val mesa = DominoesLayout.table(linha(1 to 2, 3 to 3, 3 to 4), columns = 8)
         val carroca = mesa.tiles[1]
+        val comum = mesa.tiles[0]
 
         assertEquals(TileFacing.CROSS, carroca.facing)
         assertTrue(carroca.stacked, "atravessada quer dizer metades uma sobre a outra")
-        assertEquals(carroca.width, carroca.height, "atravessada, a carroça ocupa uma célula só")
+        assertTrue(carroca.height > carroca.width, "atravessada, a carroça fica em pé — mais alta do que larga")
 
-        val comum = mesa.tiles[0]
+        // O ponto do defeito que este teste existe para pegar: a carroça é a MESMA peça
+        // física de sempre, só virada. Ela não pode encolher para caber atravessada — o
+        // comprimento de uma peça deitada vira a altura dela, e vice-versa.
+        assertEquals(comum.width, carroca.height, "virada, a carroça mede o comprimento de uma peça comum")
+        assertEquals(comum.height, carroca.width, "virada, a carroça mede a largura de uma peça comum")
+
         assertEquals(TileFacing.ALONG, comum.facing)
         assertTrue(comum.width > comum.height, "peça comum fica deitada")
     }
 
     @Test
-    fun `a carroca ocupa menos comprimento e adianta a serpentina`() {
+    fun `a carroca ocupa menos comprimento mas nao encolhe em altura`() {
+        // Cinco carroças cabem lado a lado na largura de cinco meias-peças — cada uma usa
+        // só uma coluna, contra as duas de uma peça deitada. Mas, viradas, elas ficam altas
+        // como uma peça inteira: a fileira que as recebe mede duas meias-peças de altura, e
+        // não uma, porque a carroça não é mais curta do que as outras — é só mais estreita.
         val mesa = DominoesLayout.table(linha(1 to 1, 2 to 2, 3 to 3, 4 to 4, 5 to 5), columns = 5)
-        assertEquals(1, mesa.rows, "cinco carroças cabem numa fileira de cinco meias-peças")
+        assertTrue(mesa.tiles.all { it.facing == TileFacing.CROSS }, "todas as peças deviam ser carroças")
+        assertEquals(2, mesa.rows, "cinco carroças em pé ocupam duas meias-peças de altura")
     }
 
     // -------- invariantes do desenho --------

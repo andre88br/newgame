@@ -1,6 +1,8 @@
 package io.github.andre88br.newgame.app.ui.board.surfaces
 
-import androidx.compose.animation.core.animateFloatAsState
+import android.graphics.Paint
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -29,8 +32,11 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -48,7 +54,6 @@ import io.github.andre88br.newgame.core.games.ludo.LUDO_TOKENS
 import io.github.andre88br.newgame.core.games.ludo.LUDO_YARD
 import io.github.andre88br.newgame.core.games.ludo.LudoCell
 import io.github.andre88br.newgame.core.games.ludo.LudoCellKind
-import io.github.andre88br.newgame.core.games.ludo.armOf
 import io.github.andre88br.newgame.core.games.ludo.LudoGame
 import io.github.andre88br.newgame.core.games.ludo.LudoLayout
 import io.github.andre88br.newgame.core.games.ludo.LudoMove
@@ -56,6 +61,7 @@ import io.github.andre88br.newgame.core.games.ludo.LudoState
 import kotlin.math.hypot
 import kotlin.random.Random
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** Um peão já posicionado em pixels, do jeito que o toque precisa encontrá-lo. */
 private data class TokenSpot(
@@ -281,12 +287,11 @@ private fun Board(
             if (kind == LudoCellKind.OUTSIDE) continue
             // A casa de saída de cada cor é dessa cor, como num tabuleiro de verdade: é
             // dali que os peões entram na volta, e sem a marca ninguém sabe de onde parte.
+            //
+            // A cor aparece sempre, mesmo em braços sem ninguém sentado — a cruz é a cruz
+            // inteira, com as quatro cores, e não só das cadeiras ocupadas nesta mesa.
             val saida = LudoLayout.startArmAt(LudoLayout.ring.indexOf(cell))
-            val cor = if (saida >= 0) {
-                seatOfArm(saida, state.seats)?.let { seatColor(it) } ?: palette.lightSquare
-            } else {
-                colorOf(kind, LudoLayout.armAt(cell), state.seats, palette)
-            }
+            val cor = if (saida >= 0) seatColor(saida) else colorOf(kind, LudoLayout.armAt(cell), palette)
             drawRect(
                 color = cor,
                 topLeft = topLeft(cell),
@@ -344,6 +349,24 @@ private fun Board(
                     )
                 }
 
+                // O número identifica o peão sem precisar de zoom: quatro bolinhas da mesma
+                // cor, uma do lado da outra, não dão para distinguir de outro jeito.
+                drawIntoCanvas { canvas ->
+                    tokenNumberPaint.textSize = radius * 1.15f
+                    val baseline = centerY - (tokenNumberPaint.descent() + tokenNumberPaint.ascent()) / 2f
+                    val texto = (token + 1).toString()
+
+                    tokenNumberPaint.style = Paint.Style.FILL
+                    tokenNumberPaint.color = android.graphics.Color.WHITE
+                    canvas.nativeCanvas.drawText(texto, centerX, baseline, tokenNumberPaint)
+
+                    // Contorno escuro: sem ele o número sumiria em cima do peão creme.
+                    tokenNumberPaint.style = Paint.Style.STROKE
+                    tokenNumberPaint.strokeWidth = radius * 0.12f
+                    tokenNumberPaint.color = android.graphics.Color.BLACK
+                    canvas.nativeCanvas.drawText(texto, centerX, baseline, tokenNumberPaint)
+                }
+
                 spots += TokenSpot(seat, token, centerX, centerY, radius)
             }
         }
@@ -366,39 +389,44 @@ private val SEAT_COLORS = listOf(
 
 private fun seatColor(index: Int): Color = SEAT_COLORS[index % SEAT_COLORS.size]
 
-/**
- * Qual cadeira ocupa este braço nesta partida, ou `null` se o braço estiver vazio.
- *
- * Numa mesa de dois, dois dos quatro braços não jogam: eles aparecem apagados, em vez de
- * sumirem, porque a cruz é a cruz — tirar dois braços deixaria o desenho irreconhecível.
- */
-private fun seatOfArm(arm: Int, seats: Int): Int? =
-    (0 until seats).firstOrNull { armOf(Seat(it), seats) == arm }
+/** Um `Paint` só, reaproveitado: um por peão a cada quadro geraria lixo à toa. */
+private val tokenNumberPaint = Paint().apply {
+    isAntiAlias = true
+    textAlign = Paint.Align.CENTER
+}
 
+/**
+ * A cor de cada casa do braço [arm] — sempre a cor do braço, mesmo sem ninguém sentado
+ * nele.
+ *
+ * Numa mesa de dois, dois dos quatro braços não jogam. Ainda assim eles aparecem com a cor
+ * que teriam: a cruz é a cruz inteira, com as quatro cores sempre visíveis, e apagar dois
+ * braços deixaria o desenho parecendo quebrado — como se faltasse tabuleiro, não jogador.
+ */
 private fun colorOf(
     kind: LudoCellKind,
     arm: Int,
-    seats: Int,
     palette: BoardPalette,
 ): Color = when (kind) {
     LudoCellKind.TRACK -> palette.lightSquare
     LudoCellKind.SAFE -> palette.lastMove.copy(alpha = 1f)
     LudoCellKind.GOAL -> palette.crown
-    LudoCellKind.HOME -> seatOfArm(arm, seats)?.let { seatColor(it) } ?: palette.darkSquare
+    LudoCellKind.HOME -> seatColor(arm)
     // Forte o bastante para se reconhecer a cor: o curral é a casa da cor, não um cinza.
-    LudoCellKind.YARD ->
-        seatOfArm(arm, seats)?.let { seatColor(it).copy(alpha = 0.8f) }
-            ?: palette.darkSquare.copy(alpha = 0.5f)
-
+    LudoCellKind.YARD -> seatColor(arm).copy(alpha = 0.8f)
     LudoCellKind.OUTSIDE -> Color.Transparent
 }
+
+/** Quanto dura a rolagem em 3D — precisa caber dentro do tempo que as faces levam trocando. */
+private const val ROLL_DURATION_MS = 560
 
 /**
  * O dado.
  *
  * [value] nulo quer dizer "ainda não rolado": aparece a interrogação, e o botão ao lado é
- * que revela. Enquanto rola, o dado balança — sem isso a troca de faces parece defeito de
- * desenho em vez de dado girando.
+ * que revela. Enquanto rola, o dado tomba em 3D — gira nos dois eixos horizontais com
+ * perspectiva de verdade, em vez de só balançar na tela —, porque é essa sensação de peso
+ * caindo que faz a troca de faces parecer um dado rolando, e não um número piscando.
  */
 @Composable
 private fun Die(
@@ -408,19 +436,64 @@ private fun Die(
     palette: BoardPalette,
     seatColor: Color,
 ) {
-    val giro by animateFloatAsState(
-        targetValue = if (rolling) 1f else 0f,
-        animationSpec = tween(durationMillis = if (animated) 220 else 0),
-        label = "chacoalhada do dado",
-    )
+    val rotationX = remember { Animatable(0f) }
+    val rotationY = remember { Animatable(0f) }
+    val lift = remember { Animatable(1f) }
+
+    LaunchedEffect(rolling, animated) {
+        if (!animated) {
+            rotationX.snapTo(0f)
+            rotationY.snapTo(0f)
+            lift.snapTo(1f)
+            return@LaunchedEffect
+        }
+        if (!rolling) {
+            // O dado pousa: volta reto, mas devagar — parar de repente pareceria corte de
+            // vídeo, não peso assentando.
+            launch { rotationX.animateTo(0f, tween(160)) }
+            launch { rotationY.animateTo(0f, tween(160)) }
+            lift.animateTo(1f, tween(160))
+            return@LaunchedEffect
+        }
+
+        // Tombando: dois eixos, girando um número diferente de voltas cada — um dado real
+        // não roda igual nos dois sentidos, e essa diferença é o que vende a queda em 3D em
+        // vez de um giro plano só imitando profundidade.
+        launch {
+            rotationX.snapTo(0f)
+            rotationX.animateTo(
+                targetValue = 360f * 2 + Random.nextInt(150),
+                animationSpec = tween(ROLL_DURATION_MS, easing = FastOutSlowInEasing),
+            )
+        }
+        launch {
+            rotationY.snapTo(0f)
+            rotationY.animateTo(
+                targetValue = 360f * 3 + Random.nextInt(150),
+                animationSpec = tween(ROLL_DURATION_MS, easing = FastOutSlowInEasing),
+            )
+        }
+        lift.animateTo(1.3f, tween(ROLL_DURATION_MS / 2))
+        lift.animateTo(1f, tween(ROLL_DURATION_MS / 2))
+    }
+
+    val density = LocalDensity.current.density
 
     Canvas(
         modifier = Modifier
             .size(56.dp)
             .graphicsLayer {
-                rotationZ = giro * 18f
-                scaleX = 1f + giro * 0.12f
-                scaleY = 1f + giro * 0.12f
+                this.rotationX = rotationX.value
+                this.rotationY = rotationY.value
+                // Sem isto os dois giros acima achatam o dado num losango; com uma
+                // distância de câmera, eles viram perspectiva — a face perto cresce, a de
+                // trás encolhe, como um dado tombando de verdade.
+                cameraDistance = 14f * density
+                scaleX = lift.value
+                scaleY = lift.value
+                shadowElevation = if (rolling) 18f else 0f
+                shape = RoundedCornerShape(18)
+                clip = false
             },
     ) {
         val edge = size.minDimension * 0.06f

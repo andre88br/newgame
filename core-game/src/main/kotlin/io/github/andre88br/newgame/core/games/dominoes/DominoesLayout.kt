@@ -78,8 +78,23 @@ object DominoesLayout {
     /** Comprimento de uma peça deitada, em meias-peças. */
     private const val TILE_LENGTH = 2
 
-    /** A carroça entra atravessada e ocupa uma célula só. */
-    private const val DOUBLE_LENGTH = 1
+    /**
+     * Uma peça já decidida — em que coluna, virada como, em que fileira — mas ainda sem
+     * altura final em pixel-unidade. A altura depende do que mais existe na fileira dela
+     * (uma carroça no meio empurra a fileira inteira para cima em altura), e só dá para
+     * saber isso depois de passar a linha inteira uma vez.
+     */
+    private data class Provisional(
+        val tile: PlacedTile,
+        val x: Float,
+        val width: Float,
+        val facing: TileFacing,
+        val stacked: Boolean,
+        val reversed: Boolean,
+        val band: Int,
+        /** Só a peça da curva liga a própria fileira à seguinte. */
+        val bridgesToNextBand: Boolean,
+    )
 
     /**
      * Distribui [line] numa mesa de [columns] meias-peças de largura.
@@ -93,8 +108,9 @@ object DominoesLayout {
         }
         if (line.isEmpty()) return DominoesTable(emptyList(), columns, rows = 1)
 
-        val laid = ArrayList<LaidTile>(line.size)
-        var row = 0
+        // -------- primeira passada: em que fileira e coluna cada peça cai --------
+        val provisional = ArrayList<Provisional>(line.size)
+        var band = 0
         var column = 0
         var direction = 1
 
@@ -103,22 +119,26 @@ object DominoesLayout {
             val faltamPecas = index < line.lastIndex
 
             if (double) {
-                laid += LaidTile(
+                // Atravessada: a peça vira de lado, e o que era comprimento vira altura. É
+                // a MESMA peça física de sempre — duas meias-peças —, só girada 90°. Uma
+                // carroça do tamanho de meia peça seria uma peça encolhendo ao virar, que é
+                // exatamente o defeito que fica visível quando a peça muda de tamanho na mesa.
+                provisional += Provisional(
                     tile = placed,
                     x = column.toFloat(),
-                    y = row.toFloat(),
                     width = 1f,
-                    height = 1f,
                     facing = TileFacing.CROSS,
                     // Atravessada: as metades ficam uma sobre a outra, e não lado a lado.
                     stacked = true,
                     reversed = false,
+                    band = band,
+                    bridgesToNextBand = false,
                 )
                 column += direction
-                // A carroça não tem como ficar em pé — ela mede uma célula. Chegando na
-                // borda, a linha desce reta, e a peça seguinte fica logo abaixo desta.
+                // Atravessada ela ocupa uma coluna só. Chegando na borda, a linha desce
+                // reta, e a peça seguinte fica logo abaixo desta.
                 if (column !in 0 until columns) {
-                    row++
+                    band++
                     direction = -direction
                     column += direction
                 }
@@ -133,40 +153,70 @@ object DominoesLayout {
             // acaba. Sem esta condição a peça ia parar deitada na fileira de baixo, e a
             // mesa virava quebra de linha de máquina de escrever.
             if (!cabeDeitada || (terminaNaBorda && faltamPecas)) {
-                laid += LaidTile(
+                provisional += Provisional(
                     tile = placed,
                     x = column.toFloat(),
-                    y = row.toFloat(),
                     width = 1f,
-                    height = TILE_LENGTH.toFloat(),
                     facing = TileFacing.TURN,
                     stacked = true,
                     // Descendo: o começo da peça fica em cima.
                     reversed = false,
+                    band = band,
+                    bridgesToNextBand = true,
                 )
-                row++
+                band++
                 direction = -direction
                 // A metade de baixo da peça em pé já ocupa esta coluna na fileira nova.
                 column += direction
                 continue
             }
 
-            laid += LaidTile(
+            provisional += Provisional(
                 tile = placed,
                 x = minOf(column, column + direction).toFloat(),
-                y = row.toFloat(),
                 width = TILE_LENGTH.toFloat(),
-                height = 1f,
                 facing = TileFacing.ALONG,
                 stacked = false,
                 // Fileira que volta: o começo da peça fica à direita.
                 reversed = direction < 0,
+                band = band,
+                bridgesToNextBand = false,
             )
             column += direction * TILE_LENGTH
         }
 
-        val altura = laid.maxOf { it.y + it.height }
-        return DominoesTable(laid, columns, rows = altura.toInt())
+        // -------- segunda passada: altura de cada fileira, depois a posição final --------
+        //
+        // Uma fileira comum mede uma meia-peça de altura. Uma fileira com carroça mede duas,
+        // porque a carroça deitada de lado precisa do espaço de uma peça inteira — e é assim
+        // que ela não encolhe. As peças deitadas dessa fileira continuam medindo uma: é só a
+        // carroça que estica, saindo da fileira por baixo, como numa mesa de verdade.
+        val bandCount = provisional.maxOf { if (it.bridgesToNextBand) it.band + 1 else it.band } + 1
+        val bandHeight = IntArray(bandCount) { 1 }
+        for (p in provisional) if (p.facing == TileFacing.CROSS) bandHeight[p.band] = 2
+
+        val offsetY = FloatArray(bandCount + 1)
+        for (b in 0 until bandCount) offsetY[b + 1] = offsetY[b] + bandHeight[b]
+
+        val laid = provisional.map { p ->
+            val height = when (p.facing) {
+                TileFacing.ALONG -> 1f
+                TileFacing.CROSS -> bandHeight[p.band].toFloat()
+                TileFacing.TURN -> (bandHeight[p.band] + bandHeight[p.band + 1]).toFloat()
+            }
+            LaidTile(
+                tile = p.tile,
+                x = p.x,
+                y = offsetY[p.band],
+                width = p.width,
+                height = height,
+                facing = p.facing,
+                stacked = p.stacked,
+                reversed = p.reversed,
+            )
+        }
+
+        return DominoesTable(laid, columns, rows = offsetY[bandCount].toInt())
     }
 
     /**
