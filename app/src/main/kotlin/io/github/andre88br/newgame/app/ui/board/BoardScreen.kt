@@ -216,7 +216,12 @@ fun BoardScreen(
 private fun statusText(ui: BoardUiState, gameId: GameId): String = when (val status = ui.status) {
     BoardStatus.Thinking -> stringResource(R.string.board_thinking)
     BoardStatus.HumanTurn -> stringResource(R.string.board_your_turn)
-    is BoardStatus.SeatTurn -> stringResource(turnLabel(gameId, status.seat))
+    is BoardStatus.SeatTurn -> if (coloredPieces(gameId)) {
+        stringResource(turnLabel(gameId, status.seat))
+    } else {
+        // Numa mesa de três ou quatro não há "primeiro" e "segundo": há jogador N.
+        stringResource(R.string.board_turn_player, status.seat.index + 1)
+    }
 
     is BoardStatus.Finished -> when (val outcome = status.outcome) {
         is Outcome.Draw -> stringResource(R.string.board_draw)
@@ -225,8 +230,10 @@ private fun statusText(ui: BoardUiState, gameId: GameId): String = when (val sta
                 stringResource(
                     if (outcome.seat == ui.humanSeat) R.string.board_you_won else R.string.board_you_lost,
                 )
-            } else {
+            } else if (coloredPieces(gameId)) {
                 stringResource(winnerLabel(gameId, outcome.seat))
+            } else {
+                stringResource(R.string.board_player_won, outcome.seat.index + 1)
             }
 
         Outcome.InProgress -> stringResource(R.string.board_your_turn)
@@ -243,16 +250,8 @@ private fun coloredPieces(gameId: GameId): Boolean = when (gameId) {
     else -> true
 }
 
-private fun turnLabel(gameId: GameId, seat: Seat): Int = when {
-    coloredPieces(gameId) && seat == Seat.FIRST -> R.string.board_turn_first
-    coloredPieces(gameId) -> R.string.board_turn_second
-    seat == Seat.FIRST -> R.string.board_turn_player_first
-    else -> R.string.board_turn_player_second
-}
+private fun turnLabel(gameId: GameId, seat: Seat): Int =
+    if (seat == Seat.FIRST) R.string.board_turn_first else R.string.board_turn_second
 
-private fun winnerLabel(gameId: GameId, seat: Seat): Int = when {
-    coloredPieces(gameId) && seat == Seat.FIRST -> R.string.board_first_won
-    coloredPieces(gameId) -> R.string.board_second_won
-    seat == Seat.FIRST -> R.string.board_player_first_won
-    else -> R.string.board_player_second_won
-}
+private fun winnerLabel(gameId: GameId, seat: Seat): Int =
+    if (seat == Seat.FIRST) R.string.board_first_won else R.string.board_second_won

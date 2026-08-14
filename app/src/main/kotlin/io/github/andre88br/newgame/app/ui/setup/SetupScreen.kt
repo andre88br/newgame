@@ -45,12 +45,15 @@ fun SetupScreen(
     defaultDifficulty: Difficulty,
     hasOngoingMatch: Boolean,
     onBack: () -> Unit,
-    onStart: (mode: MatchMode, difficulty: Difficulty, humanSeat: Seat) -> Unit,
+    onStart: (mode: MatchMode, difficulty: Difficulty, humanSeat: Seat, seats: Int) -> Unit,
 ) {
     var mode by remember { mutableStateOf(MatchMode.AGAINST_PHONE) }
     var difficulty by remember { mutableStateOf(defaultDifficulty) }
     var humanSeat by remember { mutableStateOf(Seat.FIRST) }
     var showingRules by remember { mutableStateOf(false) }
+
+    val mesasPossiveis = entry.rules.supportedSeats.toList()
+    var seats by remember(entry.id) { mutableStateOf(mesasPossiveis.first()) }
 
     Scaffold(
         topBar = {
@@ -80,6 +83,17 @@ fun SetupScreen(
                 style = MaterialTheme.typography.headlineSmall,
             )
 
+            // Só onde há escolha: os jogos de tabuleiro fixo aceitam dois e mais nada.
+            if (mesasPossiveis.size > 1) {
+                ChoiceRow(
+                    label = stringResource(R.string.setup_players),
+                    options = mesasPossiveis,
+                    selected = seats,
+                    optionLabel = { stringResource(R.string.setup_players_count, it) },
+                    onSelect = { seats = it },
+                )
+            }
+
             ChoiceRow(
                 label = stringResource(R.string.setup_mode),
                 options = MatchMode.entries.toList(),
@@ -97,6 +111,13 @@ fun SetupScreen(
 
             // Nível e quem começa só fazem sentido contra o celular.
             if (mode == MatchMode.AGAINST_PHONE) {
+                if (seats > 2) {
+                    Text(
+                        text = stringResource(R.string.setup_many_opponents, seats - 1),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+
                 ChoiceRow(
                     label = stringResource(R.string.setup_difficulty),
                     options = Difficulty.entries.toList(),
@@ -142,7 +163,7 @@ fun SetupScreen(
             }
 
             Button(
-                onClick = { onStart(mode, difficulty, humanSeat) },
+                onClick = { onStart(mode, difficulty, humanSeat, seats) },
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(stringResource(R.string.setup_start))

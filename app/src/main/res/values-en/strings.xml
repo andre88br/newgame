@@ -21,6 +21,7 @@
     <string name="home_settings">Settings</string>
     <string name="home_resume">Resume match</string>
     <string name="home_players_two">2 players</string>
+    <string name="home_players_range">%1$d to %2$d players</string>
 
     <!-- Match setup -->
     <string name="setup_title">New match</string>
@@ -54,10 +55,6 @@
     <string name="board_hint_shown">Suggestion: %1$s</string>
     <string name="board_history">Moves</string>
     <!-- Games without piece colours: in dominoes and ludo the sides are player 1 and 2. -->
-    <string name="board_turn_player_first">Player 1 to move</string>
-    <string name="board_turn_player_second">Player 2 to move</string>
-    <string name="board_player_first_won">Player 1 wins</string>
-    <string name="board_player_second_won">Player 2 wins</string>
     <string name="board_no_surface">%1$s has no screen yet</string>
 
     <!-- Dominoes -->
@@ -199,7 +196,15 @@
 
     <string name="rules_chess">Full chess. White moves first.\n\nA pawn moves one square forwards, or two on its first move, and captures diagonally. Reaching the last rank it becomes any piece you choose — the app asks which.\n\nThe rules that are usually missing are all here: castling (with all three conditions), en passant capture, stalemate, the fifty-move rule, insufficient material, and the threefold repetition draw.\n\nYour king may never be left in check at the end of your move. No legal move with the king in check is checkmate; no legal move without check is stalemate, which is a draw.</string>
 
-    <string name="rules_dominoes">Block dominoes with the full set of 28. Each player gets seven and the rest go to the boneyard.\n\nWhoever holds the highest double opens; if neither has one, the highest tile opens.\n\nOn your turn, tap a tile in your hand to lay it against one end of the line. If it fits both ends, the app asks which. With nothing that fits you draw from the boneyard automatically until you can play; with the boneyard empty you pass.\n\nYou win by playing your last tile. If both players pass in a row the game is blocked, and whoever holds fewer pips wins.\n\nYour opponent\'s hand stays hidden — from the phone too: all you see is how many tiles they hold.</string>
+    <string name="rules_dominoes">Block dominoes with the full set of 28, for two to four players. Each player gets seven and the rest go to the boneyard — with four players the tiles run out on the deal and there is no boneyard.\n\nWhoever holds the highest double opens; if neither has one, the highest tile opens.\n\nOn your turn, tap a tile in your hand to lay it against one end of the line. If it fits both ends, the app asks which. With nothing that fits you draw from the boneyard automatically until you can play; with the boneyard empty you pass.\n\nYou win by playing your last tile. If the table goes all the way round on passes alone the game is blocked, and whoever holds fewer pips wins.\n\nYour opponent\'s hand stays hidden — from the phone too: all you see is how many tiles they hold.</string>
 
-    <string name="rules_ludo">Ludo for two, four tokens each.\n\nThe app rolls the die, not you: when your turn comes the value is already on screen, and the choice is which token moves.\n\nOnly a 6 brings a token out of the yard. Rolling a 6 also earns another turn.\n\nLanding on an opponent token sends it back to the yard — except on the marked squares, which are safe.\n\nComing home is exact: two squares short, a 5 is no good and the token stays put. You win by bringing all four tokens home.</string>
+    <string name="rules_ludo">Ludo for two to four players, four tokens each. On a table of two the colours start from opposite corners.\n\nThe app rolls the die, not you: when your turn comes the value is already on screen, and the choice is which token moves.\n\nOnly a 6 brings a token out of the yard. Rolling a 6 also earns another turn.\n\nLanding on an opponent token sends it back to the yard — except on the marked squares, which are safe.\n\nComing home is exact: two squares short, a 5 is no good and the token stays put. You win by bringing all four tokens home.</string>
+
+    <!-- Tables of more than two -->
+    <string name="setup_players">Players</string>
+    <string name="setup_players_count">%1$d</string>
+    <string name="setup_many_opponents">The phone plays the other %1$d players.</string>
+    <string name="board_turn_player">Player %1$d to move</string>
+    <string name="board_player_won">Player %1$d wins</string>
+    <string name="dominoes_opponent_seat">Player %1$d</string>
 </resources>

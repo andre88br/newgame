@@ -38,6 +38,7 @@ import io.github.andre88br.newgame.core.games.ludo.LUDO_TOKENS
 import io.github.andre88br.newgame.core.games.ludo.LUDO_YARD
 import io.github.andre88br.newgame.core.games.ludo.LudoCell
 import io.github.andre88br.newgame.core.games.ludo.LudoCellKind
+import io.github.andre88br.newgame.core.games.ludo.armOf
 import io.github.andre88br.newgame.core.games.ludo.LudoGame
 import io.github.andre88br.newgame.core.games.ludo.LudoLayout
 import io.github.andre88br.newgame.core.games.ludo.LudoMove
@@ -213,7 +214,7 @@ private fun Board(
             val kind = LudoLayout.kindOf(cell)
             if (kind == LudoCellKind.OUTSIDE) continue
             drawRect(
-                color = colorOf(kind, palette),
+                color = colorOf(kind, LudoLayout.armAt(cell), state.seats, palette),
                 topLeft = topLeft(cell),
                 size = Size(cellSize, cellSize),
             )
@@ -226,25 +227,28 @@ private fun Board(
         }
 
         spots.clear()
-        val radius = cellSize * 0.34f
-        for (seat in listOf(Seat.FIRST, Seat.SECOND)) {
+        val radius = cellSize * 0.30f
+        for (index in 0 until state.seats) {
+            val seat = Seat(index)
             state.tokensOf(seat).forEachIndexed { token, progress ->
-                val cell = LudoLayout.cellFor(seat, progress, token)
+                val cell = LudoLayout.cellFor(seat, progress, token, state.seats)
                 val corner = topLeft(cell)
 
-                // Dois peões podem dividir uma casa: um leve deslocamento por assento faz os
-                // dois aparecerem, em vez de um esconder o outro.
-                val shift = if (seat == Seat.FIRST) -cellSize * 0.08f else cellSize * 0.08f
-                val centerX = corner.x + cellSize / 2f + shift
-                val centerY = corner.y + cellSize / 2f + shift
+                // Até quatro peões podem dividir uma casa: cada cadeira desenha num canto
+                // diferente dela, e assim nenhum esconde o outro.
+                val desvio = cellSize * 0.10f
+                val shiftX = if (index % 2 == 0) -desvio else desvio
+                val shiftY = if (index < 2) -desvio else desvio
+                val centerX = corner.x + cellSize / 2f + shiftX
+                val centerY = corner.y + cellSize / 2f + shiftY
 
                 drawCircle(
-                    color = if (seat == Seat.FIRST) palette.firstPiece else palette.secondPiece,
+                    color = seatColor(index),
                     radius = radius,
                     center = Offset(centerX, centerY),
                 )
                 drawCircle(
-                    color = if (seat == Seat.FIRST) palette.firstPieceEdge else palette.secondPieceEdge,
+                    color = palette.border,
                     radius = radius,
                     center = Offset(centerX, centerY),
                     style = Stroke(width = cellSize * 0.07f),
@@ -272,15 +276,45 @@ private fun Board(
     }
 }
 
-private fun colorOf(kind: LudoCellKind, palette: BoardPalette): Color = when (kind) {
+/**
+ * A cor de cada cadeira.
+ *
+ * Quatro cores fixas, e não derivadas da paleta do tabuleiro: com quatro peões na mesma
+ * casa, o que separa um do outro é a cor, e cores calculadas a partir de duas acabariam
+ * parecidas demais no tema escuro.
+ */
+private val SEAT_COLORS = listOf(
+    Color(0xFFE8E2D4), // creme
+    Color(0xFFD93B3B), // vermelho
+    Color(0xFF23272B), // grafite
+    Color(0xFF3E8FD9), // azul
+)
+
+private fun seatColor(index: Int): Color = SEAT_COLORS[index % SEAT_COLORS.size]
+
+/**
+ * Qual cadeira ocupa este braço nesta partida, ou `null` se o braço estiver vazio.
+ *
+ * Numa mesa de dois, dois dos quatro braços não jogam: eles aparecem apagados, em vez de
+ * sumirem, porque a cruz é a cruz — tirar dois braços deixaria o desenho irreconhecível.
+ */
+private fun seatOfArm(arm: Int, seats: Int): Int? =
+    (0 until seats).firstOrNull { armOf(Seat(it), seats) == arm }
+
+private fun colorOf(
+    kind: LudoCellKind,
+    arm: Int,
+    seats: Int,
+    palette: BoardPalette,
+): Color = when (kind) {
     LudoCellKind.TRACK -> palette.lightSquare
     LudoCellKind.SAFE -> palette.lastMove.copy(alpha = 1f)
-    LudoCellKind.HOME_FIRST -> palette.firstPiece
-    LudoCellKind.HOME_SECOND -> palette.secondPiece
     LudoCellKind.GOAL -> palette.crown
-    LudoCellKind.YARD_FIRST -> palette.firstPiece.copy(alpha = 0.55f)
-    LudoCellKind.YARD_SECOND -> palette.secondPiece.copy(alpha = 0.55f)
-    LudoCellKind.LANE_UNUSED -> palette.darkSquare
+    LudoCellKind.HOME -> seatOfArm(arm, seats)?.let { seatColor(it) } ?: palette.darkSquare
+    LudoCellKind.YARD ->
+        seatOfArm(arm, seats)?.let { seatColor(it).copy(alpha = 0.45f) }
+            ?: palette.darkSquare.copy(alpha = 0.5f)
+
     LudoCellKind.OUTSIDE -> Color.Transparent
 }
 

@@ -362,28 +362,42 @@ class BoardViewModel(
     }
 
     companion object {
-        /** Monta a sessão de uma partida nova. */
+        /**
+         * Monta a sessão de uma partida nova.
+         *
+         * Contra o celular, a pessoa ocupa [humanSeat] e **todas** as outras cadeiras são
+         * da máquina — numa mesa de quatro isso são três adversários. No passa-e-joga a
+         * mesa inteira é de gente.
+         */
         fun newSession(
             entry: GameEntry,
             againstPhone: Boolean,
             difficulty: Difficulty,
             humanSeat: Seat,
+            seats: Int = 2,
         ): MatchSession {
-            val players = if (againstPhone) {
-                mapOf(
-                    humanSeat to Player.Human,
-                    Seat(1 - humanSeat.index) to Player.Ai(difficulty),
-                )
-            } else {
-                mapOf(Seat.FIRST to Player.Human, Seat.SECOND to Player.Human)
+            val players = buildMap {
+                for (index in 0 until seats) {
+                    val seat = Seat(index)
+                    put(
+                        seat,
+                        if (!againstPhone || seat == humanSeat) {
+                            Player.Human
+                        } else {
+                            Player.Ai(difficulty)
+                        },
+                    )
+                }
             }
-            return MatchSession(entry, MatchConfig.random(), players)
+            return MatchSession(entry, MatchConfig.random(seats), players)
         }
 
         /** Retoma a partida guardada. */
         fun resumedSession(entry: GameEntry, saved: SavedMatch): MatchSession {
+            // O tamanho da mesa vem do registro, não do jogo: uma partida de dominó a três
+            // guardada ontem tem que voltar a três, e não ao padrão de dois.
             val players = buildMap {
-                for (index in 0 until entry.rules.seatCount) {
+                for (index in 0 until saved.record.config.seats) {
                     val seat = Seat(index)
                     put(
                         seat,

@@ -16,6 +16,7 @@
     <string name="home_settings">Ajustes</string>
     <string name="home_resume">Continuar partida</string>
     <string name="home_players_two">2 jogadores</string>
+    <string name="home_players_range">%1$d a %2$d jogadores</string>
 
     <!-- Configuração da partida -->
     <string name="setup_title">Nova partida</string>
@@ -49,10 +50,6 @@
     <string name="board_hint_shown">Sugestão: %1$s</string>
     <string name="board_history">Lances</string>
     <!-- Jogos sem cor de peça: no dominó e no ludo os lados são jogador 1 e jogador 2. -->
-    <string name="board_turn_player_first">Vez do jogador 1</string>
-    <string name="board_turn_player_second">Vez do jogador 2</string>
-    <string name="board_player_first_won">Jogador 1 venceu</string>
-    <string name="board_player_second_won">Jogador 2 venceu</string>
     <string name="board_no_surface">%1$s ainda não tem tela</string>
 
     <!-- Dominó -->
@@ -197,7 +194,15 @@
 
     <string name="rules_chess">Xadrez completo. As brancas começam.\n\nO peão anda uma casa para a frente, ou duas na primeira vez, e captura na diagonal. Chegando na última fileira, ele vira a peça que você escolher — o app pergunta qual.\n\nEstão aqui as regras que costumam faltar: o roque (com as três condições), a captura en passant, o empate por afogamento, o empate por 50 lances sem captura nem lance de peão, o empate por material insuficiente e o empate por repetir a mesma posição três vezes.\n\nO rei nunca pode ficar em xeque no fim do seu lance. Sem lance legal e com o rei em xeque é xeque-mate; sem lance legal e sem xeque é afogamento, que dá empate.</string>
 
-    <string name="rules_dominoes">Dominó de bater, com as 28 peças. Cada um recebe sete e o resto fica no monte.\n\nAbre quem tiver a maior carroça; se ninguém tiver, quem tiver a peça mais alta.\n\nNa sua vez, toque numa peça da mão para encostá-la numa das pontas da mesa. Se ela servir nas duas, o app pergunta em qual. Sem peça que sirva, você compra do monte automaticamente até conseguir; com o monte vazio, passa a vez.\n\nVence quem ficar sem peça na mão. Se os dois passarem seguidos, o jogo fecha e ganha quem tiver menos pontos na mão.\n\nA mão do adversário fica escondida, inclusive da máquina: o que aparece é só quantas peças ele tem.</string>
+    <string name="rules_dominoes">Dominó de bater, com as 28 peças, de dois a quatro jogadores. Cada um recebe sete e o resto fica no monte — a quatro as peças acabam na distribuição e não sobra monte.\n\nAbre quem tiver a maior carroça; se ninguém tiver, quem tiver a peça mais alta.\n\nNa sua vez, toque numa peça da mão para encostá-la numa das pontas da mesa. Se ela servir nas duas, o app pergunta em qual. Sem peça que sirva, você compra do monte automaticamente até conseguir; com o monte vazio, passa a vez.\n\nVence quem ficar sem peça na mão. Se a mesa der a volta inteira só com passes, o jogo fecha e ganha quem tiver menos pontos na mão.\n\nA mão do adversário fica escondida, inclusive da máquina: o que aparece é só quantas peças ele tem.</string>
 
-    <string name="rules_ludo">Ludo para dois, com quatro peões cada.\n\nO dado é rolado pelo app, não por você: quando chega a sua vez, o valor já está na tela e a escolha é qual peão anda.\n\nSó um 6 tira peão do curral. Tirar 6 também dá direito a jogar de novo.\n\nCair na casa de um peão adversário manda ele de volta para o curral — menos nas casas marcadas, que são seguras.\n\nA chegada é exata: faltando duas casas, um dado 5 não serve e o peão fica onde está. Vence quem levar os quatro peões à chegada.</string>
+    <string name="rules_ludo">Ludo de dois a quatro jogadores, com quatro peões cada. Na mesa de dois, as duas cores saem de cantos opostos.\n\nO dado é rolado pelo app, não por você: quando chega a sua vez, o valor já está na tela e a escolha é qual peão anda.\n\nSó um 6 tira peão do curral. Tirar 6 também dá direito a jogar de novo.\n\nCair na casa de um peão adversário manda ele de volta para o curral — menos nas casas marcadas, que são seguras.\n\nA chegada é exata: faltando duas casas, um dado 5 não serve e o peão fica onde está. Vence quem levar os quatro peões à chegada.</string>
+
+    <!-- Mesa de mais de dois -->
+    <string name="setup_players">Jogadores</string>
+    <string name="setup_players_count">%1$d</string>
+    <string name="setup_many_opponents">O celular joga com os outros %1$d jogadores.</string>
+    <string name="board_turn_player">Vez do jogador %1$d</string>
+    <string name="board_player_won">Jogador %1$d venceu</string>
+    <string name="dominoes_opponent_seat">Jogador %1$d</string>
 </resources>

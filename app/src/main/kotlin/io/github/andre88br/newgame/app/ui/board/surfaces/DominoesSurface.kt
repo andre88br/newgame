@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -47,7 +48,6 @@ import io.github.andre88br.newgame.app.ui.theme.LocalBoardPalette
 import io.github.andre88br.newgame.core.a11y.BoardSpeech
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.Seat
-import io.github.andre88br.newgame.core.engine.opponent
 import io.github.andre88br.newgame.core.games.dominoes.DominoesLayout
 import io.github.andre88br.newgame.core.games.dominoes.DominoesMove
 import io.github.andre88br.newgame.core.games.dominoes.DominoesState
@@ -87,7 +87,7 @@ fun DominoesSurface(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        OpponentHand(count = state.handSize(viewer.opponent()), boneyard = state.boneyard.size)
+        Opponents(state = state, viewer = viewer, palette = palette)
 
         // A mesa fica com todo o espaço que sobrar: é a parte que precisa ser vista.
         Table(
@@ -160,22 +160,87 @@ fun DominoesSurface(
     }
 }
 
-/** Quantas peças o adversário tem e quantas restam no monte — informação que é do jogo. */
+/**
+ * As mãos dos adversários, viradas para baixo, e o que resta no monte.
+ *
+ * As peças aparecem **desenhadas** em vez de só contadas: numa mesa de quatro, "três peças"
+ * escrito não dá a mesma noção que ver três costas de peça, e é essa noção que faz alguém
+ * perceber que o vizinho está prestes a bater.
+ *
+ * O valor continua sem sair de lugar nenhum: o estado que chega aqui já veio redigido pelo
+ * motor, e o que existe destas peças é literalmente [Tile.HIDDEN]. Não há o que vazar.
+ */
 @Composable
-private fun OpponentHand(count: Int, boneyard: Int) {
-    Row(
+private fun Opponents(state: DominoesState, viewer: Seat, palette: BoardPalette) {
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        for (seat in state.others(viewer)) {
+            val mao = state.hand(seat)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.dominoes_opponent_seat, seat.index + 1),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (seat == state.turn) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+                // O desenho é decoração: quem descreve a mão são os dois textos ao lado,
+                // e o leitor de tela leria "Jogador 2, 5" sem tropeçar num desenho mudo.
+                FaceDownHand(
+                    count = mao.size,
+                    palette = palette,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clearAndSetSemantics { },
+                )
+                Text(
+                    text = mao.size.toString(),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+        }
+
         Text(
-            text = stringResource(R.string.dominoes_opponent_tiles, count),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Text(
-            text = stringResource(R.string.dominoes_boneyard, boneyard),
-            style = MaterialTheme.typography.bodyMedium,
+            text = stringResource(R.string.dominoes_boneyard, state.boneyard.size),
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/**
+ * Uma fileira de costas de peça.
+ *
+ * Desenhada num `Canvas` só, e não numa peça por composable: são até sete por adversário e
+ * até três adversários, e vinte e um composables para um enfeite seria desperdício num
+ * celular modesto.
+ */
+@Composable
+private fun FaceDownHand(count: Int, palette: BoardPalette, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.height(26.dp)) {
+        if (count <= 0) return@Canvas
+
+        val espaco = size.width / count.coerceAtLeast(1)
+        val largura = minOf(espaco * 0.85f, size.height * 0.55f)
+
+        for (index in 0 until count) {
+            drawTileAt(
+                first = Tile.HIDDEN.low,
+                second = Tile.HIDDEN.high,
+                outerTopLeft = Offset(index * espaco, 0f),
+                outerSize = Size(largura, size.height),
+                stacked = true,
+                palette = palette,
+            )
+        }
     }
 }
 

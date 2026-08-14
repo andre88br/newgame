@@ -34,17 +34,24 @@ private object Routes {
      * continua-se de onde parou; vazio, começa-se do zero. Os dois casos acabam num
      * `MatchSession`, então não vale a pena separar as telas.
      */
-    const val BOARD = "board/{gameId}?matchId={matchId}&mode={mode}&difficulty={difficulty}&humanSeat={humanSeat}"
+    const val BOARD = "board/{gameId}?matchId={matchId}&mode={mode}&difficulty={difficulty}" +
+        "&humanSeat={humanSeat}&seats={seats}"
 
     fun setup(gameId: GameId) = "setup/${gameId.name}"
 
-    fun newMatch(gameId: GameId, mode: MatchMode, difficulty: Difficulty, humanSeat: Seat) =
-        "board/${gameId.name}?matchId=&mode=${mode.name}&difficulty=${difficulty.name}" +
-            "&humanSeat=${humanSeat.index}"
+    fun newMatch(
+        gameId: GameId,
+        mode: MatchMode,
+        difficulty: Difficulty,
+        humanSeat: Seat,
+        seats: Int,
+    ) = "board/${gameId.name}?matchId=&mode=${mode.name}&difficulty=${difficulty.name}" +
+        "&humanSeat=${humanSeat.index}&seats=$seats"
 
+    // Ao retomar, o tamanho da mesa vem do registro salvo: o que estiver aqui é ignorado.
     fun resumeMatch(gameId: GameId, matchId: String) =
         "board/${gameId.name}?matchId=$matchId&mode=${MatchMode.AGAINST_PHONE.name}" +
-            "&difficulty=${Difficulty.MEDIUM.name}&humanSeat=0"
+            "&difficulty=${Difficulty.MEDIUM.name}&humanSeat=0&seats=2"
 }
 
 @Composable
@@ -79,8 +86,8 @@ fun NewgameNavHost(container: AppContainer) {
                 defaultDifficulty = settings.value.defaultDifficulty,
                 hasOngoingMatch = container.matchStore.ongoing(gameId) != null,
                 onBack = { navController.popBackStack() },
-                onStart = { mode, difficulty, humanSeat ->
-                    navController.navigate(Routes.newMatch(gameId, mode, difficulty, humanSeat)) {
+                onStart = { mode, difficulty, humanSeat, seats ->
+                    navController.navigate(Routes.newMatch(gameId, mode, difficulty, humanSeat, seats)) {
                         // Terminada a configuração, voltar da partida deve levar ao menu,
                         // e não de volta a esta tela.
                         popUpTo(Routes.SETUP) { inclusive = true }
@@ -102,6 +109,7 @@ fun NewgameNavHost(container: AppContainer) {
                     type = NavType.StringType
                     defaultValue = Difficulty.MEDIUM.name
                 },
+                navArgument("seats") { type = NavType.StringType; defaultValue = "2" },
                 navArgument("humanSeat") { type = NavType.IntType; defaultValue = 0 },
             ),
         ) { backStackEntry ->
@@ -124,6 +132,7 @@ fun NewgameNavHost(container: AppContainer) {
                         againstPhone = arguments?.getString("mode") == MatchMode.AGAINST_PHONE.name,
                         difficulty = arguments?.getString("difficulty").toDifficulty(),
                         humanSeat = Seat(arguments?.getInt("humanSeat") ?: 0),
+                        seats = arguments?.getString("seats")?.toIntOrNull() ?: 2,
                     )
                 }
             }

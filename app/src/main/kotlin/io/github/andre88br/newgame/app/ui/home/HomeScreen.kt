@@ -120,8 +120,15 @@ private fun GameCard(
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onPlay)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = gameName(entry), style = MaterialTheme.typography.titleLarge)
+            // Onde a mesa varia, dizer a faixa: "2 a 4 jogadores" é a informação que faz
+            // alguém abrir o dominó procurando jogar com a família.
+            val mesas = entry.rules.supportedSeats
             Text(
-                text = stringResource(R.string.home_players_two),
+                text = if (mesas.first == mesas.last) {
+                    stringResource(R.string.home_players_two)
+                } else {
+                    stringResource(R.string.home_players_range, mesas.first, mesas.last)
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
