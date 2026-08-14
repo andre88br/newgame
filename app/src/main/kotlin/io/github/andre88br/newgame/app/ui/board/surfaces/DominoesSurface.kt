@@ -229,8 +229,11 @@ private fun FaceDownHand(count: Int, palette: BoardPalette, modifier: Modifier =
     Canvas(modifier = modifier.height(26.dp)) {
         if (count <= 0) return@Canvas
 
-        val espaco = size.width / count.coerceAtLeast(1)
-        val largura = minOf(espaco * 0.85f, size.height * 0.55f)
+        // Encostadas umas nas outras, à esquerda, como quem segura a mão — e não espalhadas
+        // pela largura toda, que era o que a `weight` fazia e deixava a mão parecendo maior
+        // do que é.
+        val largura = minOf(size.height * 0.5f, size.width / count)
+        val espaco = largura * 1.15f
 
         for (index in 0 until count) {
             drawTileAt(
@@ -482,7 +485,9 @@ private const val MARGEM = 0.04f
 /**
  * Teto do tamanho da meia-peça.
  *
- * Sem teto, uma mesa com duas peças esticaria cada uma até ocupar meia tela — o desenho
- * ficaria certo e a aparência, absurda.
+ * Existe para uma mesa de duas peças não esticar cada uma até ocupar meia tela. Mas
+ * apertado demais ele vira o defeito oposto, que foi o que aconteceu: com 44 dp a mesa
+ * cheia usava menos da metade da área e a linha ficava perdida no vazio. Em 72 dp a mesa
+ * de verdade enche o espaço, e só a mesa quase vazia é segurada.
  */
-private val MAX_HALF_TILE = 44.dp
+private val MAX_HALF_TILE = 72.dp
