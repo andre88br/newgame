@@ -28,3 +28,6 @@ Thumbs.db
 google-services.json
 *.keystore
 *.jks
+# Senhas da chave de upload da Play. O arquivo aponta para o .jks e traz as senhas:
+# versioná-lo entregaria a assinatura do app junto com o código.
+keystore.properties
