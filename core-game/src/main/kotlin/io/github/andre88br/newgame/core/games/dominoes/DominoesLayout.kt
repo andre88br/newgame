@@ -110,31 +110,63 @@ object DominoesLayout {
         }
         if (line.isEmpty()) return DominoesTable(emptyList(), columns, rows = 1)
 
-        /**
-         * Uma peça comum posta em [col] andando para [dir] fica deitada, sem virar.
-         *
-         * É a mesma pergunta em dois lugares: na hora de pôr a peça, e antes dela, para
-         * saber se a carroça anterior pode ter vizinha ao lado ou se fecha a fileira ali.
-         */
-        fun deitaSemVirar(col: Int, dir: Int, aindaVemMais: Boolean): Boolean {
-            val cabeDeitada = col + dir in 0 until columns
-            val terminaNaBorda = col + dir * TILE_LENGTH !in 0 until columns
-            return cabeDeitada && !(terminaNaBorda && aindaVemMais)
+        val largura = columns.toFloat()
+
+        /** Uma peça de [comprimento] posta a partir de [ponta], andando para [dir], cabe. */
+        fun cabe(ponta: Float, dir: Int, comprimento: Int): Boolean {
+            val fim = ponta + dir * comprimento
+            return fim >= -FOLGA && fim <= largura + FOLGA
         }
+
+        /**
+         * Uma peça comum posta a partir de [ponta] fica deitada, sem virar.
+         *
+         * Não basta ela caber: se depois dela não sobrar nem meia peça na fileira, quem vem
+         * a seguir teria de virar — e então é esta que vira, no fim da fileira.
+         */
+        fun deitaSemVirar(ponta: Float, dir: Int, aindaVemMais: Boolean): Boolean =
+            cabe(ponta, dir, TILE_LENGTH) &&
+                (!aindaVemMais || cabe(ponta + dir * TILE_LENGTH, dir, 1))
 
         val laid = ArrayList<LaidTile>(line.size)
         var band = 0
-        var column = 0
+        // A ponta livre da linha, em meias-peças. Anda com a linha, e não é índice de
+        // coluna: uma carroça deitada deixa a ponta em meia coluna, e o resto da fileira
+        // segue a partir dali.
+        var ponta = 0f
         var direction = 1
         // Verdadeiro quando a peça anterior desceu para cá — peça em pé, ou carroça que
-        // fechou a fileira. A peça que vem logo abaixo dela encosta nela, e por isso não
-        // pode ser centrada na fileira: subiria por cima da vizinha de cima.
+        // fechou a fileira. Quem vem depois dela encosta nela por baixo.
         var vemDeCima = false
 
         for ((index, placed) in line.withIndex()) {
             val double = placed.a == placed.b
             val faltamPecas = index < line.lastIndex
             val y = (band * ROW_PITCH).toFloat()
+
+            // **Carroça logo abaixo de uma peça em pé: deitada, e centrada nela.**
+            //
+            // Em pé ali ela ficaria encostada na de cima e na fileira de baixo ao mesmo
+            // tempo, e a vizinha encostaria na ponta dela em vez do meio. Deitada resolve as
+            // duas coisas: a linha vem descendo, e a carroça é atravessada à linha — o que,
+            // com a linha vertical, quer dizer horizontal.
+            if (double && vemDeCima) {
+                val centro = ponta + direction * 0.5f
+                laid += LaidTile(
+                    tile = placed,
+                    x = centro - TILE_LENGTH / 2f,
+                    y = y,
+                    width = TILE_LENGTH.toFloat(),
+                    height = 1f,
+                    facing = TileFacing.CROSS,
+                    // Deitada: as metades ficam lado a lado.
+                    stacked = false,
+                    reversed = false,
+                )
+                ponta = centro + direction * (TILE_LENGTH / 2f)
+                vemDeCima = false
+                continue
+            }
 
             if (double) {
                 // **A carroça pode fechar a fileira.** Se a peça seguinte não couber deitada
@@ -144,30 +176,29 @@ object DominoesLayout {
                 val proximaEhCarroca = faltamPecas && line[index + 1].let { it.a == it.b }
                 val fechaFileira = faltamPecas && if (proximaEhCarroca) {
                     // Carroça ocupa uma coluna só: basta haver coluna.
-                    column + direction !in 0 until columns
+                    !cabe(ponta + direction, direction, 1)
                 } else {
-                    !deitaSemVirar(column + direction, direction, index + 1 < line.lastIndex)
+                    !deitaSemVirar(ponta + direction, direction, index + 1 < line.lastIndex)
                 }
 
                 // **Centrada na fileira.** As vizinhas deitadas encostam no meio da carroça,
                 // e não na ponta dela — é assim que a carroça aparece numa mesa de verdade.
                 //
-                // Três coisas impedem: ter peça encostada em cima (a linha desceu para cá)
-                // ou embaixo (é ela que desce), porque aí ela precisa alcançar a vizinha; e
-                // ter peça em pé na coluna ao lado, porque centrar a faria subir meia peça
-                // e ficar paralela justamente a essa vizinha.
+                // Não centra quando é ela que desce para a fileira seguinte (aí precisa
+                // alcançá-la), nem quando há peça em pé na coluna ao lado: centrar a faria
+                // subir meia peça e ficar paralela justamente a essa vizinha.
+                val x = minOf(ponta, ponta + direction)
                 val yCentrada = y - (TILE_LENGTH - 1) / 2f
-                val proximaCairiaAoLado = proximaEhCarroca && !fechaFileira
                 val emPeAoLado = laid.any { outra ->
                     outra.width == 1f &&
-                        (outra.x + outra.width == column.toFloat() || outra.x == column + 1f) &&
+                        (encostam(outra.x + outra.width, x) || encostam(outra.x, x + 1f)) &&
                         outra.y < yCentrada + TILE_LENGTH && yCentrada < outra.y + outra.height
                 }
-                val centrada = !vemDeCima && !fechaFileira && !emPeAoLado && !proximaCairiaAoLado
+                val centrada = !fechaFileira && !emPeAoLado && !proximaEhCarroca
 
                 laid += LaidTile(
                     tile = placed,
-                    x = column.toFloat(),
+                    x = x,
                     y = if (centrada) yCentrada else y,
                     width = 1f,
                     height = TILE_LENGTH.toFloat(),
@@ -179,10 +210,12 @@ object DominoesLayout {
 
                 if (fechaFileira) {
                     band++
+                    // A peça seguinte encosta por baixo desta, na mesma coluna.
+                    ponta += direction
                     direction = -direction
                     vemDeCima = true
                 } else {
-                    column += direction
+                    ponta += direction
                     vemDeCima = false
                 }
                 continue
@@ -192,10 +225,10 @@ object DominoesLayout {
             // ligando esta fileira à seguinte — é o que se faz numa mesa quando o espaço
             // acaba. Sem esta condição a peça ia parar deitada na fileira de baixo, e a
             // mesa virava quebra de linha de máquina de escrever.
-            if (!deitaSemVirar(column, direction, faltamPecas)) {
+            if (!deitaSemVirar(ponta, direction, faltamPecas)) {
                 laid += LaidTile(
                     tile = placed,
-                    x = column.toFloat(),
+                    x = minOf(ponta, ponta + direction),
                     y = y,
                     width = 1f,
                     height = TILE_LENGTH.toFloat(),
@@ -205,16 +238,17 @@ object DominoesLayout {
                     reversed = false,
                 )
                 band++
+                // A peça em pé vai do começo ao fim do vão entre as duas fileiras, e a
+                // próxima encosta por baixo dela, nesta mesma coluna.
+                ponta += direction
                 direction = -direction
-                // A coluna **não** anda: a peça em pé vai do começo ao fim do vão entre as
-                // duas fileiras, e a próxima peça encosta por baixo dela, nesta coluna.
                 vemDeCima = true
                 continue
             }
 
             laid += LaidTile(
                 tile = placed,
-                x = minOf(column, column + direction).toFloat(),
+                x = minOf(ponta, ponta + direction * TILE_LENGTH),
                 y = y,
                 width = TILE_LENGTH.toFloat(),
                 height = 1f,
@@ -223,25 +257,44 @@ object DominoesLayout {
                 // Fileira que volta: o começo da peça fica à direita.
                 reversed = direction < 0,
             )
-            column += direction * TILE_LENGTH
+            ponta += direction * TILE_LENGTH
             vemDeCima = false
         }
 
-        // Carroça centrada na primeira fileira sobe meia peça acima do zero. A mesa não
-        // começa em número negativo: desce tudo junto, que é só onde ela é desenhada.
-        val topo = laid.minOf { it.y }
-        val ajustadas = if (topo < 0f) laid.map { it.copy(y = it.y - topo) } else laid
+        // Carroça centrada na primeira fileira sobe meia peça acima do zero, e carroça
+        // deitada pode sobrar meia coluna à esquerda. A mesa não começa em número negativo:
+        // desce e empurra tudo junto, que isso é só onde ela é desenhada.
+        val topo = minOf(laid.minOf { it.y }, 0f)
+        val esquerda = minOf(laid.minOf { it.x }, 0f)
+        val postas = if (topo < 0f || esquerda < 0f) {
+            laid.map { it.copy(x = it.x - esquerda, y = it.y - topo) }
+        } else {
+            laid
+        }
 
-        return DominoesTable(ajustadas, columns, rows = ceil(ajustadas.maxOf { it.y + it.height }).toInt())
+        return DominoesTable(
+            tiles = postas,
+            // A carroça deitada pode passar meia coluna da largura pedida; a mesa cresce
+            // para caber, em vez de deixar peça pendurada para fora.
+            columns = maxOf(columns, ceil(postas.maxOf { it.x + it.width }).toInt()),
+            rows = ceil(postas.maxOf { it.y + it.height }).toInt(),
+        )
     }
+
+    /** Meia-coluna é medida de verdade aqui; comparar float pede uma folga. */
+    private const val FOLGA = 0.001f
+
+    private fun encostam(a: Float, b: Float): Boolean = kotlin.math.abs(a - b) < FOLGA
 
     /**
      * Largura mínima que a serpentina precisa para não virar escadinha.
      *
-     * Abaixo disso a fileira não comporta nem uma peça deitada mais a curva, e toda peça
-     * acabaria em pé.
+     * Com quatro meias-peças a fileira comporta **uma** peça deitada e a curva, e a mesa
+     * vira uma escada de peças em pé. Pior: uma carroça logo depois de uma curva não tem
+     * para onde ir, porque não sobra fileira para ela cair no meio — o desenho perde a
+     * saída que existe em qualquer largura maior.
      */
-    private const val MIN_COLUMNS = 4
+    private const val MIN_COLUMNS = 5
 
     /** Nenhuma serpentina razoável passa disto; mais do que isso vira peça microscópica. */
     private const val MAX_COLUMNS = 16

@@ -13,6 +13,9 @@ import kotlin.test.assertTrue
  */
 class DominoesLayoutTest {
 
+    /** Da mesa mais estreita que o desenho aceita à mais larga que faz sentido. */
+    private val LARGURAS = listOf(5, 6, 8, 12)
+
     private fun linha(vararg pares: Pair<Int, Int>) = pares.map { PlacedTile(it.first, it.second) }
 
     /** Duas peças se sobrepõem se os retângulos delas se cruzam de verdade. */
@@ -160,7 +163,7 @@ class DominoesLayoutTest {
      */
     @Test
     fun `toda peca mede sempre dois por um, virada ou nao`() {
-        for (columns in listOf(4, 5, 6, 8, 12)) {
+        for (columns in LARGURAS) {
             var state = DominoesGame.initialState(MatchConfig(seed = 7))
             var guard = 0
 
@@ -192,7 +195,7 @@ class DominoesLayoutTest {
      */
     @Test
     fun `duas pecas em pe nunca ficam lado a lado`() {
-        for (columns in listOf(4, 5, 6, 8, 12)) {
+        for (columns in LARGURAS) {
             var state = DominoesGame.initialState(MatchConfig(seed = 7))
             var guard = 0
 
@@ -208,6 +211,54 @@ class DominoesLayoutTest {
                             "largura $columns, lance ${state.ply}: duas em pé paralelas — $a / $b",
                         )
                     }
+                }
+                val move = DominoesGame.legalMoves(state).firstOrNull() ?: break
+                state = DominoesGame.applyOrThrow(state, move)
+            }
+        }
+    }
+
+    /**
+     * **A carroça logo abaixo de uma peça em pé fica deitada, centrada nela.**
+     *
+     * Em pé ali ela encostaria na de cima e na fileira de baixo ao mesmo tempo, e a vizinha
+     * encostaria na ponta dela em vez do meio — foi o defeito que apareceu na tela. Deitada
+     * resolve as duas coisas de uma vez, e é o que a mesa de verdade faz: a linha chega
+     * descendo, e a carroça é atravessada à linha, o que com a linha na vertical quer dizer
+     * horizontal.
+     */
+    @Test
+    fun `a carroca embaixo da peca em pe fica deitada e centrada nela`() {
+        for (columns in LARGURAS) {
+            var state = DominoesGame.initialState(MatchConfig(seed = 7))
+            var guard = 0
+
+            while (!DominoesGame.outcome(state).isOver && guard++ < 40) {
+                val pecas = DominoesLayout.table(state.line, columns).tiles
+                for ((i, peca) in pecas.withIndex()) {
+                    if (peca.facing != TileFacing.CROSS || i == 0) continue
+                    val acima = pecas[i - 1]
+                    // Só quando a anterior desceu para cá; carroça no meio da fileira é
+                    // outro caso, e esse tem teste próprio.
+                    if (acima.width != 1f) continue
+
+                    assertEquals(
+                        1f,
+                        peca.height,
+                        "largura $columns, lance ${state.ply}: carroça em pé embaixo de $acima",
+                    )
+                    assertEquals(
+                        acima.x + acima.width / 2f,
+                        peca.x + peca.width / 2f,
+                        "largura $columns, lance ${state.ply}: $acima não está no meio de $peca",
+                    )
+                    // Deitada, ela mede uma meia-peça de altura e não alcança a fileira de
+                    // baixo — que é o "colado" que se via na tela.
+                    val fileiraDeBaixo = pecas.filter { it.y > peca.y + peca.height - 0.001f }
+                    assertTrue(
+                        fileiraDeBaixo.none { it.y < peca.y + peca.height + 0.001f },
+                        "largura $columns, lance ${state.ply}: a carroça colou na fileira de baixo",
+                    )
                 }
                 val move = DominoesGame.legalMoves(state).firstOrNull() ?: break
                 state = DominoesGame.applyOrThrow(state, move)
@@ -242,7 +293,7 @@ class DominoesLayoutTest {
     fun `a curva continua do tamanho certo quando a propria fileira tem carroca`() {
         val mesa = DominoesLayout.table(
             linha(1 to 1, 2 to 3, 3 to 4, 4 to 5, 5 to 5, 5 to 6),
-            columns = 4,
+            columns = 5,
         )
 
         val carroca = mesa.tiles.first { it.facing == TileFacing.CROSS }
@@ -330,7 +381,7 @@ class DominoesLayoutTest {
 
     @Test
     fun `mesa estreita ainda acomoda a peca mais comprida`() {
-        val mesa = DominoesLayout.table(linha(1 to 2, 2 to 3, 3 to 4), columns = 4)
+        val mesa = DominoesLayout.table(linha(1 to 2, 2 to 3, 3 to 4), columns = 5)
         for (peca in mesa.tiles) {
             assertTrue(peca.x + peca.width <= mesa.width)
             assertTrue(peca.y + peca.height <= mesa.height)
@@ -340,7 +391,7 @@ class DominoesLayoutTest {
     @Test
     fun `uma partida inteira cabe na mesa, encostada e sem peca em cima de peca`() {
         // O caso de verdade: a linha crescendo lance a lance, em várias larguras de tela.
-        for (columns in listOf(4, 6, 8, 12)) {
+        for (columns in LARGURAS) {
             var state = DominoesGame.initialState(MatchConfig(seed = 7))
             var guard = 0
 
@@ -407,7 +458,7 @@ class DominoesLayoutTest {
         val escolhida = DominoesLayout.bestColumns(linha, largura, altura)
         val melhorTamanho = tamanhoDaPeca(linha, escolhida, largura, altura)
 
-        for (columns in 4..16) {
+        for (columns in 5..16) {
             assertTrue(
                 tamanhoDaPeca(linha, columns, largura, altura) <= melhorTamanho + 0.001f,
                 "largura $columns daria peça maior do que a escolhida ($escolhida)",
