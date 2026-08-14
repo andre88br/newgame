@@ -58,6 +58,7 @@ import io.github.andre88br.newgame.core.games.ludo.LudoGame
 import io.github.andre88br.newgame.core.games.ludo.LudoLayout
 import io.github.andre88br.newgame.core.games.ludo.LudoMove
 import io.github.andre88br.newgame.core.games.ludo.LudoState
+import io.github.andre88br.newgame.core.games.ludo.armOf
 import kotlin.math.hypot
 import kotlin.random.Random
 import kotlinx.coroutines.delay
@@ -141,7 +142,10 @@ fun LudoSurface(
                 rolling = rolando,
                 animated = animated,
                 palette = palette,
-                seatColor = seatColor(state.turn.index),
+                // A cor do dado é a do braço, não a da cadeira: numa mesa de dois, a
+                // cadeira 1 senta no braço 2 (lados opostos), e usar o índice da cadeira
+                // pintaria o dado com a cor de outro braço.
+                seatColor = seatColor(armOf(state.turn, state.seats)),
             )
 
             Column(modifier = Modifier.weight(1f)) {
@@ -309,6 +313,10 @@ private fun Board(
         val radius = cellSize * 0.30f
         for (index in 0 until state.seats) {
             val seat = Seat(index)
+            // A cor do peão é a do braço da cadeira, e não a da cadeira em si: numa mesa
+            // de dois elas ficam em lados opostos (braços 0 e 2), e colorir pelo índice
+            // pintaria os peões da cadeira 1 com a cor de um braço vazio.
+            val arm = armOf(seat, state.seats)
             state.tokensOf(seat).forEachIndexed { token, progress ->
                 val cell = LudoLayout.cellFor(seat, progress, token, state.seats)
                 val corner = topLeft(cell)
@@ -322,7 +330,7 @@ private fun Board(
                 val centerY = corner.y + cellSize / 2f + shiftY
 
                 drawCircle(
-                    color = seatColor(index),
+                    color = seatColor(arm),
                     radius = radius,
                     center = Offset(centerX, centerY),
                 )
@@ -374,20 +382,14 @@ private fun Board(
 }
 
 /**
- * A cor de cada cadeira.
+ * A cor do braço [arm] (0 a 3), a mesma usada na cruz.
  *
- * Quatro cores fixas, e não derivadas da paleta do tabuleiro: com quatro peões na mesma
- * casa, o que separa um do outro é a cor, e cores calculadas a partir de duas acabariam
- * parecidas demais no tema escuro.
+ * Cores fixas, e não derivadas da paleta do tabuleiro: com quatro peões na mesma casa, o
+ * que separa um do outro é a cor, e cores calculadas a partir de duas acabariam parecidas
+ * demais no tema escuro. As cores em si moram em `LudoColors.kt`, compartilhadas com a tela
+ * de configuração, onde a pessoa escolhe a sua antes de começar.
  */
-private val SEAT_COLORS = listOf(
-    Color(0xFFD93B3B), // vermelho
-    Color(0xFF3E8FD9), // azul
-    Color(0xFFE8C020), // amarelo
-    Color(0xFF3FAF4A), // verde
-)
-
-private fun seatColor(index: Int): Color = SEAT_COLORS[index % SEAT_COLORS.size]
+private fun seatColor(arm: Int): Color = ludoArmColor(arm)
 
 /** Um `Paint` só, reaproveitado: um por peão a cada quadro geraria lixo à toa. */
 private val tokenNumberPaint = Paint().apply {

@@ -1,11 +1,18 @@
 package io.github.andre88br.newgame.app.ui.setup
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -21,16 +28,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.andre88br.newgame.app.R
+import io.github.andre88br.newgame.app.ui.board.surfaces.ludoArmColor
 import io.github.andre88br.newgame.app.ui.components.ChoiceRow
 import io.github.andre88br.newgame.app.ui.difficultyName
 import io.github.andre88br.newgame.app.ui.gameName
 import io.github.andre88br.newgame.app.ui.rules.HowToPlayDialog
 import io.github.andre88br.newgame.core.ai.Difficulty
 import io.github.andre88br.newgame.core.engine.GameEntry
+import io.github.andre88br.newgame.core.engine.GameId
 import io.github.andre88br.newgame.core.engine.Seat
+import io.github.andre88br.newgame.core.games.ludo.armOf
 
 /** Modo de jogo escolhido antes de começar. */
 enum class MatchMode {
@@ -49,11 +62,14 @@ fun SetupScreen(
 ) {
     var mode by remember { mutableStateOf(MatchMode.AGAINST_PHONE) }
     var difficulty by remember { mutableStateOf(defaultDifficulty) }
-    var humanSeat by remember { mutableStateOf(Seat.FIRST) }
     var showingRules by remember { mutableStateOf(false) }
 
     val mesasPossiveis = entry.rules.supportedSeats.toList()
     var seats by remember(entry.id) { mutableStateOf(mesasPossiveis.first()) }
+
+    // Some quando o número de cadeiras muda: uma cadeira escolhida numa mesa de quatro pode
+    // não existir mais numa mesa de dois.
+    var humanSeat by remember(seats) { mutableStateOf(Seat.FIRST) }
 
     Scaffold(
         topBar = {
@@ -146,6 +162,17 @@ fun SetupScreen(
                         onSelect = { humanSeat = it },
                     )
                 }
+
+                // No ludo cada cadeira tem uma cor fixa — quem começa é decidido pelo dado,
+                // mas em qual braço da cruz você senta (logo, qual é a sua cor) continua
+                // sendo sua escolha.
+                if (entry.id == GameId.LUDO) {
+                    LudoColorRow(
+                        seats = seats,
+                        selected = humanSeat,
+                        onSelect = { humanSeat = it },
+                    )
+                }
             }
 
             if (hasOngoingMatch) {
@@ -171,3 +198,59 @@ fun SetupScreen(
         }
     }
 }
+
+/**
+ * A cor de cada cadeira do ludo, para escolher antes de começar.
+ *
+ * Um botão de cada cor não bastaria: a mesma bolinha que aqui representa "eu sou o
+ * vermelho" é a cor que aparece nos peões e no braço da cruz durante o jogo, e por isso o
+ * desenho é a própria cor, não o nome dela — o nome só entra como descrição para quem usa
+ * leitor de tela.
+ */
+@Composable
+private fun LudoColorRow(
+    seats: Int,
+    selected: Seat,
+    onSelect: (Seat) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.setup_ludo_color),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            for (index in 0 until seats) {
+                val seat = Seat(index)
+                val arm = armOf(seat, seats)
+                val name = ludoColorName(arm)
+                val isSelected = seat == selected
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(ludoArmColor(arm))
+                        .border(
+                            width = if (isSelected) 3.dp else 1.dp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (isSelected) 1f else 0.2f),
+                            shape = CircleShape,
+                        )
+                        .clickable(onClickLabel = name) { onSelect(seat) }
+                        .semantics { contentDescription = name },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ludoColorName(arm: Int): String = stringResource(
+    when (arm) {
+        0 -> R.string.ludo_color_red
+        1 -> R.string.ludo_color_blue
+        2 -> R.string.ludo_color_yellow
+        else -> R.string.ludo_color_green
+    },
+)

@@ -35,6 +35,7 @@
     <string name="setup_who_starts">Who starts</string>
     <string name="setup_you_start">You</string>
     <string name="setup_phone_starts">The phone</string>
+    <string name="setup_ludo_color">Your colour</string>
     <string name="setup_start">Start</string>
     <string name="setup_resume_warning">Starting over will erase the match in progress for this game.</string>
     <string name="setup_rules_decide_start">In this game the rules decide who starts.</string>
@@ -212,4 +213,10 @@
     <string name="ludo_roll">Roll the die</string>
     <string name="ludo_rolling">Rolling…</string>
     <string name="ludo_die_hidden">Die: roll to see</string>
+
+    <!-- Ludo colours, in arm order: red, blue, yellow, green -->
+    <string name="ludo_color_red">Red</string>
+    <string name="ludo_color_blue">Blue</string>
+    <string name="ludo_color_yellow">Yellow</string>
+    <string name="ludo_color_green">Green</string>
 </resources>
