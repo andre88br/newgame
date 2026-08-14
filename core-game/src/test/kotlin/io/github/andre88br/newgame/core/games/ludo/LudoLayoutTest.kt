@@ -51,6 +51,30 @@ class LudoLayoutTest {
         assertTrue(saidas.all { isSafeSquare(it) }, "casa de saída precisa ser segura")
     }
 
+    @Test
+    fun `cada saida da volta pertence ao braco de quem sai dali`() {
+        for (arm in 0 until LUDO_ARMS) {
+            val saida = arm * (LUDO_TRACK / LUDO_ARMS)
+            assertEquals(arm, LudoLayout.startArmAt(saida), "a saída $saida não é do braço $arm")
+        }
+        // E casa comum não é saída de ninguém: pintá-la de alguma cor seria mentira.
+        val comuns = (0 until LUDO_TRACK).filter { it % (LUDO_TRACK / LUDO_ARMS) != 0 }
+        assertTrue(comuns.all { LudoLayout.startArmAt(it) == -1 }, "casa comum virou saída")
+    }
+
+    @Test
+    fun `a saida de cada cadeira e a saida do braco dela`() {
+        for (seats in mesas) {
+            for (seat in cadeiras(seats)) {
+                assertEquals(
+                    armOf(seat, seats),
+                    LudoLayout.startArmAt(startSquare(seat, seats)),
+                    "mesa de $seats: a cadeira ${seat.index} sai de casa que não é do braço dela",
+                )
+            }
+        }
+    }
+
     // -------- quem senta em qual braço --------
 
     /**

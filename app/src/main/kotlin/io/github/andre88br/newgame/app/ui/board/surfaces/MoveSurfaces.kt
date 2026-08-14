@@ -29,6 +29,8 @@ fun MoveSurface(
     viewer: Seat,
     enabled: Boolean,
     hinted: Move?,
+    /** Segue o ajuste de animações: desligado, o dado do ludo revela sem chacoalhar. */
+    animated: Boolean,
     modifier: Modifier = Modifier,
     onMove: (Move) -> Unit,
 ) {
@@ -37,7 +39,7 @@ fun MoveSurface(
             DominoesSurface(state, viewer, enabled, hinted, modifier, onMove)
 
         gameId == GameId.LUDO && state is LudoState ->
-            LudoSurface(state, viewer, enabled, hinted, modifier, onMove)
+            LudoSurface(state, viewer, enabled, hinted, animated, modifier, onMove)
 
         // Jogo sem tela: dizer isso é melhor do que mostrar uma área em branco.
         else -> Text(stringResource(R.string.board_no_surface, gameId.name))

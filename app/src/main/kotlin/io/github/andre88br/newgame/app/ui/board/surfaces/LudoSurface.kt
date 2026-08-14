@@ -1,5 +1,7 @@
 package io.github.andre88br.newgame.app.ui.board.surfaces
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -8,18 +10,26 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.res.stringResource
@@ -44,6 +54,8 @@ import io.github.andre88br.newgame.core.games.ludo.LudoLayout
 import io.github.andre88br.newgame.core.games.ludo.LudoMove
 import io.github.andre88br.newgame.core.games.ludo.LudoState
 import kotlin.math.hypot
+import kotlin.random.Random
+import kotlinx.coroutines.delay
 
 /** Um peão já posicionado em pixels, do jeito que o toque precisa encontrá-lo. */
 private data class TokenSpot(
@@ -70,11 +82,43 @@ fun LudoSurface(
     viewer: Seat,
     enabled: Boolean,
     hinted: Move?,
+    animated: Boolean,
     modifier: Modifier = Modifier,
     onMove: (Move) -> Unit,
 ) {
     val palette = LocalBoardPalette.current
     val hintToken = (hinted as? LudoMove)?.token
+
+    // **O dado só aparece depois de você rolar.**
+    //
+    // O valor em si já está decidido: ele sai da semente da partida, e é isso que faz um
+    // jogo salvo reabrir exatamente igual. O que muda aqui é quem revela — antes o número
+    // simplesmente trocava sozinho na tela, e rolar dado é metade da graça do ludo.
+    //
+    // Cada estado novo é uma rolagem nova, daí o `remember(state)`.
+    var revelado by remember(state) { mutableStateOf(false) }
+    var rolando by remember(state) { mutableStateOf(false) }
+    var face by remember(state) { mutableIntStateOf(state.die) }
+
+    // Fora da vez não há o que rolar: o dado da máquina aparece pronto.
+    val mostrandoDado = !enabled || revelado
+
+    LaunchedEffect(rolando) {
+        if (!rolando) return@LaunchedEffect
+        if (animated) {
+            // Faces trocando depressa e desacelerando: é o que dá a sensação de dado
+            // parando. Os valores intermediários são enfeite — o que vale é o último.
+            var espera = 40L
+            while (espera < 170L) {
+                face = 1 + Random.nextInt(6)
+                delay(espera)
+                espera = (espera * 1.25f).toLong()
+            }
+        }
+        face = state.die
+        rolando = false
+        revelado = true
+    }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -86,10 +130,21 @@ fun LudoSurface(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Die(value = state.die, palette = palette)
-            Column {
+            Die(
+                value = if (mostrandoDado) face else null,
+                rolling = rolando,
+                animated = animated,
+                palette = palette,
+                seatColor = seatColor(state.turn.index),
+            )
+
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(R.string.ludo_die, state.die),
+                    text = if (mostrandoDado) {
+                        stringResource(R.string.ludo_die, face)
+                    } else {
+                        stringResource(R.string.ludo_die_hidden)
+                    },
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
@@ -102,12 +157,23 @@ fun LudoSurface(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+
+            if (enabled && !revelado) {
+                Button(onClick = { rolando = true }, enabled = !rolando) {
+                    Text(
+                        stringResource(
+                            if (rolando) R.string.ludo_rolling else R.string.ludo_roll,
+                        ),
+                    )
+                }
+            }
         }
 
         Board(
             state = state,
             palette = palette,
-            enabled = enabled,
+            // Antes de rolar não há lance: o tabuleiro fica só de mostrar.
+            enabled = enabled && revelado,
             hintToken = hintToken,
             viewer = viewer,
             onMove = onMove,
@@ -121,7 +187,7 @@ fun LudoSurface(
         // onde o peão está e o que acontece se ele andar.
         TokenButtons(
             state = state,
-            enabled = enabled,
+            enabled = enabled && revelado,
             hintToken = hintToken,
             onMove = onMove,
         )
@@ -213,8 +279,16 @@ private fun Board(
         for (cell in cells) {
             val kind = LudoLayout.kindOf(cell)
             if (kind == LudoCellKind.OUTSIDE) continue
+            // A casa de saída de cada cor é dessa cor, como num tabuleiro de verdade: é
+            // dali que os peões entram na volta, e sem a marca ninguém sabe de onde parte.
+            val saida = LudoLayout.startArmAt(LudoLayout.ring.indexOf(cell))
+            val cor = if (saida >= 0) {
+                seatOfArm(saida, state.seats)?.let { seatColor(it) } ?: palette.lightSquare
+            } else {
+                colorOf(kind, LudoLayout.armAt(cell), state.seats, palette)
+            }
             drawRect(
-                color = colorOf(kind, LudoLayout.armAt(cell), state.seats, palette),
+                color = cor,
                 topLeft = topLeft(cell),
                 size = Size(cellSize, cellSize),
             )
@@ -311,26 +385,71 @@ private fun colorOf(
     LudoCellKind.SAFE -> palette.lastMove.copy(alpha = 1f)
     LudoCellKind.GOAL -> palette.crown
     LudoCellKind.HOME -> seatOfArm(arm, seats)?.let { seatColor(it) } ?: palette.darkSquare
+    // Forte o bastante para se reconhecer a cor: o curral é a casa da cor, não um cinza.
     LudoCellKind.YARD ->
-        seatOfArm(arm, seats)?.let { seatColor(it).copy(alpha = 0.45f) }
+        seatOfArm(arm, seats)?.let { seatColor(it).copy(alpha = 0.8f) }
             ?: palette.darkSquare.copy(alpha = 0.5f)
 
     LudoCellKind.OUTSIDE -> Color.Transparent
 }
 
-/** O dado que o motor rolou, desenhado como dado mesmo. */
+/**
+ * O dado.
+ *
+ * [value] nulo quer dizer "ainda não rolado": aparece a interrogação, e o botão ao lado é
+ * que revela. Enquanto rola, o dado balança — sem isso a troca de faces parece defeito de
+ * desenho em vez de dado girando.
+ */
 @Composable
-private fun Die(value: Int, palette: BoardPalette) {
-    Canvas(modifier = Modifier.size(48.dp)) {
+private fun Die(
+    value: Int?,
+    rolling: Boolean,
+    animated: Boolean,
+    palette: BoardPalette,
+    seatColor: Color,
+) {
+    val giro by animateFloatAsState(
+        targetValue = if (rolling) 1f else 0f,
+        animationSpec = tween(durationMillis = if (animated) 220 else 0),
+        label = "chacoalhada do dado",
+    )
+
+    Canvas(
+        modifier = Modifier
+            .size(56.dp)
+            .graphicsLayer {
+                rotationZ = giro * 18f
+                scaleX = 1f + giro * 0.12f
+                scaleY = 1f + giro * 0.12f
+            },
+    ) {
         val edge = size.minDimension * 0.06f
-        drawRect(color = palette.firstPiece, size = size)
-        drawRect(color = palette.firstPieceEdge, size = size, style = Stroke(width = edge))
+        val canto = CornerRadius(size.minDimension * 0.18f)
+        drawRoundRect(color = palette.firstPiece, size = size, cornerRadius = canto)
+        // A borda leva a cor de quem está na vez: o dado é de quem vai jogar.
+        drawRoundRect(
+            color = seatColor,
+            size = size,
+            cornerRadius = canto,
+            style = Stroke(width = edge * 1.6f),
+        )
 
         val radius = size.minDimension * 0.09f
         fun spot(column: Int, row: Int) = Offset(
             size.width * (column + 1) / 4f,
             size.height * (row + 1) / 4f,
         )
+
+        if (value == null) {
+            // Ainda por rolar: um ponto no meio, apagado, em vez de uma face qualquer que
+            // pareceria o resultado.
+            drawCircle(
+                color = palette.firstPieceEdge,
+                radius = radius * 1.4f,
+                center = spot(1, 1),
+            )
+            return@Canvas
+        }
 
         val spots = when (value) {
             1 -> listOf(spot(1, 1))

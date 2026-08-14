@@ -155,6 +155,7 @@ fun BoardScreen(
                     viewer = ui.viewer,
                     enabled = ui.canPlay,
                     hinted = ui.hintedMove,
+                    animated = settings.animations,
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),

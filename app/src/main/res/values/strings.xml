@@ -205,4 +205,9 @@
     <string name="board_turn_player">Vez do jogador %1$d</string>
     <string name="board_player_won">Jogador %1$d venceu</string>
     <string name="dominoes_opponent_seat">Jogador %1$d</string>
+
+    <!-- Dado do ludo -->
+    <string name="ludo_roll">Rolar dado</string>
+    <string name="ludo_rolling">Rolando…</string>
+    <string name="ludo_die_hidden">Dado: role para ver</string>
 </resources>

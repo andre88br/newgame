@@ -207,4 +207,9 @@
     <string name="board_turn_player">Player %1$d to move</string>
     <string name="board_player_won">Player %1$d wins</string>
     <string name="dominoes_opponent_seat">Player %1$d</string>
+
+    <!-- Ludo die -->
+    <string name="ludo_roll">Roll the die</string>
+    <string name="ludo_rolling">Rolling…</string>
+    <string name="ludo_die_hidden">Die: roll to see</string>
 </resources>

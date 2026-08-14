@@ -88,6 +88,19 @@ object LudoLayout {
     }
 
     /**
+     * O braço cuja **saída** é esta casa da volta, ou `-1` se ela não for saída de ninguém.
+     *
+     * Serve à pintura: a casa de onde os peões de uma cor entram na volta é dessa cor, como
+     * num tabuleiro de verdade. Sem isso todas as saídas saem iguais, e quem joga não tem
+     * como saber de onde a própria cor parte.
+     */
+    fun startArmAt(absolute: Int): Int {
+        val passo = LUDO_TRACK / LUDO_ARMS
+        val casa = Math.floorMod(absolute, LUDO_TRACK)
+        return if (casa % passo == 0) casa / passo else -1
+    }
+
+    /**
      * Casa do corredor final, com [step] indo de 0 (a primeira depois da volta) até
      * [LUDO_HOME_LANE] — que já é a chegada.
      *
