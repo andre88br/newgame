@@ -43,7 +43,7 @@ import io.github.andre88br.newgame.core.ai.Difficulty
 import io.github.andre88br.newgame.core.engine.GameEntry
 import io.github.andre88br.newgame.core.engine.GameId
 import io.github.andre88br.newgame.core.engine.Seat
-import io.github.andre88br.newgame.core.games.ludo.armOf
+import io.github.andre88br.newgame.core.games.ludo.LUDO_ARMS
 
 /** Modo de jogo escolhido antes de começar. */
 enum class MatchMode {
@@ -58,7 +58,13 @@ fun SetupScreen(
     defaultDifficulty: Difficulty,
     hasOngoingMatch: Boolean,
     onBack: () -> Unit,
-    onStart: (mode: MatchMode, difficulty: Difficulty, humanSeat: Seat, seats: Int) -> Unit,
+    onStart: (
+        mode: MatchMode,
+        difficulty: Difficulty,
+        humanSeat: Seat,
+        seats: Int,
+        ludoFirstArm: Int,
+    ) -> Unit,
 ) {
     var mode by remember { mutableStateOf(MatchMode.AGAINST_PHONE) }
     var difficulty by remember { mutableStateOf(defaultDifficulty) }
@@ -70,6 +76,10 @@ fun SetupScreen(
     // Some quando o número de cadeiras muda: uma cadeira escolhida numa mesa de quatro pode
     // não existir mais numa mesa de dois.
     var humanSeat by remember(seats) { mutableStateOf(Seat.FIRST) }
+
+    // A cor do ludo é independente da cadeira: gira qual braço a cadeira zero ocupa, e por
+    // isso as quatro cores continuam disponíveis mesmo numa mesa de dois.
+    var ludoColor by remember(entry.id) { mutableStateOf(0) }
 
     Scaffold(
         topBar = {
@@ -163,14 +173,13 @@ fun SetupScreen(
                     )
                 }
 
-                // No ludo cada cadeira tem uma cor fixa — quem começa é decidido pelo dado,
-                // mas em qual braço da cruz você senta (logo, qual é a sua cor) continua
-                // sendo sua escolha.
+                // Quem começa é decidido pelo dado, mas a cor continua sendo escolha: as
+                // quatro ficam sempre disponíveis, mesmo numa mesa de dois — só o braço da
+                // cadeira zero gira, o espaçamento entre cadeiras não muda.
                 if (entry.id == GameId.LUDO) {
                     LudoColorRow(
-                        seats = seats,
-                        selected = humanSeat,
-                        onSelect = { humanSeat = it },
+                        selected = ludoColor,
+                        onSelect = { ludoColor = it },
                     )
                 }
             }
@@ -190,7 +199,7 @@ fun SetupScreen(
             }
 
             Button(
-                onClick = { onStart(mode, difficulty, humanSeat, seats) },
+                onClick = { onStart(mode, difficulty, humanSeat, seats, ludoColor) },
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(stringResource(R.string.setup_start))
@@ -200,7 +209,11 @@ fun SetupScreen(
 }
 
 /**
- * A cor de cada cadeira do ludo, para escolher antes de começar.
+ * As quatro cores do ludo, para escolher antes de começar.
+ *
+ * Sempre as quatro, em qualquer tamanho de mesa — inclusive de dois, onde antes só vermelho
+ * e amarelo apareciam prontos de fábrica. É o braço da cadeira zero que gira para caber a
+ * cor escolhida; as outras cadeiras continuam em ordem a partir dali.
  *
  * Um botão de cada cor não bastaria: a mesma bolinha que aqui representa "eu sou o
  * vermelho" é a cor que aparece nos peões e no braço da cruz durante o jogo, e por isso o
@@ -209,9 +222,8 @@ fun SetupScreen(
  */
 @Composable
 private fun LudoColorRow(
-    seats: Int,
-    selected: Seat,
-    onSelect: (Seat) -> Unit,
+    selected: Int,
+    onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -222,11 +234,9 @@ private fun LudoColorRow(
             modifier = Modifier.padding(bottom = 8.dp),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            for (index in 0 until seats) {
-                val seat = Seat(index)
-                val arm = armOf(seat, seats)
+            for (arm in 0 until LUDO_ARMS) {
                 val name = ludoColorName(arm)
-                val isSelected = seat == selected
+                val isSelected = arm == selected
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -237,7 +247,7 @@ private fun LudoColorRow(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (isSelected) 1f else 0.2f),
                             shape = CircleShape,
                         )
-                        .clickable(onClickLabel = name) { onSelect(seat) }
+                        .clickable(onClickLabel = name) { onSelect(arm) }
                         .semantics { contentDescription = name },
                 )
             }

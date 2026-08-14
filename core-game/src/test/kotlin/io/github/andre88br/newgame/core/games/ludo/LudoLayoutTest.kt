@@ -91,6 +91,31 @@ class LudoLayoutTest {
         assertEquals(LUDO_TRACK / 2, distancia, "as saídas precisam ficar em lados opostos")
     }
 
+    /**
+     * `firstArm` gira a mesa inteira para a pessoa poder escolher qualquer uma das quatro
+     * cores, mesmo numa mesa de dois — sem ele só dava para jogar de vermelho ou amarelo.
+     * O giro não pode estragar o espaçamento: as cadeiras continuam nos mesmos braços
+     * relativos entre si, só o ponto de partida muda.
+     */
+    @Test
+    fun `firstArm gira a mesa sem estragar o espacamento entre cadeiras`() {
+        for (firstArm in 0 until LUDO_ARMS) {
+            for (seats in mesas) {
+                val bracos = cadeiras(seats).map { armOf(it, seats, firstArm) }
+                assertEquals(seats, bracos.distinct().size, "mesa de $seats, giro $firstArm: braços repetidos")
+                assertEquals(firstArm, bracos.first(), "a cadeira zero fica no braço escolhido")
+            }
+
+            // Na mesa de dois o giro não pode transformar braços opostos em vizinhos.
+            val distancia = startSquare(Seat.SECOND, 2, firstArm) - startSquare(Seat.FIRST, 2, firstArm)
+            assertEquals(
+                LUDO_TRACK / 2,
+                Math.floorMod(distancia, LUDO_TRACK),
+                "giro $firstArm: as saídas da mesa de dois deixaram de ficar opostas",
+            )
+        }
+    }
+
     @Test
     fun `as mesas de tres e quatro ocupam bracos em ordem`() {
         for (seats in 3..LUDO_ARMS) {

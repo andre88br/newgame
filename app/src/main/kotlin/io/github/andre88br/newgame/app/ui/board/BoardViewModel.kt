@@ -8,6 +8,7 @@ import io.github.andre88br.newgame.app.data.SavedMatch
 import io.github.andre88br.newgame.app.ui.feedback.GameEvent
 import io.github.andre88br.newgame.core.ai.Difficulty
 import io.github.andre88br.newgame.core.engine.GameEntry
+import io.github.andre88br.newgame.core.engine.GameId
 import io.github.andre88br.newgame.core.engine.GameState
 import io.github.andre88br.newgame.core.engine.MatchConfig
 import io.github.andre88br.newgame.core.engine.Move
@@ -22,6 +23,7 @@ import io.github.andre88br.newgame.core.session.PromotionChoice
 import io.github.andre88br.newgame.core.session.TapResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -93,6 +95,14 @@ data class BoardUiState(
     /** Cresce a cada evento, pelo mesmo motivo de [messageId]. */
     val eventId: Long = 0L,
 )
+
+/**
+ * Pausa entre um lance da IA e o seguinte, quando há mais de um em fila.
+ *
+ * Sem ela a tela troca de tabuleiro assim que a busca termina — que para uma jogada fácil é
+ * quase instantâneo —, e quem está assistindo não chega a ver nem o dado nem o peão andando.
+ */
+private const val AI_MOVE_PACE_MS = 1_200L
 
 /**
  * Liga a tela do tabuleiro à [MatchSession].
@@ -253,6 +263,12 @@ class BoardViewModel(
                     // a partida pular direto para o resultado da última.
                     _ui.value = snapshot()
                     persist()
+
+                    // Sem esta pausa, um lance da IA sobrescreve o anterior antes da tela
+                    // acabar de mostrá-lo — o dado rolado e o peão andando casa por casa
+                    // (quando há animação) não têm tempo de aparecer, e a partida parece
+                    // pular direto de um tabuleiro para o outro.
+                    if (session.awaitingAi) delay(AI_MOVE_PACE_MS)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -390,6 +406,9 @@ class BoardViewModel(
          * Contra o celular, a pessoa ocupa [humanSeat] e **todas** as outras cadeiras são
          * da máquina — numa mesa de quatro isso são três adversários. No passa-e-joga a
          * mesa inteira é de gente.
+         *
+         * [ludoFirstArm] é só do ludo: qual cor a cadeira zero joga, escolhida antes de
+         * começar. Em outros jogos não faz sentido, e vai ignorado.
          */
         fun newSession(
             entry: GameEntry,
@@ -397,6 +416,7 @@ class BoardViewModel(
             difficulty: Difficulty,
             humanSeat: Seat,
             seats: Int = 2,
+            ludoFirstArm: Int = 0,
         ): MatchSession {
             val players = buildMap {
                 for (index in 0 until seats) {
@@ -411,7 +431,14 @@ class BoardViewModel(
                     )
                 }
             }
-            return MatchSession(entry, MatchConfig.random(seats), players)
+            val config = MatchConfig.random(seats).let {
+                if (entry.id == GameId.LUDO) {
+                    it.copy(options = mapOf("ludo.firstArm" to ludoFirstArm.toString()))
+                } else {
+                    it
+                }
+            }
+            return MatchSession(entry, config, players)
         }
 
         /** Retoma a partida guardada. */

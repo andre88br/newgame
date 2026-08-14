@@ -96,19 +96,26 @@ fun LudoSurface(
     val palette = LocalBoardPalette.current
     val hintToken = (hinted as? LudoMove)?.token
 
-    // **O dado só aparece depois de você rolar.**
+    // **O dado só aparece depois de rolar.**
     //
     // O valor em si já está decidido: ele sai da semente da partida, e é isso que faz um
-    // jogo salvo reabrir exatamente igual. O que muda aqui é quem revela — antes o número
-    // simplesmente trocava sozinho na tela, e rolar dado é metade da graça do ludo.
+    // jogo salvo reabrir exatamente igual. O que muda aqui é a revelação — antes o número
+    // simplesmente trocava sozinho na tela, e isso vale tanto para quem toca no botão
+    // quanto para a máquina: sem rolar também para ela, o lance da IA parece ter
+    // acontecido sozinho, sem ninguém jogar o dado.
     //
     // Cada estado novo é uma rolagem nova, daí o `remember(state)`.
     var revelado by remember(state) { mutableStateOf(false) }
     var rolando by remember(state) { mutableStateOf(false) }
     var face by remember(state) { mutableIntStateOf(state.die) }
 
-    // Fora da vez não há o que rolar: o dado da máquina aparece pronto.
-    val mostrandoDado = !enabled || revelado
+    val mostrandoDado = revelado
+
+    // Fora da vez é a IA jogando: ninguém aperta o botão por ela, mas o dado dela rola do
+    // mesmo jeito.
+    LaunchedEffect(state) {
+        if (!enabled) rolando = true
+    }
 
     LaunchedEffect(rolando) {
         if (!rolando) return@LaunchedEffect
@@ -126,6 +133,40 @@ fun LudoSurface(
         rolando = false
         revelado = true
     }
+
+    // **Os peões andam casa por casa, não teleportam.**
+    //
+    // Sem isto, um peão que anda seis casas pula direto da primeira posição para a
+    // última — no papel é o mesmo lance, mas na tela ninguém consegue acompanhar o jogo
+    // da máquina, que parece só trocar de figura. `displayTokens` é o que a tela desenha;
+    // ele persegue `state.tokens` uma casa de cada vez, e só alcança de verdade quando a
+    // última passada termina. Peão capturado (ou voltando ao curral) não anda de ré: salta
+    // direto, porque não foi ele que contou os passos.
+    var displayTokens by remember { mutableStateOf(state.tokens) }
+    LaunchedEffect(state, revelado) {
+        if (!revelado) return@LaunchedEffect
+        val alvo = state.tokens
+        if (!animated) {
+            displayTokens = alvo
+            return@LaunchedEffect
+        }
+        while (displayTokens != alvo) {
+            displayTokens = displayTokens.mapIndexed { seatIndex, tokens ->
+                tokens.mapIndexed { tokenIndex, progress ->
+                    val destino = alvo[seatIndex][tokenIndex]
+                    when {
+                        destino <= progress -> destino
+                        else -> progress + 1
+                    }
+                }
+            }
+            if (displayTokens != alvo) delay(TOKEN_STEP_MS)
+        }
+    }
+    // Ninguém toca em peão no meio do passo: o alvo do toque tem que ser onde o peão está
+    // desenhado, e não onde ele vai parar.
+    val assentado = displayTokens == state.tokens
+    val displayState = if (assentado) state else state.copy(tokens = displayTokens)
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -145,7 +186,7 @@ fun LudoSurface(
                 // A cor do dado é a do braço, não a da cadeira: numa mesa de dois, a
                 // cadeira 1 senta no braço 2 (lados opostos), e usar o índice da cadeira
                 // pintaria o dado com a cor de outro braço.
-                seatColor = seatColor(armOf(state.turn, state.seats)),
+                seatColor = seatColor(armOf(state.turn, state.seats, state.firstArm)),
             )
 
             Column(modifier = Modifier.weight(1f)) {
@@ -180,10 +221,11 @@ fun LudoSurface(
         }
 
         Board(
-            state = state,
+            state = displayState,
             palette = palette,
-            // Antes de rolar não há lance: o tabuleiro fica só de mostrar.
-            enabled = enabled && revelado,
+            // Antes de rolar não há lance, e enquanto o peão anda ninguém toca em peão que
+            // já saiu do lugar onde está desenhado.
+            enabled = enabled && revelado && assentado,
             hintToken = hintToken,
             viewer = viewer,
             onMove = onMove,
@@ -197,7 +239,7 @@ fun LudoSurface(
         // onde o peão está e o que acontece se ele andar.
         TokenButtons(
             state = state,
-            enabled = enabled && revelado,
+            enabled = enabled && revelado && assentado,
             hintToken = hintToken,
             onMove = onMove,
         )
@@ -316,9 +358,9 @@ private fun Board(
             // A cor do peão é a do braço da cadeira, e não a da cadeira em si: numa mesa
             // de dois elas ficam em lados opostos (braços 0 e 2), e colorir pelo índice
             // pintaria os peões da cadeira 1 com a cor de um braço vazio.
-            val arm = armOf(seat, state.seats)
+            val arm = armOf(seat, state.seats, state.firstArm)
             state.tokensOf(seat).forEachIndexed { token, progress ->
-                val cell = LudoLayout.cellFor(seat, progress, token, state.seats)
+                val cell = LudoLayout.cellFor(seat, progress, token, state.seats, state.firstArm)
                 val corner = topLeft(cell)
 
                 // Até quatro peões podem dividir uma casa: cada cadeira desenha num canto
@@ -421,6 +463,9 @@ private fun colorOf(
 
 /** Quanto dura a rolagem em 3D — precisa caber dentro do tempo que as faces levam trocando. */
 private const val ROLL_DURATION_MS = 560
+
+/** Quanto um peão demora para andar uma casa — devagar o bastante para dar para contar. */
+private const val TOKEN_STEP_MS = 160L
 
 /**
  * O dado.

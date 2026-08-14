@@ -140,12 +140,12 @@ object LudoLayout {
      * Onde desenhar o peão [token] de [seat], seja qual for a situação dele: curral, volta,
      * corredor final ou chegada.
      */
-    fun cellFor(seat: Seat, progress: Int, token: Int, seats: Int): LudoCell {
-        val arm = armOf(seat, seats)
+    fun cellFor(seat: Seat, progress: Int, token: Int, seats: Int, firstArm: Int = 0): LudoCell {
+        val arm = armOf(seat, seats, firstArm)
         return when {
             progress == LUDO_YARD -> yardCell(arm, token)
             progress >= LUDO_TRACK -> laneCell(arm, progress - LUDO_TRACK)
-            else -> trackCell(absoluteSquare(seat, progress, seats)!!)
+            else -> trackCell(absoluteSquare(seat, progress, seats, firstArm)!!)
         }
     }
 

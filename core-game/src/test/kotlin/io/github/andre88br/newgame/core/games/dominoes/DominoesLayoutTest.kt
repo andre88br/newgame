@@ -145,6 +145,32 @@ class DominoesLayoutTest {
         assertEquals(2, mesa.rows, "cinco carroças em pé ocupam duas meias-peças de altura")
     }
 
+    /**
+     * O defeito que apareceu na tela: uma carroça cedo na fileira empurra a altura dela
+     * para duas meias-peças, e se a curva que fecha essa MESMA fileira somasse essa altura
+     * com a da fileira seguinte — o que uma versão anterior deste código fazia —, a curva
+     * esticava por causa de uma peça que nem está na coluna dela, e se separava da vizinha.
+     */
+    @Test
+    fun `a curva continua encostada quando a propria fileira tem carroca`() {
+        val mesa = DominoesLayout.table(
+            linha(1 to 1, 2 to 3, 3 to 4, 4 to 5, 5 to 5, 5 to 6),
+            columns = 4,
+        )
+
+        val carroca = mesa.tiles.first { it.facing == TileFacing.CROSS }
+        val curva = mesa.tiles.first { it.facing == TileFacing.TURN }
+        assertEquals(carroca.y, curva.y, "o teste precisa de carroça e curva na mesma fileira")
+        assertEquals(3f, curva.height, "a curva mede a própria fileira (2) mais a meia-peça que desce")
+
+        for (i in 1 until mesa.tiles.size) {
+            assertTrue(
+                tocam(mesa.tiles[i - 1], mesa.tiles[i]),
+                "peça $i não encosta na anterior: ${mesa.tiles[i - 1]} / ${mesa.tiles[i]}",
+            )
+        }
+    }
+
     // -------- invariantes do desenho --------
 
     @Test

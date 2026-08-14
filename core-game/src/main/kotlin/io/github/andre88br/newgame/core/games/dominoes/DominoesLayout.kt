@@ -199,10 +199,19 @@ object DominoesLayout {
         for (b in 0 until bandCount) offsetY[b + 1] = offsetY[b] + bandHeight[b]
 
         val laid = provisional.map { p ->
+            // A peça da curva começa no topo da própria fileira, igual a qualquer peça
+            // deitada dela — é isso que a mantém encostada nas vizinhas de coluna. Mas a
+            // altura não pode ser só `bandHeight[band] + bandHeight[band + 1]`: quando UMA
+            // das duas fileiras tem carroça noutra coluna, essa soma estica a curva por
+            // causa de um vizinho que nada tem a ver com ela (é a peça mais alta que já
+            // apareceu na captura de tela). A fileira seguinte sempre começa encostada no
+            // teto dela mesma, esteja ela alta ou não — por isso só a própria fileira
+            // ([bandHeight[p.band]]) entra na conta, mais a meia-peça que desce para dentro
+            // da próxima.
             val height = when (p.facing) {
                 TileFacing.ALONG -> 1f
                 TileFacing.CROSS -> bandHeight[p.band].toFloat()
-                TileFacing.TURN -> (bandHeight[p.band] + bandHeight[p.band + 1]).toFloat()
+                TileFacing.TURN -> (bandHeight[p.band] + 1).toFloat()
             }
             LaidTile(
                 tile = p.tile,

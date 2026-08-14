@@ -51,19 +51,28 @@ const val LUDO_ARMS = 4
  * A partida de dois usa braços **opostos** — jogar de lados adjacentes desequilibraria o
  * percurso, já que a saída de um ficaria a treze casas da do outro em vez de vinte e seis.
  * Com três ou quatro, cada cadeira pega um braço em ordem.
+ *
+ * [firstArm] é o braço da cadeira zero: gira a mesa inteira sem mudar o espaçamento entre
+ * cadeiras. É o que deixa a pessoa escolher a própria cor — vermelho, azul, amarelo ou
+ * verde — mesmo numa mesa de dois, em vez de vermelho e amarelo serem as únicas cores que
+ * já saem prontas de fábrica.
  */
-fun armOf(seat: Seat, seats: Int): Int = if (seats == 2) seat.index * 2 else seat.index
+fun armOf(seat: Seat, seats: Int, firstArm: Int = 0): Int {
+    val passo = LUDO_ARMS / seats
+    return (firstArm + seat.index * passo) % LUDO_ARMS
+}
 
 /** Casa de saída de cada cadeira, na numeração absoluta da volta. */
-fun startSquare(seat: Seat, seats: Int): Int = armOf(seat, seats) * (LUDO_TRACK / LUDO_ARMS)
+fun startSquare(seat: Seat, seats: Int, firstArm: Int = 0): Int =
+    armOf(seat, seats, firstArm) * (LUDO_TRACK / LUDO_ARMS)
 
 /**
  * Casa absoluta de um peão, ou `null` se ele estiver no curral ou no corredor final —
  * lugares onde ninguém pode ser capturado.
  */
-fun absoluteSquare(seat: Seat, progress: Int, seats: Int): Int? {
+fun absoluteSquare(seat: Seat, progress: Int, seats: Int, firstArm: Int = 0): Int? {
     if (progress < 0 || progress >= LUDO_TRACK) return null
-    return (startSquare(seat, seats) + progress) % LUDO_TRACK
+    return (startSquare(seat, seats, firstArm) + progress) % LUDO_TRACK
 }
 
 /**
@@ -85,6 +94,8 @@ data class LudoState(
     val rng: Rng = Rng(0),
     /** Passes seguidos por falta de lance, para a partida não travar para sempre. */
     val idleTurns: Int = 0,
+    /** O braço da cadeira zero, escolhido antes de começar. Veja [armOf]. */
+    val firstArm: Int = 0,
 ) : GameState {
 
     /** Quantas pessoas nesta mesa. Sai do próprio tabuleiro, não de um campo à parte. */
@@ -158,6 +169,7 @@ object LudoGame : BoardGame<LudoState, LudoMove> {
         LudoState(
             tokens = List(config.seats) { List(LUDO_TOKENS) { LUDO_YARD } },
             rng = config.rng(),
+            firstArm = (config.option("ludo.firstArm")?.toIntOrNull() ?: 0).mod(LUDO_ARMS),
         ),
         Seat.FIRST,
     )
@@ -231,11 +243,15 @@ object LudoGame : BoardGame<LudoState, LudoMove> {
 
         // Captura: peão adversário numa casa comum volta para o curral. Com três ou quatro
         // na mesa, um lance pode mandar embora peão de mais de uma cor ao mesmo tempo.
-        val landing = absoluteSquare(seat, target, state.seats)
+        val landing = absoluteSquare(seat, target, state.seats, state.firstArm)
         if (landing != null && !isSafeSquare(landing)) {
             for (other in state.others(seat)) {
                 tokens[other.index] = state.tokensOf(other).map { theirs ->
-                    if (absoluteSquare(other, theirs, state.seats) == landing) LUDO_YARD else theirs
+                    if (absoluteSquare(other, theirs, state.seats, state.firstArm) == landing) {
+                        LUDO_YARD
+                    } else {
+                        theirs
+                    }
                 }
             }
         }
@@ -275,10 +291,10 @@ object LudoGame : BoardGame<LudoState, LudoMove> {
     override fun isCapture(state: LudoState, move: LudoMove): Boolean {
         val progress = state.tokensOf(state.turn)[move.token]
         val target = if (progress == LUDO_YARD) 0 else progress + state.die
-        val landing = absoluteSquare(state.turn, target, state.seats) ?: return false
+        val landing = absoluteSquare(state.turn, target, state.seats, state.firstArm) ?: return false
         if (isSafeSquare(landing)) return false
         return state.others(state.turn).any { other ->
-            state.tokensOf(other).any { absoluteSquare(other, it, state.seats) == landing }
+            state.tokensOf(other).any { absoluteSquare(other, it, state.seats, state.firstArm) == landing }
         }
     }
 

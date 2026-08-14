@@ -45,7 +45,7 @@ object LudoEvaluator : Evaluator<LudoState> {
                     score += OUT_OF_YARD + progress
                     if (progress >= LUDO_TRACK) score += 80
 
-                    val square = absoluteSquare(seat, progress, state.seats)
+                    val square = absoluteSquare(seat, progress, state.seats, state.firstArm)
                     if (square != null && !isSafeSquare(square)) score -= DANGER
                 }
             }
