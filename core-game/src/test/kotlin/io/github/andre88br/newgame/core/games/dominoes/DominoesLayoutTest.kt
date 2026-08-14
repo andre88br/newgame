@@ -180,6 +180,60 @@ class DominoesLayoutTest {
     }
 
     /**
+     * **Duas peças em pé nunca ficam lado a lado.**
+     *
+     * Numa mesa de verdade não existe: quem vem depois de uma carroça encosta na lateral
+     * dela, deitada. Em pé e encostada, as duas ficam paralelas — o desenho perde o fio da
+     * linha e parece que alguém empilhou peças sem jogar. Quando não há espaço para a
+     * seguinte deitar, quem fecha a fileira é a própria carroça, e a linha desce por ela.
+     *
+     * Duas em pé na **mesma** coluna são outra coisa: essas estão em seguida, e é assim que
+     * a linha faz a curva.
+     */
+    @Test
+    fun `duas pecas em pe nunca ficam lado a lado`() {
+        for (columns in listOf(4, 5, 6, 8, 12)) {
+            var state = DominoesGame.initialState(MatchConfig(seed = 7))
+            var guard = 0
+
+            while (!DominoesGame.outcome(state).isOver && guard++ < 40) {
+                val emPe = DominoesLayout.table(state.line, columns).tiles.filter { it.width == 1f }
+                for (a in emPe) {
+                    for (b in emPe) {
+                        if (a === b) continue
+                        val ladoALado = a.x + a.width == b.x
+                        val mesmaAltura = a.y < b.y + b.height && b.y < a.y + a.height
+                        assertTrue(
+                            !(ladoALado && mesmaAltura),
+                            "largura $columns, lance ${state.ply}: duas em pé paralelas — $a / $b",
+                        )
+                    }
+                }
+                val move = DominoesGame.legalMoves(state).firstOrNull() ?: break
+                state = DominoesGame.applyOrThrow(state, move)
+            }
+        }
+    }
+
+    /**
+     * A vizinha de uma carroça encosta no **meio** dela, e não na ponta: a carroça sobe e
+     * desce meia peça em relação à fileira, que é como ela fica numa mesa de verdade.
+     */
+    @Test
+    fun `a carroça no meio da fileira fica centrada nas vizinhas`() {
+        val mesa = DominoesLayout.table(linha(1 to 4, 4 to 5, 5 to 5, 5 to 6, 6 to 3), columns = 8)
+        val carroca = mesa.tiles.first { it.facing == TileFacing.CROSS }
+        val antes = mesa.tiles[mesa.tiles.indexOf(carroca) - 1]
+        val depois = mesa.tiles[mesa.tiles.indexOf(carroca) + 1]
+
+        val meioDaCarroca = carroca.y + carroca.height / 2f
+        assertEquals(meioDaCarroca, antes.y + antes.height / 2f, "a de antes não está no meio")
+        assertEquals(meioDaCarroca, depois.y + depois.height / 2f, "a de depois não está no meio")
+        assertTrue(carroca.y < antes.y, "a carroça precisa sobrar para cima da vizinha")
+        assertTrue(carroca.y + carroca.height > antes.y + antes.height, "e para baixo também")
+    }
+
+    /**
      * A carroça cedo numa fileira era o gatilho do defeito antigo: a curva que fechava a
      * MESMA fileira somava a altura dela com a da seguinte e crescia por causa de uma peça
      * que nem está na coluna dela — e ainda se soltava da vizinha.
@@ -193,7 +247,12 @@ class DominoesLayoutTest {
 
         val carroca = mesa.tiles.first { it.facing == TileFacing.CROSS }
         val curva = mesa.tiles.first { it.facing == TileFacing.TURN }
-        assertEquals(carroca.y, curva.y, "o teste precisa de carroça e curva na mesma fileira")
+        // A carroça fica centrada na fileira e a curva desce a partir dela, então os dois
+        // `y` não batem — o que precisa bater é a fileira, e ela se vê na sobreposição.
+        assertTrue(
+            carroca.y < curva.y + curva.height && curva.y < carroca.y + carroca.height,
+            "o teste precisa de carroça e curva na mesma fileira: $carroca / $curva",
+        )
         assertEquals(carroca.height, curva.height, "as duas estão em pé: medem o mesmo")
 
         for (i in 1 until mesa.tiles.size) {
