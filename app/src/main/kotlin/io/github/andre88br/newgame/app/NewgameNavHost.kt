@@ -1,5 +1,6 @@
 package io.github.andre88br.newgame.app
 
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -16,6 +17,7 @@ import io.github.andre88br.newgame.app.ui.history.HistoryScreen
 import io.github.andre88br.newgame.app.ui.home.HomeScreen
 import io.github.andre88br.newgame.app.ui.settings.SettingsScreen
 import io.github.andre88br.newgame.app.ui.setup.MatchMode
+import io.github.andre88br.newgame.app.ui.setup.MatchSetup
 import io.github.andre88br.newgame.app.ui.setup.SetupScreen
 import io.github.andre88br.newgame.core.ai.Difficulty
 import io.github.andre88br.newgame.core.engine.GameCatalog
@@ -35,25 +37,38 @@ private object Routes {
      * `MatchSession`, então não vale a pena separar as telas.
      */
     const val BOARD = "board/{gameId}?matchId={matchId}&mode={mode}&difficulty={difficulty}" +
-        "&humanSeat={humanSeat}&seats={seats}&ludoFirstArm={ludoFirstArm}"
+        "&humanSeat={humanSeat}&seats={seats}&ludoFirstArm={ludoFirstArm}&names={names}"
 
     fun setup(gameId: GameId) = "setup/${gameId.name}"
 
-    fun newMatch(
-        gameId: GameId,
-        mode: MatchMode,
-        difficulty: Difficulty,
-        humanSeat: Seat,
-        seats: Int,
-        ludoFirstArm: Int,
-    ) = "board/${gameId.name}?matchId=&mode=${mode.name}&difficulty=${difficulty.name}" +
-        "&humanSeat=${humanSeat.index}&seats=$seats&ludoFirstArm=$ludoFirstArm"
+    fun newMatch(gameId: GameId, setup: MatchSetup) =
+        "board/${gameId.name}?matchId=&mode=${setup.mode.name}" +
+            "&difficulty=${setup.difficulty.name}&humanSeat=${setup.humanSeat.index}" +
+            "&seats=${setup.seats}&ludoFirstArm=${setup.ludoFirstArm}" +
+            "&names=${encodeNames(setup.names)}"
 
-    // Ao retomar, o tamanho da mesa e a cor vêm do registro salvo: o que estiver aqui é ignorado.
+    // Ao retomar, o tamanho da mesa, a cor e os nomes vêm do registro salvo: o que estiver
+    // aqui é ignorado.
     fun resumeMatch(gameId: GameId, matchId: String) =
         "board/${gameId.name}?matchId=$matchId&mode=${MatchMode.AGAINST_PHONE.name}" +
-            "&difficulty=${Difficulty.MEDIUM.name}&humanSeat=0&seats=2&ludoFirstArm=0"
+            "&difficulty=${Difficulty.MEDIUM.name}&humanSeat=0&seats=2&ludoFirstArm=0&names="
 }
+
+/**
+ * Os nomes das cadeiras dentro de uma rota.
+ *
+ * A barra vertical separa um nome do outro, e o porcento é o que a codificação de URL usa —
+ * os dois saem do nome antes de entrar aqui. Com eles fora, decodificar de novo do outro
+ * lado devolve exatamente o que entrou, mesmo que a biblioteca de navegação já tenha
+ * decodificado por conta própria; é o que faz um nome com acento ou espaço chegar inteiro.
+ */
+private const val NAME_SEPARATOR = "|"
+
+private fun encodeNames(names: List<String>): String =
+    Uri.encode(names.joinToString(NAME_SEPARATOR) { it.replace(NAME_SEPARATOR, " ").replace("%", "") })
+
+private fun decodeNames(raw: String?): List<String> =
+    Uri.decode(raw.orEmpty()).split(NAME_SEPARATOR).filter { it.isNotBlank() }
 
 @Composable
 fun NewgameNavHost(container: AppContainer) {
@@ -85,12 +100,16 @@ fun NewgameNavHost(container: AppContainer) {
             SetupScreen(
                 entry = entry,
                 defaultDifficulty = settings.value.defaultDifficulty,
+                savedPlayerName = settings.value.playerName,
                 hasOngoingMatch = container.matchStore.ongoing(gameId) != null,
                 onBack = { navController.popBackStack() },
-                onStart = { mode, difficulty, humanSeat, seats, ludoFirstArm ->
-                    navController.navigate(
-                        Routes.newMatch(gameId, mode, difficulty, humanSeat, seats, ludoFirstArm),
-                    ) {
+                onStart = { setup ->
+                    // O nome digitado fica guardado para a próxima partida já vir
+                    // preenchida — e só o digitado: "Você" não é escolha de ninguém.
+                    if (setup.typedOwnName.isNotBlank()) {
+                        container.preferences.setPlayerName(setup.typedOwnName)
+                    }
+                    navController.navigate(Routes.newMatch(gameId, setup)) {
                         // Terminada a configuração, voltar da partida deve levar ao menu,
                         // e não de volta a esta tela.
                         popUpTo(Routes.SETUP) { inclusive = true }
@@ -115,6 +134,7 @@ fun NewgameNavHost(container: AppContainer) {
                 navArgument("seats") { type = NavType.StringType; defaultValue = "2" },
                 navArgument("humanSeat") { type = NavType.IntType; defaultValue = 0 },
                 navArgument("ludoFirstArm") { type = NavType.IntType; defaultValue = 0 },
+                navArgument("names") { type = NavType.StringType; defaultValue = "" },
             ),
         ) { backStackEntry ->
             val arguments = backStackEntry.arguments
@@ -127,6 +147,15 @@ fun NewgameNavHost(container: AppContainer) {
             // A sessão é criada uma vez por entrada na tela: girar o aparelho ou recompor
             // não pode recomeçar a partida.
             val matchId = remember(savedId) { saved?.id ?: UUID.randomUUID().toString() }
+
+            // Retomando, os nomes são os que a partida já tinha; começando, os que vieram da
+            // tela de configuração. Partida salva por uma versão sem nomes volta sem nome
+            // nenhum, e a tela cai nos rótulos antigos ("jogador 1") em vez de ficar vazia.
+            val names = remember(matchId) {
+                saved?.playerNames?.takeIf { it.isNotEmpty() }
+                    ?: decodeNames(arguments?.getString("names"))
+            }
+
             val session = remember(matchId) {
                 if (saved != null) {
                     BoardViewModel.resumedSession(entry, saved)
@@ -154,6 +183,7 @@ fun NewgameNavHost(container: AppContainer) {
                         store = container.matchStore,
                         matchId = matchId,
                         session = session,
+                        names = names,
                     ),
                 ),
                 settings = settings,

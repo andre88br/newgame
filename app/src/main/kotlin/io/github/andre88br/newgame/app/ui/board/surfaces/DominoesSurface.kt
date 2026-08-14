@@ -70,6 +70,8 @@ import io.github.andre88br.newgame.core.games.dominoes.handTiles
 fun DominoesSurface(
     state: DominoesState,
     viewer: Seat,
+    /** O nome de cada cadeira, para a mão do adversário ter dono em vez de número. */
+    names: List<String>,
     enabled: Boolean,
     hinted: Move?,
     modifier: Modifier = Modifier,
@@ -88,7 +90,7 @@ fun DominoesSurface(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Opponents(state = state, viewer = viewer, palette = palette)
+        Opponents(state = state, viewer = viewer, names = names, palette = palette)
 
         // A mesa fica com todo o espaço que sobrar: é a parte que precisa ser vista.
         Table(
@@ -172,7 +174,12 @@ fun DominoesSurface(
  * motor, e o que existe destas peças é literalmente [Tile.HIDDEN]. Não há o que vazar.
  */
 @Composable
-private fun Opponents(state: DominoesState, viewer: Seat, palette: BoardPalette) {
+private fun Opponents(
+    state: DominoesState,
+    viewer: Seat,
+    names: List<String>,
+    palette: BoardPalette,
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -185,7 +192,10 @@ private fun Opponents(state: DominoesState, viewer: Seat, palette: BoardPalette)
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    text = stringResource(R.string.dominoes_opponent_seat, seat.index + 1),
+                    // O nome de quem está do outro lado; sem ele — partida salva antes de
+                    // existirem nomes —, a cadeira numerada de sempre.
+                    text = names.getOrNull(seat.index)?.takeIf { it.isNotBlank() }
+                        ?: stringResource(R.string.dominoes_opponent_seat, seat.index + 1),
                     style = MaterialTheme.typography.labelMedium,
                     color = if (seat == state.turn) {
                         MaterialTheme.colorScheme.primary

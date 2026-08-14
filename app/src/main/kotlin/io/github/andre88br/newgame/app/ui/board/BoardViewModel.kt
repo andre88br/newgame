@@ -83,6 +83,15 @@ data class BoardUiState(
     val lastPlayed: Move? = null,
     /** De quem é o ponto de vista de [state]. */
     val viewer: Seat = Seat.FIRST,
+    /**
+     * O nome de cada cadeira, na ordem das cadeiras.
+     *
+     * Pode vir vazia — partida salva antes de existirem nomes —, e por isso a tela lê com
+     * `getOrNull` e cai nos rótulos antigos quando não há nome.
+     */
+    val names: List<String> = emptyList(),
+    /** As cadeiras ocupadas por gente. O resto é máquina. */
+    val humanSeats: Set<Seat> = emptySet(),
     val canUndo: Boolean = false,
     val canPlay: Boolean = true,
     val againstPhone: Boolean = true,
@@ -117,6 +126,8 @@ class BoardViewModel(
     private val store: MatchStore,
     private val matchId: String,
     private val session: MatchSession,
+    /** O nome de cada cadeira, escolhido antes de começar ou lido da partida salva. */
+    private val names: List<String> = emptyList(),
 ) : ViewModel() {
 
     private var lastMoveSquares: Set<Int> = emptySet()
@@ -312,6 +323,7 @@ class BoardViewModel(
                         .filterIsInstance<Player.Ai>()
                         .firstOrNull()?.difficulty,
                     updatedAt = System.currentTimeMillis(),
+                    playerNames = names,
                 ),
             )
         }
@@ -366,6 +378,8 @@ class BoardViewModel(
             hintedMove = hintedMove,
             lastPlayed = lastPlayedMove,
             viewer = viewer,
+            names = names,
+            humanSeats = humanSeats,
             canUndo = session.canUndo,
             canPlay = !outcome.isOver && resolvedStatus != BoardStatus.Thinking,
             againstPhone = humanSeats.size == 1,
@@ -395,10 +409,11 @@ class BoardViewModel(
         private val store: MatchStore,
         private val matchId: String,
         private val session: MatchSession,
+        private val names: List<String> = emptyList(),
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            BoardViewModel(entry, store, matchId, session) as T
+            BoardViewModel(entry, store, matchId, session, names) as T
     }
 
     companion object {

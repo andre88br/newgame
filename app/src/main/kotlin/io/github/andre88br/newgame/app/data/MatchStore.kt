@@ -26,6 +26,14 @@ data class SavedMatch(
     /** Nível do adversário do aparelho, ou `null` no passa-e-joga. */
     val difficulty: Difficulty? = null,
     val updatedAt: Long = 0L,
+    /**
+     * O nome de cada cadeira, na ordem das cadeiras.
+     *
+     * Vazia nas partidas gravadas antes de existirem nomes — daí o padrão. Quem lê precisa
+     * tratar a lista como possivelmente curta e cair nos rótulos antigos, em vez de contar
+     * com um nome por cadeira.
+     */
+    val playerNames: List<String> = emptyList(),
 ) {
     val gameId: GameId get() = record.gameId
 
@@ -35,6 +43,9 @@ data class SavedMatch(
 
     /** A cadeira da pessoa, quando se joga contra o celular. */
     val humanSeat: Seat? get() = humanSeats.singleOrNull()?.let(::Seat)
+
+    /** O nome de quem ocupa [seat], ou `null` se a partida foi gravada sem nomes. */
+    fun nameOf(seat: Seat): String? = playerNames.getOrNull(seat.index)?.takeIf { it.isNotBlank() }
 }
 
 /**

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import io.github.andre88br.newgame.app.ui.theme.ThemeChoice
 import io.github.andre88br.newgame.core.ai.Difficulty
+import io.github.andre88br.newgame.core.session.BotNames
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +21,13 @@ data class Settings(
      * sistema tem um ajuste equivalente justamente por causa disso.
      */
     val animations: Boolean = true,
+    /**
+     * O nome de quem joga, lembrado entre partidas.
+     *
+     * Vazio quer dizer "ainda não disse": a tela de configuração mostra o campo em branco,
+     * com "Você" como sugestão, em vez de inventar um nome que a pessoa nunca escolheu.
+     */
+    val playerName: String = "",
 )
 
 /**
@@ -58,6 +66,13 @@ class AppPreferences(context: Context) {
         _settings.value = _settings.value.copy(haptics = enabled)
     }
 
+    /** Guarda o nome digitado para a próxima partida já vir preenchida. */
+    fun setPlayerName(name: String) {
+        val clean = BotNames.sanitize(name)
+        prefs.edit().putString(KEY_PLAYER_NAME, clean).apply()
+        _settings.value = _settings.value.copy(playerName = clean)
+    }
+
     fun setAnimations(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_ANIMATIONS, enabled).apply()
         _settings.value = _settings.value.copy(animations = enabled)
@@ -69,6 +84,7 @@ class AppPreferences(context: Context) {
         sound = prefs.getBoolean(KEY_SOUND, true),
         haptics = prefs.getBoolean(KEY_HAPTICS, true),
         animations = prefs.getBoolean(KEY_ANIMATIONS, true),
+        playerName = prefs.getString(KEY_PLAYER_NAME, "").orEmpty(),
     )
 
     /** Valor gravado por uma versão anterior que não exista mais volta ao padrão. */
@@ -81,5 +97,6 @@ class AppPreferences(context: Context) {
         const val KEY_SOUND = "sound"
         const val KEY_HAPTICS = "haptics"
         const val KEY_ANIMATIONS = "animations"
+        const val KEY_PLAYER_NAME = "player_name"
     }
 }

@@ -203,8 +203,6 @@
     <string name="setup_players">Jogadores</string>
     <string name="setup_players_count">%1$d</string>
     <string name="setup_many_opponents">O celular joga com os outros %1$d jogadores.</string>
-    <string name="board_turn_player">Vez do jogador %1$d</string>
-    <string name="board_player_won">Jogador %1$d venceu</string>
     <string name="dominoes_opponent_seat">Jogador %1$d</string>
 
     <!-- Dado do ludo -->
@@ -218,4 +216,20 @@
     <string name="ludo_color_blue">Azul</string>
     <string name="ludo_color_yellow">Amarelo</string>
     <string name="ludo_color_green">Verde</string>
+
+    <!-- Nomes dos jogadores -->
+    <string name="setup_names">Quem vai jogar</string>
+    <string name="setup_your_name">Seu nome</string>
+    <string name="setup_player_name">Nome do jogador %1$d</string>
+    <string name="setup_name_placeholder">Você</string>
+    <string name="setup_phone_names">O celular joga como</string>
+    <string name="setup_shuffle_names">Sortear outros</string>
+    <string name="player_default">Jogador %1$d</string>
+    <string name="board_turn_of">Vez de %1$s</string>
+    <string name="board_named_won">%1$s venceu</string>
+    <string name="board_thinking_named">%1$s está pensando…</string>
+    <string name="board_side_first">brancas</string>
+    <string name="board_side_second">pretas</string>
+    <string name="board_name_with_side">%1$s (%2$s)</string>
+    <string name="history_versus">%1$s vs %2$s</string>
 </resources>

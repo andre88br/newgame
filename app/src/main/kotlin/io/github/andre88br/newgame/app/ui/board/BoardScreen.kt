@@ -153,6 +153,7 @@ fun BoardScreen(
                     gameId = entry.id,
                     state = ui.state,
                     viewer = ui.viewer,
+                    names = ui.names,
                     enabled = ui.canPlay,
                     hinted = ui.hintedMove,
                     animated = settings.animations,
@@ -212,33 +213,81 @@ fun BoardScreen(
 /**
  * O texto de estado depende do modo: contra o celular a pessoa pensa em "eu" e "ele";
  * no passa-e-joga não há "você", e o certo é dizer de quem é a vez.
+ *
+ * Com nomes, "jogador 2" some das frases e entra quem está de fato jogando — inclusive a
+ * máquina, que ganhou nome próprio. O que a pessoa vê de si continua sendo "Sua vez": ela
+ * sabe quem é, e "Vez de André" para o próprio dono do aparelho soa como se houvesse outra
+ * pessoa na sala. Onde a cor da peça importa, o nome vem com ela entre parênteses: no
+ * xadrez, saber que é a vez da Ana não diz de que lado ela joga.
  */
 @Composable
 private fun statusText(ui: BoardUiState, gameId: GameId): String = when (val status = ui.status) {
-    BoardStatus.Thinking -> stringResource(R.string.board_thinking)
+    BoardStatus.Thinking -> {
+        // A dica também deixa a tela "pensando", e aí quem pensa é a pessoa: só a cadeira
+        // da máquina ganha nome nesta frase.
+        val thinker = ui.state.turn
+        val name = ui.nameOf(thinker).takeIf { thinker !in ui.humanSeats }
+        if (name != null) {
+            stringResource(R.string.board_thinking_named, name)
+        } else {
+            stringResource(R.string.board_thinking)
+        }
+    }
+
     BoardStatus.HumanTurn -> stringResource(R.string.board_your_turn)
-    is BoardStatus.SeatTurn -> if (coloredPieces(gameId)) {
-        stringResource(turnLabel(gameId, status.seat))
-    } else {
-        // Numa mesa de três ou quatro não há "primeiro" e "segundo": há jogador N.
-        stringResource(R.string.board_turn_player, status.seat.index + 1)
+
+    is BoardStatus.SeatTurn -> {
+        val name = ui.seatLabel(gameId, status.seat)
+        if (name != null) {
+            stringResource(R.string.board_turn_of, name)
+        } else if (coloredPieces(gameId)) {
+            stringResource(turnLabel(gameId, status.seat))
+        } else {
+            // Numa mesa de três ou quatro não há "primeiro" e "segundo": há jogador N.
+            stringResource(
+                R.string.board_turn_of,
+                stringResource(R.string.player_default, status.seat.index + 1),
+            )
+        }
     }
 
     is BoardStatus.Finished -> when (val outcome = status.outcome) {
         is Outcome.Draw -> stringResource(R.string.board_draw)
-        is Outcome.Win ->
-            if (ui.againstPhone) {
-                stringResource(
-                    if (outcome.seat == ui.humanSeat) R.string.board_you_won else R.string.board_you_lost,
+        is Outcome.Win -> {
+            val name = ui.seatLabel(gameId, outcome.seat)
+            when {
+                // Ganhar continua sendo "você venceu": trocar por "André venceu" tiraria a
+                // única frase do app que fala com quem está segurando o aparelho.
+                ui.againstPhone && outcome.seat == ui.humanSeat ->
+                    stringResource(R.string.board_you_won)
+
+                name != null -> stringResource(R.string.board_named_won, name)
+
+                ui.againstPhone -> stringResource(R.string.board_you_lost)
+
+                coloredPieces(gameId) -> stringResource(winnerLabel(gameId, outcome.seat))
+
+                else -> stringResource(
+                    R.string.board_named_won,
+                    stringResource(R.string.player_default, outcome.seat.index + 1),
                 )
-            } else if (coloredPieces(gameId)) {
-                stringResource(winnerLabel(gameId, outcome.seat))
-            } else {
-                stringResource(R.string.board_player_won, outcome.seat.index + 1)
             }
+        }
 
         Outcome.InProgress -> stringResource(R.string.board_your_turn)
     }
+}
+
+/** O nome da cadeira, ou `null` numa partida salva antes de existirem nomes. */
+private fun BoardUiState.nameOf(seat: Seat): String? =
+    names.getOrNull(seat.index)?.takeIf { it.isNotBlank() }
+
+/** O nome da cadeira com a cor entre parênteses, onde a cor existe. */
+@Composable
+private fun BoardUiState.seatLabel(gameId: GameId, seat: Seat): String? {
+    val name = nameOf(seat) ?: return null
+    val side = sideLabel(gameId, seat) ?: return name
+    return stringResource(R.string.board_name_with_side, name, stringResource(side))
 }
 
 /**
@@ -251,8 +300,33 @@ private fun coloredPieces(gameId: GameId): Boolean = when (gameId) {
     else -> true
 }
 
-private fun turnLabel(gameId: GameId, seat: Seat): Int =
-    if (seat == Seat.FIRST) R.string.board_turn_first else R.string.board_turn_second
+/**
+ * A cor das peças de uma cadeira, para acompanhar o nome.
+ *
+ * O jogo da velha fica de fora: lá as marcas são xis e bola, e chamá-las de brancas e
+ * pretas confundiria mais do que ajudaria. No reversi, quem abre é o **preto** — o oposto
+ * dos outros dois, e o motivo de esta função receber o jogo em vez de olhar só a cadeira.
+ */
+private fun sideLabel(gameId: GameId, seat: Seat): Int? = when (gameId) {
+    GameId.CHECKERS, GameId.CHESS ->
+        if (seat == Seat.FIRST) R.string.board_side_first else R.string.board_side_second
 
-private fun winnerLabel(gameId: GameId, seat: Seat): Int =
-    if (seat == Seat.FIRST) R.string.board_first_won else R.string.board_second_won
+    GameId.REVERSI ->
+        if (seat == Seat.FIRST) R.string.board_side_second else R.string.board_side_first
+
+    else -> null
+}
+
+private fun turnLabel(gameId: GameId, seat: Seat): Int = when (gameId) {
+    GameId.REVERSI ->
+        if (seat == Seat.FIRST) R.string.board_turn_second else R.string.board_turn_first
+
+    else -> if (seat == Seat.FIRST) R.string.board_turn_first else R.string.board_turn_second
+}
+
+private fun winnerLabel(gameId: GameId, seat: Seat): Int = when (gameId) {
+    GameId.REVERSI ->
+        if (seat == Seat.FIRST) R.string.board_second_won else R.string.board_first_won
+
+    else -> if (seat == Seat.FIRST) R.string.board_first_won else R.string.board_second_won
+}

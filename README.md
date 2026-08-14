@@ -149,6 +149,16 @@ ludo é testada**, não conferida no olho: os testes verificam que a volta de 52
 sem buraco, que os dois corredores finais encostam na última casa da volta da sua cor, e que
 nenhum peão de uma partida inteira cai fora do desenho.
 
+Quem joga tem nome. Na tela de configuração, cada cadeira de gente ganha um campo — um só
+contra o celular, um por cadeira no passa-e-joga —, e as cadeiras da máquina recebem nomes
+sorteados, com um botão para sortear outros. O nome digitado fica guardado nas preferências
+e volta preenchido na partida seguinte; o sorteio dos adversários mora no `core-game`
+(`BotNames`), porque "nomes distintos e estáveis para a mesma semente" é regra, e regra tem
+teste. Os nomes viajam na rota da partida e são gravados junto com ela, de modo que retomar
+um jogo salvo traz de volta os mesmos adversários. Partida gravada antes disso não tem nome
+nenhum, e a tela cai nos rótulos de antes ("Vez das brancas", "Jogador 2") em vez de
+aparecer vazia.
+
 Os lances aparecem numa faixa que rola na horizontal e acompanha o último lance sozinha —
 vertical competiria com o tabuleiro, que é o que a pessoa precisa ver num celular. A
 numeração conta os lances da primeira cadeira em vez de pares: no reversi, quem fica sem
@@ -161,7 +171,7 @@ guardar menos dados do que cabem numa mensagem de texto.
 
 ## Como isso é testado
 
-268 testes, mais uma conferência de textos que roda fora do Gradle. Os que realmente
+318 testes, mais uma conferência de textos que roda fora do Gradle. Os que realmente
 seguram o projeto:
 
 - **`perft` do xadrez contra as cinco posições de referência** do Chess Programming Wiki —

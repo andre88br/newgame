@@ -205,8 +205,6 @@
     <string name="setup_players">Players</string>
     <string name="setup_players_count">%1$d</string>
     <string name="setup_many_opponents">The phone plays the other %1$d players.</string>
-    <string name="board_turn_player">Player %1$d to move</string>
-    <string name="board_player_won">Player %1$d wins</string>
     <string name="dominoes_opponent_seat">Player %1$d</string>
 
     <!-- Ludo die -->
@@ -220,4 +218,20 @@
     <string name="ludo_color_blue">Blue</string>
     <string name="ludo_color_yellow">Yellow</string>
     <string name="ludo_color_green">Green</string>
+
+    <!-- Player names -->
+    <string name="setup_names">Who is playing</string>
+    <string name="setup_your_name">Your name</string>
+    <string name="setup_player_name">Player %1$d name</string>
+    <string name="setup_name_placeholder">You</string>
+    <string name="setup_phone_names">The phone plays as</string>
+    <string name="setup_shuffle_names">Draw others</string>
+    <string name="player_default">Player %1$d</string>
+    <string name="board_turn_of">%1$s to move</string>
+    <string name="board_named_won">%1$s wins</string>
+    <string name="board_thinking_named">%1$s is thinking…</string>
+    <string name="board_side_first">white</string>
+    <string name="board_side_second">black</string>
+    <string name="board_name_with_side">%1$s (%2$s)</string>
+    <string name="history_versus">%1$s vs %2$s</string>
 </resources>

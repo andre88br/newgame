@@ -128,6 +128,16 @@ private fun MatchRow(match: SavedMatch, onDelete: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
+                // Quem jogou. Só aparece nas partidas que têm nomes: as gravadas antes
+                // disso continuam mostrando o que sempre mostraram.
+                lineup(match)?.let { quem ->
+                    Text(
+                        text = quem,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
                 val opponent = match.difficulty?.let { difficultyName(it) }
                     ?: stringResource(R.string.setup_mode_local)
                 Text(
@@ -148,14 +158,31 @@ private fun MatchRow(match: SavedMatch, onDelete: () -> Unit) {
 private fun outcomeLabel(match: SavedMatch): String = when (val outcome = match.record.outcome) {
     Outcome.InProgress -> stringResource(R.string.history_in_progress)
     is Outcome.Draw -> stringResource(R.string.board_draw)
-    is Outcome.Win ->
-        if (match.againstPhone) {
-            stringResource(
-                if (outcome.seat == match.humanSeat) R.string.board_you_won else R.string.board_you_lost,
-            )
-        } else {
-            stringResource(
+    is Outcome.Win -> {
+        val name = match.nameOf(outcome.seat)
+        when {
+            match.againstPhone && outcome.seat == match.humanSeat ->
+                stringResource(R.string.board_you_won)
+
+            name != null -> stringResource(R.string.board_named_won, name)
+
+            match.againstPhone -> stringResource(R.string.board_you_lost)
+
+            else -> stringResource(
                 if (outcome.seat.index == 0) R.string.board_first_won else R.string.board_second_won,
             )
         }
+    }
+}
+
+/** Quem jogou a partida, ou `null` se ela foi gravada antes de existirem nomes. */
+@Composable
+private fun lineup(match: SavedMatch): String? {
+    val names = match.playerNames.filter { it.isNotBlank() }
+    return when {
+        names.size == 2 -> stringResource(R.string.history_versus, names[0], names[1])
+        // Numa mesa de três ou quatro, "A vs B vs C" fica pior de ler do que a lista.
+        names.size > 2 -> names.joinToString(" · ")
+        else -> null
+    }
 }

@@ -27,6 +27,8 @@ fun MoveSurface(
     gameId: GameId,
     state: GameState,
     viewer: Seat,
+    /** O nome de cada cadeira. Vazia numa partida salva antes de existirem nomes. */
+    names: List<String>,
     enabled: Boolean,
     hinted: Move?,
     /** Segue o ajuste de animações: desligado, o dado do ludo revela sem chacoalhar. */
@@ -36,7 +38,7 @@ fun MoveSurface(
 ) {
     when {
         gameId == GameId.DOMINOES && state is DominoesState ->
-            DominoesSurface(state, viewer, enabled, hinted, modifier, onMove)
+            DominoesSurface(state, viewer, names, enabled, hinted, modifier, onMove)
 
         gameId == GameId.LUDO && state is LudoState ->
             LudoSurface(state, viewer, enabled, hinted, animated, modifier, onMove)
