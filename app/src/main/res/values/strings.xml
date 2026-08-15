@@ -242,4 +242,32 @@
     <string name="reason_hearts_not_broken">Copas ainda não saiu: não dá para puxar copas</string>
     <string name="reason_hearts_must_lead_two">Quem tem o 2 de paus abre a mão com ele</string>
     <string name="reason_hearts_no_points_first_trick">Na primeira vaza não se descarta ponto</string>
+
+    <!-- Cartas: nome falado, para leitor de tela -->
+    <string name="a11y_card">%1$s de %2$s</string>
+    <string name="a11y_card_hidden">carta virada</string>
+    <string name="a11y_card_joker">curinga</string>
+    <string name="rank_number">%1$s</string>
+    <string name="rank_ace">ás</string>
+    <string name="rank_jack">valete</string>
+    <string name="rank_queen">dama</string>
+    <string name="rank_king">rei</string>
+    <string name="suit_clubs">paus</string>
+    <string name="suit_diamonds">ouros</string>
+    <string name="suit_hearts">copas</string>
+    <string name="suit_spades">espadas</string>
+
+    <!-- Copas: tela -->
+    <string name="hearts_you">Você</string>
+    <string name="hearts_score">%1$d pts (+%2$d)</string>
+    <string name="hearts_cards_left">%1$d cartas</string>
+    <string name="hearts_table_empty">Puxe a vaza</string>
+    <string name="hearts_table_passing">Escolhendo as cartas do passe</string>
+    <string name="hearts_pass_prompt">Passe 3 cartas %1$s — %2$d de %3$d escolhidas</string>
+    <string name="hearts_pass_left">para a esquerda</string>
+    <string name="hearts_pass_right">para a direita</string>
+    <string name="hearts_pass_across">para quem está à frente</string>
+    <string name="hearts_pass_none">(esta mão não tem passe)</string>
+    <string name="hearts_broken">Copas já saiu: pode ser puxada</string>
+    <string name="hearts_not_broken_yet">Copas ainda não saiu</string>
 </resources>

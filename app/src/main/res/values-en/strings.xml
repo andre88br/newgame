@@ -244,4 +244,32 @@
     <string name="reason_hearts_not_broken">Hearts have not been broken yet</string>
     <string name="reason_hearts_must_lead_two">Whoever holds the 2 of clubs leads with it</string>
     <string name="reason_hearts_no_points_first_trick">No penalty cards on the first trick</string>
+
+    <!-- Cards: spoken name, for screen readers -->
+    <string name="a11y_card">%1$s of %2$s</string>
+    <string name="a11y_card_hidden">face-down card</string>
+    <string name="a11y_card_joker">joker</string>
+    <string name="rank_number">%1$s</string>
+    <string name="rank_ace">ace</string>
+    <string name="rank_jack">jack</string>
+    <string name="rank_queen">queen</string>
+    <string name="rank_king">king</string>
+    <string name="suit_clubs">clubs</string>
+    <string name="suit_diamonds">diamonds</string>
+    <string name="suit_hearts">hearts</string>
+    <string name="suit_spades">spades</string>
+
+    <!-- Hearts: screen -->
+    <string name="hearts_you">You</string>
+    <string name="hearts_score">%1$d pts (+%2$d)</string>
+    <string name="hearts_cards_left">%1$d cards</string>
+    <string name="hearts_table_empty">Lead the trick</string>
+    <string name="hearts_table_passing">Choosing the cards to pass</string>
+    <string name="hearts_pass_prompt">Pass 3 cards %1$s — %2$d of %3$d chosen</string>
+    <string name="hearts_pass_left">to the left</string>
+    <string name="hearts_pass_right">to the right</string>
+    <string name="hearts_pass_across">across</string>
+    <string name="hearts_pass_none">(no passing this hand)</string>
+    <string name="hearts_broken">Hearts are broken: they may be led</string>
+    <string name="hearts_not_broken_yet">Hearts have not been broken</string>
 </resources>

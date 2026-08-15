@@ -144,7 +144,8 @@ fun BoardScreen(
                     )
                 }
             } else {
-                // Dominó e ludo: a tela do próprio jogo monta o lance e o entrega pronto.
+                // Dominó, ludo e os jogos de carta: a tela do próprio jogo monta o lance e
+                // o entrega pronto.
                 //
                 // Estes ficam com **toda** a altura que sobrar, e não com a que a largura
                 // permitir: a mesa do dominó cresce a cada lance, e apertá-la numa faixa

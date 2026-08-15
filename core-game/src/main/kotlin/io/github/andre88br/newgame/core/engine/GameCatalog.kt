@@ -37,6 +37,16 @@ data class GameEntry(
     val nameKey: String,
     /** Quantas pessoas jogam de fato (o ludo aceita 2 a 4; aqui é o padrão). */
     val players: Int = 2,
+    /**
+     * Quanto a máquina demora, de propósito, entre um lance dela e o seguinte.
+     *
+     * Não é regra de jogo: é ritmo de tela, e por isso mora aqui e não no `BoardGame`. O
+     * padrão dá tempo de ver um peão andar ou um dado rolar. Nos jogos de carta o valor é
+     * menor porque um lance da máquina é uma carta caindo — e porque há muitos deles
+     * seguidos: no passe da copas são nove antes de a mão sequer começar, e um segundo em
+     * cada um viraria dez segundos de tela parada escrito "pensando".
+     */
+    val aiPaceMillis: Long = 1_200L,
 ) {
     val id: GameId get() = rules.id
 }
@@ -92,6 +102,7 @@ object GameCatalog {
             interactor = null,
             nameKey = "game_hearts",
             players = HEARTS_SEATS,
+            aiPaceMillis = 400L,
         ),
     )
 

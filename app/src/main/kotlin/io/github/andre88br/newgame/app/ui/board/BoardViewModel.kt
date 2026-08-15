@@ -106,15 +106,6 @@ data class BoardUiState(
 )
 
 /**
- * Quanto a máquina "pensa" na tela antes de cada lance dela.
- *
- * Sem esta pausa a tela troca de tabuleiro assim que a busca termina — que para uma jogada
- * fácil é quase instantâneo —, e quem está assistindo não vê o lance acontecer: no ludo, nem
- * o dado que ela tirou nem o peão andando chegam a aparecer.
- */
-private const val AI_MOVE_PACE_MS = 1_200L
-
-/**
  * Liga a tela do tabuleiro à [MatchSession].
  *
  * Nenhuma regra de jogo mora aqui — a sessão e o interator, que vivem no `core-game` e são
@@ -268,7 +259,7 @@ class BoardViewModel(
                     // já está neste estado, e é rolando agora. Jogar na hora trocaria o
                     // tabuleiro no meio da rolagem, e ninguém chegaria a ver com quanto ela
                     // andou — que é exatamente o que parecia "a IA joga rápido demais".
-                    delay(AI_MOVE_PACE_MS)
+                    delay(entry.aiPaceMillis)
 
                     // A busca do nível difícil leva segundos: fora da thread da interface, sempre.
                     val before = session.state

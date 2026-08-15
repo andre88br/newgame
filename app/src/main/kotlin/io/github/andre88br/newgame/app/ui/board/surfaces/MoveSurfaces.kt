@@ -43,6 +43,9 @@ fun MoveSurface(
         gameId == GameId.LUDO && state is LudoState ->
             LudoSurface(state, viewer, enabled, hinted, animated, modifier, onMove)
 
+        gameId == GameId.HEARTS && state is HeartsState ->
+            HeartsSurface(state, viewer, names, enabled, hinted, modifier, onMove)
+
         // Jogo sem tela: dizer isso é melhor do que mostrar uma área em branco.
         else -> Text(stringResource(R.string.board_no_surface, gameId.name))
     }
