@@ -281,6 +281,40 @@ class CanastraTest {
         assertEquals(-100, CanastraGame.scoreHand(state)[0])
     }
 
+    // -------- o curinga tranca o lixo --------
+
+    @Test
+    fun `um curinga em cima tranca o lixo, coringa ou dois`() {
+        for (curinga in listOf(carta(Rank.JOKER, Suit.HEARTS), carta(Rank.TWO, Suit.CLUBS))) {
+            val state = novo().copy(
+                phase = CanastraPhase.DRAW,
+                discard = listOf(carta(Rank.KING, Suit.HEARTS), curinga),
+            )
+            assertTrue(state.discardBlocked, "$curinga em cima devia trancar")
+            assertTrue(
+                CanastraMove.TakeDiscard !in CanastraGame.legalMoves(state),
+                "com o lixo trancado por $curinga, pegar o lixo não é lance",
+            )
+            assertTrue(
+                CanastraGame.applyMove(state, CanastraMove.TakeDiscard) is MoveResult.Illegal,
+                "pegar lixo trancado por $curinga devia ser recusado",
+            )
+        }
+    }
+
+    @Test
+    fun `descartar o curinga tranca o lixo de quem vem`() {
+        val curinga = carta(Rank.JOKER, Suit.HEARTS)
+        val state = novo().let {
+            it.copy(
+                phase = CanastraPhase.PLAY,
+                hands = it.hands.mapIndexed { index, mao -> if (index == 0) mao + curinga else mao },
+            )
+        }
+        val depois = CanastraGame.applyOrThrow(state, CanastraMove.Discard(curinga))
+        assertTrue(depois.discardBlocked, "descartar o curinga tranca o lixo, igual ao três preto")
+    }
+
     // -------- sequências --------
 
     @Test
@@ -847,6 +881,67 @@ class CanastraTest {
         assertTrue(
             mundo.hands.flatten().none { isRedThree(it) },
             "o mundo não pode inventar três vermelho na mão: ele nunca fica lá",
+        )
+    }
+
+    /**
+     * A ordenação (que só ajuda a poda, não decide o lance) já tratava o curinga como último
+     * recurso; o que faltava era o avaliador (que decide de verdade) parar de contar o
+     * curinga na mão como dívida quase do tamanho de um três. Ver [CanastraEvaluator].
+     */
+    @Test
+    fun `a ordenacao poe o curinga por ultimo com um so, e menos por ultimo com excesso`() {
+        val curinga = carta(Rank.JOKER, Suit.HEARTS)
+        val rei = carta(Rank.KING, Suit.CLUBS)
+        val umSo = novo().copy(hands = listOf(listOf(curinga, rei), emptyList(), emptyList(), emptyList()))
+        val ordemUmSo = CanastraOrdering.order(
+            umSo,
+            listOf(CanastraMove.Discard(curinga), CanastraMove.Discard(rei)),
+        )
+        assertEquals(
+            CanastraMove.Discard(rei),
+            ordemUmSo.first(),
+            "com um curinga só na mão, descartar o rei devia vir na frente",
+        )
+
+        val segundo = carta(Rank.TWO, Suit.SPADES)
+        val comExcesso = novo().copy(
+            hands = listOf(listOf(curinga, segundo, rei), emptyList(), emptyList(), emptyList()),
+        )
+        val ordemExcesso = CanastraOrdering.order(
+            comExcesso,
+            listOf(CanastraMove.Discard(curinga), CanastraMove.Discard(rei)),
+        )
+        assertEquals(
+            CanastraMove.Discard(rei),
+            ordemExcesso.first(),
+            "mesmo com excesso, um descarte comum ainda vem na frente do curinga",
+        )
+    }
+
+    /**
+     * A prova de ponta a ponta: com um curinga só na mão e uma carta claramente pior
+     * disponível, a IA não descarta o curinga — nem no nível difícil, que é o que mais
+     * enxerga.
+     */
+    @Test
+    fun `a ia nao descarta o unico curinga quando ha carta pior para descartar`() {
+        val curinga = carta(Rank.JOKER, Suit.HEARTS)
+        val barata = carta(Rank.FOUR, Suit.CLUBS)
+        // Mesa de dois, com a mão do adversário como veio da distribuição de verdade — uma
+        // mão vazia ali criaria giros de "sem carta" que não têm nada a ver com o que este
+        // teste quer medir, e afogariam a diferença de 2 pontos entre guardar o curinga (3)
+        // e guardar a carta barata (5) em ruído de outra coisa.
+        val base = novo(seats = 2)
+        val state = base.copy(
+            phase = CanastraPhase.PLAY,
+            hands = base.hands.mapIndexed { index, mao -> if (index == 0) listOf(curinga, barata) else mao },
+        )
+        val escolhido = CanastraAi.chooseMove(state, Difficulty.HARD, seed = 1)
+        assertEquals(
+            CanastraMove.Discard(barata),
+            escolhido,
+            "a IA devia descartar a carta barata, guardando o curinga",
         )
     }
 

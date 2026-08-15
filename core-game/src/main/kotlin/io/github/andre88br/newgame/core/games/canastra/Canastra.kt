@@ -375,8 +375,16 @@ data class CanastraState(
     /** A carta de cima do lixo, que decide se dá para comprar dali. */
     val discardTop: Card? get() = discard.lastOrNull()
 
-    /** O lixo está trancado: um três preto em cima impede a próxima pessoa de pegá-lo. */
-    val discardBlocked: Boolean get() = discardTop?.let { isBlackThree(it) } ?: false
+    /**
+     * O lixo está trancado: um três preto ou um curinga em cima impede a próxima pessoa de
+     * pegá-lo.
+     *
+     * O curinga tranca pelo mesmo motivo do três preto: é a carta que ninguém quer entregar
+     * de bandeja, e descartá-lo é a única forma de trancar o lixo à custa de uma carta que
+     * vale a pena guardar — o preço é o que torna a trava uma escolha de verdade, e não um
+     * truque de graça.
+     */
+    val discardBlocked: Boolean get() = discardTop?.let { isBlackThree(it) || isWild(it) } ?: false
 
     /** A dupla tem canastra? Sem uma, ninguém bate, e nenhuma trinca pode ser baixada. */
     fun hasCanastra(team: Int): Boolean =

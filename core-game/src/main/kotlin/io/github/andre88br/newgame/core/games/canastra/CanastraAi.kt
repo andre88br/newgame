@@ -34,6 +34,19 @@ object CanastraEvaluator : Evaluator<CanastraState> {
     /** Ter pegado o morto é meio caminho para bater. */
     private const val MORTO_WEIGHT = 120
 
+    /**
+     * Quanto um curinga na mão pesa como "dívida", em vez do valor cheio de carta ([cardValue]
+     * = 50).
+     *
+     * Guardar um curinga não é a mesma coisa que guardar um ás: ele é o que faz uma sequência
+     * fechar, e uma busca de um a quatro lances nunca chega a ver esse jogo futuro se render —
+     * só vê o lucro imediato de descartá-lo. O peso fica abaixo até da carta mais barata do
+     * baralho (4 a 7 valem 5): é a única forma de a comparação — "descarto o curinga, ou
+     * descarto esta outra carta?" — nunca favorecer o curinga por acidente, para qualquer
+     * outra carta que exista.
+     */
+    private const val WILD_IN_HAND_PENALTY = 3
+
     override fun evaluate(state: CanastraState, seat: Seat): Int {
         val meu = state.teamOf(seat)
         val meus = teamScore(state, meu)
@@ -60,10 +73,16 @@ object CanastraEvaluator : Evaluator<CanastraState> {
 
         if (state.tookMorto.getOrElse(team) { false }) total += MORTO_WEIGHT
 
-        // Carta na mão é dívida: no fim da mão ela é descontada.
+        // Carta na mão é dívida: no fim da mão ela é descontada. O curinga é a exceção — ele
+        // pesa menos do que o valor de carta sugere, porque guardá-lo é estratégia, não
+        // acúmulo (ver WILD_IN_HAND_PENALTY).
         val naMao = (0 until state.seats)
             .filter { state.teamOf(Seat(it)) == team }
-            .sumOf { state.hand(Seat(it)).sumOf { carta -> cardValue(carta) } }
+            .sumOf { seat ->
+                state.hand(Seat(seat)).sumOf { carta ->
+                    if (isWild(carta)) WILD_IN_HAND_PENALTY else cardValue(carta)
+                }
+            }
         return total - naMao
     }
 }
@@ -75,7 +94,7 @@ object CanastraEvaluator : Evaluator<CanastraState> {
  * o lixo do adversário, mas gasta a carta, e só compensa quando não há descarte melhor.
  */
 val CanastraOrdering: MoveOrdering<CanastraState, CanastraMove> =
-    MoveOrdering<CanastraState, CanastraMove> { _, moves ->
+    MoveOrdering<CanastraState, CanastraMove> { state, moves ->
         if (moves.size < 2) {
             moves
         } else {
@@ -87,9 +106,15 @@ val CanastraOrdering: MoveOrdering<CanastraState, CanastraMove> =
                     is CanastraMove.SwapWild -> 1_000 + cardValue(move.card)
                     CanastraMove.TakeDiscard -> 900
                     CanastraMove.DrawStock -> 800
-                    // Descartar: quanto mais barata a carta, melhor. Curinga nunca.
+                    // Descartar: quanto mais barata a carta, melhor.
                     is CanastraMove.Discard -> when {
-                        isWild(move.card) -> -100
+                        // Curinga é quase sempre o pior descarte possível — ele é o que fecha
+                        // sequência. Só deixa de ser "último caso" quando a mão já tem mais de
+                        // um: aí sobra um para segurar e o excedente pode ir embora (e, de
+                        // quebra, quem descarta um curinga tranca o lixo de propósito).
+                        isWild(move.card) -> {
+                            if (state.hand(state.turn).count { isWild(it) } > 1) -20 else -100
+                        }
                         isBlackThree(move.card) -> 10
                         else -> 100 - cardValue(move.card)
                     }

@@ -127,7 +127,7 @@ enum class ReasonKey(
     // -------- canastra --------
 
     CANASTRA_MUST_DRAW_FIRST("Compre antes de baixar ou descartar"),
-    CANASTRA_PILE_BLOCKED("O lixo está trancado por um três preto"),
+    CANASTRA_PILE_BLOCKED("O lixo está trancado"),
     CANASTRA_INVALID_MELD("Um jogo é uma sequência de três ou mais cartas seguidas do mesmo naipe, ou uma trinca do mesmo valor — com no máximo um curinga"),
     CANASTRA_DOES_NOT_FIT("Essa carta não encaixa nesse jogo"),
     CANASTRA_NO_SUCH_MELD("Esse jogo não existe na mesa"),
