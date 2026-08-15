@@ -293,11 +293,11 @@ private fun BoardUiState.seatLabel(gameId: GameId, seat: Seat): String? {
 
 /**
  * "Brancas" e "pretas" só dizem alguma coisa onde as peças têm cor. No dominó as duas mãos
- * são iguais e no ludo o que distingue é o canto do tabuleiro, então ali os dois lados são
- * jogador 1 e jogador 2.
+ * são iguais, no ludo o que distingue é o canto do tabuleiro, e na copas são quatro pessoas
+ * com cartas — então nesses os lados são jogador 1, 2, 3 e 4.
  */
 private fun coloredPieces(gameId: GameId): Boolean = when (gameId) {
-    GameId.DOMINOES, GameId.LUDO -> false
+    GameId.DOMINOES, GameId.LUDO, GameId.HEARTS -> false
     else -> true
 }
 

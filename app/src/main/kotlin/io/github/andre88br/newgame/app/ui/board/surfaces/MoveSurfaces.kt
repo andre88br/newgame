@@ -10,6 +10,7 @@ import io.github.andre88br.newgame.core.engine.GameState
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.games.dominoes.DominoesState
+import io.github.andre88br.newgame.core.games.hearts.HeartsState
 import io.github.andre88br.newgame.core.games.ludo.LudoState
 
 /**
