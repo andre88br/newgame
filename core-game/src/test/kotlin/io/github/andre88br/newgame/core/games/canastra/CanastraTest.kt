@@ -29,16 +29,36 @@ class CanastraTest {
     // -------- a distribuição --------
 
     @Test
-    fun `a mesa comeca com onze cartas para cada um e dois mortos`() {
-        val state = novo()
-        assertEquals(4, state.hands.size)
-        assertTrue(
-            state.hands.all { it.size == CANASTRA_HAND_SIZE },
-            "mão fora do tamanho: ${state.hands.map { it.size }}",
-        )
-        assertEquals(CANASTRA_MORTOS, state.mortos.size)
-        assertTrue(state.mortos.all { it.size == CANASTRA_HAND_SIZE }, "morto fora do tamanho")
-        assertEquals(1, state.discard.size, "a mão abre com uma carta no lixo")
+    fun `a mesa comeca com treze cartas para cada um`() {
+        for (seats in 2..4) {
+            val state = CanastraGame.initialState(MatchConfig(seed = 7, seats = seats))
+            assertEquals(seats, state.hands.size)
+            assertTrue(
+                state.hands.all { it.size == CANASTRA_HAND_SIZE },
+                "mão fora do tamanho a $seats: ${state.hands.map { it.size }}",
+            )
+            assertEquals(1, state.discard.size, "a mão abre com uma carta no lixo")
+        }
+    }
+
+    /**
+     * O morto é um só, e some na mesa de duplas. Não é detalhe de distribuição: sem ele,
+     * ficar sem cartas passa a ser bater, e bater exige canastra.
+     */
+    @Test
+    fun `o morto e um so, e a mesa de duplas nao tem`() {
+        assertEquals(1, mortosFor(2), "a dois há um morto")
+        assertEquals(1, mortosFor(3), "a três há um morto")
+        assertEquals(0, mortosFor(4), "em duplas não há morto")
+
+        for (seats in 2..4) {
+            val state = CanastraGame.initialState(MatchConfig(seed = 7, seats = seats))
+            assertEquals(mortosFor(seats), state.mortos.size, "mortos errados a $seats")
+            assertTrue(
+                state.mortos.all { it.size == CANASTRA_HAND_SIZE },
+                "o morto tem o tamanho de uma mão",
+            )
+        }
     }
 
     @Test
@@ -249,16 +269,24 @@ class CanastraTest {
         )
     }
 
+    /**
+     * O que suja a canastra é o **dois**, e não o curinga em geral. Os dois são curinga do
+     * mesmo jeito na hora de formar o jogo; a diferença é só de prêmio.
+     */
     @Test
-    fun `sete cartas fazem canastra, e sem curinga ela vale o dobro`() {
-        val limpa = Meld(List(7) { carta(Rank.KING, Suit.CLUBS) })
-        val suja = Meld(List(6) { carta(Rank.KING, Suit.CLUBS) } + carta(Rank.JOKER, Suit.HEARTS))
+    fun `sete cartas fazem canastra, e so o dois a suja`() {
+        val rei = carta(Rank.KING, Suit.CLUBS)
+        val limpa = Meld(List(7) { rei })
+        val comCoringa = Meld(List(6) { rei } + carta(Rank.JOKER, Suit.HEARTS))
+        val suja = Meld(List(6) { rei } + carta(Rank.TWO, Suit.SPADES))
 
         assertTrue(limpa.isCanastra && limpa.isClean, "sete naturais são canastra limpa")
-        assertTrue(suja.isCanastra && !suja.isClean, "com curinga a canastra é suja")
+        assertTrue(comCoringa.isClean, "canastra fechada com coringa continua limpa")
+        assertTrue(suja.isCanastra && !suja.isClean, "canastra com dois é suja")
+
         assertEquals(limpa.cards.sumOf { cardValue(it) } + 200, limpa.score)
+        assertEquals(comCoringa.cards.sumOf { cardValue(it) } + 200, comCoringa.score)
         assertEquals(suja.cards.sumOf { cardValue(it) } + 100, suja.score)
-        assertTrue(limpa.score > suja.score, "a limpa precisa valer mais")
     }
 
     @Test
@@ -290,16 +318,107 @@ class CanastraTest {
     @Test
     fun `ficar sem cartas pega o morto em vez de bater`() {
         val rei = carta(Rank.KING, Suit.CLUBS)
-        val state = novo().copy(
+        val state = novo(seats = 2).copy(
             phase = CanastraPhase.PLAY,
-            hands = listOf(List(3) { rei }, emptyList(), emptyList(), emptyList()),
+            hands = listOf(List(3) { rei }, emptyList()),
         )
         val depois = CanastraGame.applyOrThrow(state, CanastraMove.Meld(List(3) { rei }))
 
-        assertTrue(depois.tookMorto[depois.teamOf(Seat.FIRST)], "a dupla devia ter pegado o morto")
-        assertEquals(CANASTRA_HAND_SIZE, depois.handSize(Seat.FIRST), "o morto tem onze cartas")
-        assertEquals(CANASTRA_MORTOS - 1, depois.mortos.size, "um morto a menos na mesa")
+        assertTrue(depois.tookMorto[depois.teamOf(Seat.FIRST)], "quem zerou devia ter pegado o morto")
+        assertEquals(CANASTRA_HAND_SIZE, depois.handSize(Seat.FIRST), "o morto tem treze cartas")
+        assertTrue(depois.mortos.isEmpty(), "o morto é um só: pego, a mesa fica sem")
         assertEquals(-1, depois.wentOut, "pegar o morto não é bater")
+    }
+
+    /**
+     * O morto é da **mesa**, e não de cada lado: quem chegar primeiro leva, e o outro fica
+     * sem. Era a diferença invisível enquanto havia dois mortos, um para cada dupla.
+     */
+    @Test
+    fun `pego o morto, o outro lado fica sem`() {
+        val rei = carta(Rank.KING, Suit.CLUBS)
+        val primeiro = CanastraGame.applyOrThrow(
+            novo(seats = 2).copy(
+                phase = CanastraPhase.PLAY,
+                hands = listOf(List(3) { rei }, emptyList()),
+            ),
+            CanastraMove.Meld(List(3) { rei }),
+        )
+        assertTrue(primeiro.mortos.isEmpty())
+
+        // Agora a outra cadeira zera a mão, com canastra na mesa para poder bater.
+        val dama = carta(Rank.QUEEN, Suit.HEARTS)
+        val outro = primeiro.copy(
+            turn = Seat(1),
+            phase = CanastraPhase.PLAY,
+            hands = listOf(primeiro.hand(Seat.FIRST), List(3) { dama }),
+            melds = listOf(primeiro.melds[0], listOf(Meld(List(7) { dama }))),
+            scores = listOf(0, 0),
+        )
+        val depois = CanastraGame.applyOrThrow(outro, CanastraMove.Meld(List(3) { dama }))
+
+        assertTrue(
+            depois.scores.any { it > 0 },
+            "sem morto para pegar, zerar a mão bate: ${depois.scores}",
+        )
+    }
+
+    /**
+     * Sem morto e sem canastra, baixar tudo seria bater sem ter direito. O motor recusa — e
+     * recusa também deixar **uma** carta, porque a vez ainda termina em descarte e esse
+     * descarte zeraria a mão do mesmo jeito.
+     */
+    @Test
+    fun `sem canastra e sem morto nao da para esvaziar a mao`() {
+        val rei = carta(Rank.KING, Suit.CLUBS)
+        val state = novo(seats = 4).copy(
+            phase = CanastraPhase.PLAY,
+            hands = listOf(List(3) { rei }, emptyList(), emptyList(), emptyList()),
+            melds = List(2) { emptyList() },
+            mortos = emptyList(),
+            tookMorto = listOf(false, false),
+        )
+        val lance = CanastraMove.Meld(List(3) { rei })
+
+        assertTrue(
+            CanastraGame.applyMove(state, lance) is MoveResult.Illegal,
+            "baixar a mão inteira sem canastra devia ser recusado",
+        )
+        assertTrue(lance !in CanastraGame.legalMoves(state), "e nem devia ser oferecido")
+
+        // Com uma canastra na mesa o mesmo lance passa: aí é bater de verdade.
+        val comCanastra = state.copy(melds = listOf(listOf(Meld(List(7) { rei })), emptyList()))
+        assertTrue(
+            CanastraGame.applyMove(comCanastra, lance) is MoveResult.Ok,
+            "com canastra, bater é permitido",
+        )
+    }
+
+    /** O próprio lance pode fechar a sétima carta — e aí ele já vale como batida. */
+    @Test
+    fun `o lance que fecha a canastra pode ser o que bate`() {
+        val rei = carta(Rank.KING, Suit.CLUBS)
+        val state = novo(seats = 4).copy(
+            phase = CanastraPhase.PLAY,
+            // Uma carta na mão: baixá-la zera a mão e, ao mesmo tempo, fecha a sétima.
+            hands = listOf(listOf(rei), emptyList(), emptyList(), emptyList()),
+            melds = listOf(listOf(Meld(List(6) { rei })), emptyList()),
+            mortos = emptyList(),
+            tookMorto = listOf(false, false),
+            scores = listOf(0, 0),
+        )
+        val lance = CanastraMove.Meld(listOf(rei), into = 0)
+        assertTrue(
+            CanastraGame.applyMove(state, lance) is MoveResult.Ok,
+            "a sétima carta fecha a canastra e autoriza a batida no mesmo lance",
+        )
+
+        // A mesma carta sem a canastra a caminho: recusada.
+        val curta = state.copy(melds = listOf(listOf(Meld(List(5) { rei })), emptyList()))
+        assertTrue(
+            CanastraGame.applyMove(curta, lance) is MoveResult.Illegal,
+            "a sexta carta não fecha nada, e zerar a mão sem canastra é recusado",
+        )
     }
 
     @Test

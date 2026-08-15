@@ -133,6 +133,7 @@ enum class ReasonKey(
     CANASTRA_NO_SUCH_MELD("Esse jogo não existe na mesa"),
     CANASTRA_RED_THREE_NOT_PLAYABLE("O três vermelho vale ponto parado na mesa: não se joga nem se descarta"),
     CANASTRA_BLACK_THREE_ONLY_OUT("O três preto só é baixado na hora de bater"),
+    CANASTRA_NEEDS_CANASTRA_TO_GO_OUT("Sem canastra você não pode ficar sem cartas: guarde uma para descartar"),
 
     // -------- pife --------
 

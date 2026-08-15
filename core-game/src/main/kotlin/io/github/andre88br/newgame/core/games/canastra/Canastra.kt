@@ -24,10 +24,17 @@ const val CANASTRA_DECKS: Int = 2
 const val CANASTRA_JOKERS_PER_DECK: Int = 2
 
 /** Cartas na mão de cada um, e no morto. */
-const val CANASTRA_HAND_SIZE: Int = 11
+const val CANASTRA_HAND_SIZE: Int = 13
 
-/** Dois mortos na mesa: cada dupla pega um antes de poder bater. */
-const val CANASTRA_MORTOS: Int = 2
+/**
+ * Quantos mortos a mesa tem.
+ *
+ * Um só, e só até três pessoas. Em duplas não há morto nenhum — e essa ausência muda o jogo
+ * inteiro: sem a rede do morto, quem fica sem cartas bate na hora, e é por isso que
+ * [CanastraGame] passa a exigir canastra antes de deixar alguém zerar a mão. Com morto na
+ * mesa, zerar é só o começo da segunda metade da mão; sem morto, zerar é o fim dela.
+ */
+fun mortosFor(seats: Int): Int = if (seats == 4) 0 else 1
 
 /** Um jogo tem no mínimo três cartas. */
 const val CANASTRA_MIN_MELD: Int = 3
@@ -89,8 +96,16 @@ data class Meld(val cards: List<Card> = emptyList()) {
 
     val isCanastra: Boolean get() = cards.size >= CANASTRA_SIZE
 
-    /** Canastra sem curinga vale o dobro: é o prêmio de fazer na mão. */
-    val isClean: Boolean get() = isCanastra && wilds.isEmpty()
+    /**
+     * Canastra limpa: sem dois. Vale o dobro.
+     *
+     * O coringa não suja, o dois suja — e os dois são curinga do mesmo jeito na hora de
+     * formar o jogo. A diferença é de prêmio, não de regra: o coringa é carta rara, tem
+     * quatro no baralho duplo inteiro, e quem consegue fechar sete cartas com um deles fez
+     * por merecer. O dois tem oito, aparece sempre, e fechar canastra com dois é o caminho
+     * fácil que o jogo cobra mais barato.
+     */
+    val isClean: Boolean get() = isCanastra && cards.none { it.rank == Rank.TWO }
 
     /** Pontos das cartas mais o prêmio da canastra. */
     val score: Int
@@ -225,9 +240,12 @@ sealed interface CanastraMove : Move {
 /**
  * Canastra brasileira, de dois ou de quatro (em duplas).
  *
- * Dois baralhos, quatro curingas, onze cartas para cada um e dois mortos na mesa. A vez tem
- * três tempos: compra-se (do monte ou o lixo inteiro), baixa-se o que quiser, e descarta-se —
- * e é o descarte que passa a vez.
+ * Dois baralhos, quatro curingas e treze cartas para cada um. A vez tem três tempos:
+ * compra-se (do monte ou o lixo inteiro), baixa-se o que quiser, e descarta-se — e é o
+ * descarte que passa a vez.
+ *
+ * **O morto é um só, e nem sempre existe**: mesa de duas ou três pessoas tem um morto na
+ * mesa, que é de quem chegar primeiro; mesa de duplas não tem morto nenhum. Ver [mortosFor].
  *
  * **As duas regras do três**, que são o que separa canastra de qualquer outro jogo de
  * formar trincas:
@@ -239,8 +257,8 @@ sealed interface CanastraMove : Move {
  *   descarte. É a única carta que se joga contra alguém em vez de a favor de si, e por isso
  *   ela só pode ser baixada na hora de bater — guardá-la custa cinco pontos na mão.
  *
- * Bater exige duas coisas: uma canastra e ter pegado o morto. Ficar sem cartas antes disso
- * não acaba a mão — pega-se o morto e a vez continua.
+ * Bater exige canastra. Ficar sem cartas com o morto ainda na mesa não é bater: pega-se o
+ * morto e a vez continua.
  */
 object CanastraGame : BoardGame<CanastraState, CanastraMove> {
 
@@ -261,7 +279,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         return dealHand(seats, List(if (seats == 4) 2 else seats) { 0 }, config.rng())
     }
 
-    /** Reparte uma mão: onze para cada um, dois mortos, uma carta virada no lixo. */
+    /** Reparte uma mão: treze para cada um, o morto (se houver) e uma carta virada no lixo. */
     private fun dealHand(seats: Int, scores: List<Int>, rng: Rng): CanastraState {
         val teams = if (seats == 4) 2 else seats
         val embaralhado = rng.shuffle(deckOf(CANASTRA_DECKS, CANASTRA_JOKERS_PER_DECK))
@@ -274,7 +292,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         }
 
         val maos = MutableList(seats) { tirar(CANASTRA_HAND_SIZE).toMutableList() }
-        val mortos = List(CANASTRA_MORTOS) { tirar(CANASTRA_HAND_SIZE) }
+        val mortos = List(mortosFor(seats)) { tirar(CANASTRA_HAND_SIZE) }
 
         // Três vermelho na mão inicial vai direto para a mesa, e quem o tinha compra outra.
         val vermelhos = MutableList(teams) { 0 }
@@ -356,7 +374,55 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 if (canExtend(jogo, carta)) saida += CanastraMove.Meld(listOf(carta), into = index)
             }
         }
-        return saida
+        return saida.filterNot { encurrala(state, it as CanastraMove.Meld) }
+    }
+
+    /**
+     * A dupla ainda tem morto para pegar?
+     *
+     * O morto é um só e é da mesa, não da dupla: quem chegar primeiro leva, e o outro lado
+     * fica sem. Em duplas não há nenhum, e aí a resposta é sempre não.
+     */
+    private fun temMortoParaPegar(state: CanastraState, team: Int): Boolean =
+        state.mortos.isNotEmpty() && !state.tookMorto.getOrElse(team) { false }
+
+    /**
+     * A dupla pode ficar sem cartas agora?
+     *
+     * Duas maneiras, e são bem diferentes: com morto na mesa, zerar a mão é pegá-lo e
+     * continuar jogando — não custa nada e não exige nada. Sem morto, zerar é **bater**, e
+     * bater exige canastra.
+     *
+     * A regra só ficou visível quando a mesa de duplas perdeu o morto. Antes, o morto sempre
+     * aparecia primeiro e escondia a exigência atrás dele.
+     */
+    private fun podeZerar(state: CanastraState, team: Int, teraCanastra: Boolean): Boolean =
+        temMortoParaPegar(state, team) || teraCanastra
+
+    /** A dupla terá canastra depois deste lance? O próprio lance pode fechar a sétima carta. */
+    private fun teraCanastra(state: CanastraState, move: CanastraMove.Meld): Boolean {
+        val time = state.teamOf(state.turn)
+        if (state.hasCanastra(time)) return true
+        val jogos = state.melds.getOrElse(time) { emptyList() }
+        val tamanho = if (move.into != null) {
+            (jogos.getOrNull(move.into)?.cards?.size ?: 0) + move.cards.size
+        } else {
+            move.cards.size
+        }
+        return tamanho >= CANASTRA_SIZE
+    }
+
+    /**
+     * Este lance deixaria a mão num beco sem saída?
+     *
+     * Baixar até sobrar uma carta é o mesmo que baixar tudo: a vez ainda tem de terminar com
+     * um descarte, e esse descarte zeraria a mão. Então o corte é em duas cartas — quem não
+     * pode zerar precisa guardar uma para descartar e outra para ficar.
+     */
+    private fun encurrala(state: CanastraState, move: CanastraMove.Meld): Boolean {
+        val restante = state.hand(state.turn).size - move.cards.size
+        if (restante >= 2) return false
+        return !podeZerar(state, state.teamOf(state.turn), teraCanastra(state, move))
     }
 
     /** A carta serve neste jogo? */
@@ -420,6 +486,9 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                     }
                 } else if (!isValidMeld(move.cards)) {
                     return MoveResult.Illegal(ReasonKey.CANASTRA_INVALID_MELD)
+                }
+                if (encurrala(state, move)) {
+                    return MoveResult.Illegal(ReasonKey.CANASTRA_NEEDS_CANASTRA_TO_GO_OUT)
                 }
             }
 
@@ -554,16 +623,19 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
     /**
      * Ficou sem cartas: pega o morto, ou bate.
      *
-     * É aqui que a canastra deixa de ser um jogo de formar trincas. Acabar as cartas não
-     * termina a mão — se a dupla ainda não pegou morto, ela pega, e continua jogando com
-     * onze cartas novas. Só quem já pegou o morto **e** tem canastra bate de verdade.
+     * Acabar as cartas não termina a mão enquanto houver morto: quem chega primeiro pega as
+     * treze cartas dele e continua jogando. Só que o morto é um e só existe até três
+     * pessoas — em duplas não há nenhum, e aí acabar as cartas é bater na hora.
+     *
+     * Quem cuida de não deixar alguém bater sem canastra é [encurrala], antes do lance. Aqui
+     * o trabalho é só o de dizer que a mão fechou.
      */
     private fun semMao(state: CanastraState): CanastraState {
         val cadeira = state.turn
         if (state.hand(cadeira).isNotEmpty()) return state
 
         val time = state.teamOf(cadeira)
-        if (!state.tookMorto[time] && state.mortos.isNotEmpty()) {
+        if (temMortoParaPegar(state, time)) {
             // O morto também pode trazer três vermelho, e ele não vai para a mão: vai para a
             // mesa, com carta comprada no lugar. Sem isto uma mão podia ficar só com três
             // vermelho — que não se joga nem se descarta — e travar a partida sem lance.
@@ -671,7 +743,13 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val vermelhos = quantos * porVermelho
         val comSinal = if (state.hasCanastra(time)) vermelhos else -vermelhos
 
-        val bateu = if (state.wentOut == time) CANASTRA_GOING_OUT_BONUS else 0
+        // O bônus é de bater, e bater é com canastra. A mão pode fechar sem ninguém bater —
+        // monte seco, lixo trancado —, e aí o bônus não é de ninguém.
+        val bateu = if (state.wentOut == time && state.hasCanastra(time)) {
+            CANASTRA_GOING_OUT_BONUS
+        } else {
+            0
+        }
         naMesa - naMao + comSinal + bateu
     }
 

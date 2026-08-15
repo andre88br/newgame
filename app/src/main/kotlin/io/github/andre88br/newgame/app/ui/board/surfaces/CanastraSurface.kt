@@ -37,6 +37,7 @@ import io.github.andre88br.newgame.core.games.canastra.CanastraMove
 import io.github.andre88br.newgame.core.games.canastra.CanastraPhase
 import io.github.andre88br.newgame.core.games.canastra.CanastraState
 import io.github.andre88br.newgame.core.games.canastra.Meld
+import io.github.andre88br.newgame.core.games.canastra.mortosFor
 
 /**
  * A mesa da canastra.
@@ -231,11 +232,20 @@ private fun TableInfo(state: CanastraState, palette: BoardPalette) {
             )
         }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = stringResource(R.string.canastra_mortos, state.mortos.size),
-                style = MaterialTheme.typography.labelSmall,
-            )
+        // Em duplas não há morto, e "Mortos: 0" seria contar uma coisa que a mesa nunca teve.
+        if (mortosFor(state.seats) > 0) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = stringResource(
+                        if (state.mortos.isEmpty()) {
+                            R.string.canastra_morto_taken
+                        } else {
+                            R.string.canastra_morto_on_table
+                        },
+                    ),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
         }
     }
 }
