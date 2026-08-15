@@ -286,4 +286,26 @@
     <string name="reason_canastra_no_such_meld">That meld is not on the table</string>
     <string name="reason_canastra_red_three_not_playable">A red three scores sitting on the table: it is never played or discarded</string>
     <string name="reason_canastra_black_three_only_out">A black three is only melded when going out</string>
+
+    <!-- Canastra: screen -->
+    <string name="canastra_you">You</string>
+    <string name="canastra_them">Team %1$d</string>
+    <string name="canastra_team_line">%1$s — %2$d pts · %3$d canasta(s) · %4$d red three(s)</string>
+    <string name="canastra_stock">Stock: %1$d</string>
+    <string name="canastra_pile">Pile: %1$d</string>
+    <string name="canastra_pile_blocked">Pile blocked (%1$d)</string>
+    <string name="canastra_mortos">Dead hands: %1$d</string>
+    <string name="canastra_your_melds">Your melds</string>
+    <string name="canastra_their_melds">Team %1$d melds</string>
+    <string name="canastra_no_melds">No melds yet</string>
+    <string name="canastra_meld_size">%1$d cards</string>
+    <string name="canastra_clean">clean canasta (%1$d)</string>
+    <string name="canastra_dirty">dirty canasta (%1$d)</string>
+    <string name="canastra_draw_prompt">Draw from the stock or take the pile</string>
+    <string name="canastra_play_prompt">Tap cards to choose them, then meld or discard</string>
+    <string name="canastra_wait">Opponent's turn</string>
+    <string name="canastra_draw_stock">Draw</string>
+    <string name="canastra_take_discard">Take the pile (%1$d)</string>
+    <string name="canastra_meld">Meld (%1$d)</string>
+    <string name="canastra_discard">Discard</string>
 </resources>

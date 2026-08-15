@@ -284,4 +284,26 @@
     <string name="reason_canastra_no_such_meld">Esse jogo não existe na mesa</string>
     <string name="reason_canastra_red_three_not_playable">O três vermelho vale ponto parado na mesa: não se joga nem se descarta</string>
     <string name="reason_canastra_black_three_only_out">O três preto só é baixado na hora de bater</string>
+
+    <!-- Canastra: tela -->
+    <string name="canastra_you">Você</string>
+    <string name="canastra_them">Dupla %1$d</string>
+    <string name="canastra_team_line">%1$s — %2$d pts · %3$d canastra(s) · %4$d três vermelho(s)</string>
+    <string name="canastra_stock">Monte: %1$d</string>
+    <string name="canastra_pile">Lixo: %1$d</string>
+    <string name="canastra_pile_blocked">Lixo trancado (%1$d)</string>
+    <string name="canastra_mortos">Mortos: %1$d</string>
+    <string name="canastra_your_melds">Seus jogos</string>
+    <string name="canastra_their_melds">Jogos da dupla %1$d</string>
+    <string name="canastra_no_melds">Nenhum jogo ainda</string>
+    <string name="canastra_meld_size">%1$d cartas</string>
+    <string name="canastra_clean">canastra limpa (%1$d)</string>
+    <string name="canastra_dirty">canastra suja (%1$d)</string>
+    <string name="canastra_draw_prompt">Compre do monte ou pegue o lixo</string>
+    <string name="canastra_play_prompt">Toque nas cartas para escolher; depois baixe ou descarte</string>
+    <string name="canastra_wait">Vez do adversário</string>
+    <string name="canastra_draw_stock">Comprar</string>
+    <string name="canastra_take_discard">Pegar o lixo (%1$d)</string>
+    <string name="canastra_meld">Baixar (%1$d)</string>
+    <string name="canastra_discard">Descartar</string>
 </resources>

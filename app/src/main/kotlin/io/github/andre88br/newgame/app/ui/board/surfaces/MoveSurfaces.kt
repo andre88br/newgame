@@ -9,6 +9,7 @@ import io.github.andre88br.newgame.core.engine.GameId
 import io.github.andre88br.newgame.core.engine.GameState
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.Seat
+import io.github.andre88br.newgame.core.games.canastra.CanastraState
 import io.github.andre88br.newgame.core.games.dominoes.DominoesState
 import io.github.andre88br.newgame.core.games.hearts.HeartsState
 import io.github.andre88br.newgame.core.games.ludo.LudoState
@@ -46,6 +47,9 @@ fun MoveSurface(
 
         gameId == GameId.HEARTS && state is HeartsState ->
             HeartsSurface(state, viewer, names, enabled, hinted, modifier, onMove)
+
+        gameId == GameId.CANASTRA && state is CanastraState ->
+            CanastraSurface(state, viewer, names, enabled, hinted, modifier, onMove)
 
         // Jogo sem tela: dizer isso é melhor do que mostrar uma área em branco.
         else -> Text(stringResource(R.string.board_no_surface, gameId.name))

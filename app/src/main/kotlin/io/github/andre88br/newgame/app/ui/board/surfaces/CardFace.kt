@@ -73,24 +73,31 @@ fun CardFan(
     cards: List<Card>,
     palette: BoardPalette,
     modifier: Modifier = Modifier,
-    /** A carta sugerida pela dica, que sai do leque para ser vista. */
-    hinted: Card? = null,
+    /**
+     * Quais cartas saem do leque, puxadas para fora — a sugerida pela dica, ou as escolhidas
+     * para baixar.
+     *
+     * Vem por **posição**, e não por carta: a canastra joga com dois baralhos, e uma mão
+     * com dois reis de paus iguais teria as duas escolhidas de uma vez se a conta fosse pelo
+     * valor da carta.
+     */
+    isRaised: (Int, Card) -> Boolean = { _, _ -> false },
     /** Quais cartas a regra deixa jogar agora; as outras aparecem apagadas. */
-    isPlayable: (Card) -> Boolean = { true },
-    onClick: ((Card) -> Unit)? = null,
+    isPlayable: (Int, Card) -> Boolean = { _, _ -> true },
+    onClick: ((Int, Card) -> Unit)? = null,
 ) {
     if (cards.isEmpty()) return
 
     Layout(
         modifier = modifier,
         content = {
-            for (carta in cards) {
+            cards.forEachIndexed { index, carta ->
                 CardFace(
                     card = carta,
                     palette = palette,
-                    hinted = carta == hinted,
-                    playable = isPlayable(carta),
-                    onClick = onClick?.let { acao -> { acao(carta) } },
+                    selected = isRaised(index, carta),
+                    playable = isPlayable(index, carta),
+                    onClick = onClick?.let { acao -> { acao(index, carta) } },
                 )
             }
         },
@@ -105,9 +112,9 @@ fun CardFan(
 
         layout(largura, altura) {
             postas.forEachIndexed { index, posta ->
-                // A destacada encosta no topo; as outras descem, e é essa diferença que a
-                // faz parecer puxada para fora da mão.
-                val puxada = cards[index] == hinted
+                // A puxada encosta no topo; as outras descem, e é essa diferença que a faz
+                // parecer tirada da mão.
+                val puxada = isRaised(index, cards[index])
                 posta.placeRelative(x = passo * index, y = if (puxada) 0 else alto)
             }
         }

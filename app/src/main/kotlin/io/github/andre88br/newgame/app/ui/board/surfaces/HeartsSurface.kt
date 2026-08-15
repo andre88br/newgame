@@ -112,15 +112,16 @@ fun HeartsSurface(
             CardFan(
                 cards = mao,
                 palette = palette,
-                hinted = sugerida,
+                // A sugerida da dica sai do leque para ser vista.
+                isRaised = { _, carta -> carta == sugerida },
                 // Fora da vez nada fica apagado — não está sendo pedido nada a você. Na sua
                 // vez, apaga o que a regra não deixa: no passe tudo serve, nas vazas só as
                 // cartas que servem o naipe (ou o que valer no momento).
-                isPlayable = { carta ->
+                isPlayable = { _, carta ->
                     !minhaVez || state.phase == HeartsPhase.PASSING || carta in jogaveis
                 },
                 onClick = if (enabled) {
-                    { carta -> onMove(HeartsMove(carta)) }
+                    { _, carta -> onMove(HeartsMove(carta)) }
                 } else {
                     null
                 },
