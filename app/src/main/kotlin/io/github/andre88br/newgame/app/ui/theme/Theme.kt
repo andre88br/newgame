@@ -16,6 +16,20 @@ enum class ThemeChoice {
     DARK,
 }
 
+/**
+ * Cor das costas do baralho, escolhida nos ajustes.
+ *
+ * [CLASSIC] é a cor de sempre — que já varia com claro e escuro, porque lê a paleta do
+ * tabuleiro. As outras são cores fixas, independentes de tema: um baralho físico não muda de
+ * cor quando o celular troca de tema.
+ */
+enum class DeckColorChoice {
+    CLASSIC,
+    RED,
+    BLUE,
+    PURPLE,
+}
+
 private val LightColors = lightColorScheme(
     primary = Palette.Green,
     onPrimary = Color.White,
@@ -56,9 +70,13 @@ private val DarkColors = darkColorScheme(
  */
 val LocalBoardPalette = staticCompositionLocalOf { BoardPalette.Light }
 
+/** A cor do baralho escolhida nos ajustes, para quem desenha a costa de uma carta. */
+val LocalDeckColor = staticCompositionLocalOf { DeckColorChoice.CLASSIC }
+
 @Composable
 fun NewgameTheme(
     choice: ThemeChoice = ThemeChoice.SYSTEM,
+    deckColor: DeckColorChoice = DeckColorChoice.CLASSIC,
     content: @Composable () -> Unit,
 ) {
     val dark = when (choice) {
@@ -69,6 +87,7 @@ fun NewgameTheme(
 
     CompositionLocalProvider(
         LocalBoardPalette provides if (dark) BoardPalette.Dark else BoardPalette.Light,
+        LocalDeckColor provides deckColor,
     ) {
         MaterialTheme(
             colorScheme = if (dark) DarkColors else LightColors,

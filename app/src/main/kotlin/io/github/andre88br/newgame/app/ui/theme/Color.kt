@@ -35,6 +35,14 @@ object Palette {
     val DarkSurfaceVariant = Color(0xFF2C3238)
     val DarkOnSurface = Color(0xFFE6E1D9)
     val DarkOnSurfaceVariant = Color(0xFFC5C0B6)
+
+    // Costas de baralho coloridas — fixas, independentes de tema, como um baralho físico.
+    val DeckRed = Color(0xFF7A1F1F)
+    val DeckRedEdge = Color(0xFF4A0E0E)
+    val DeckBlue = Color(0xFF1F3F7A)
+    val DeckBlueEdge = Color(0xFF0E1E4A)
+    val DeckPurple = Color(0xFF4B1F7A)
+    val DeckPurpleEdge = Color(0xFF2A0E4A)
 }
 
 /**

@@ -102,6 +102,11 @@
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
     <string name="settings_default_difficulty">Default phone level</string>
+    <string name="settings_deck_color">Deck color</string>
+    <string name="settings_deck_color_classic">Classic</string>
+    <string name="settings_deck_color_red">Red</string>
+    <string name="settings_deck_color_blue">Blue</string>
+    <string name="settings_deck_color_purple">Purple</string>
     <string name="settings_about">newgame · offline board games</string>
 
     <!-- General -->

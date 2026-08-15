@@ -28,6 +28,7 @@ import io.github.andre88br.newgame.app.R
 import io.github.andre88br.newgame.app.data.AppPreferences
 import io.github.andre88br.newgame.app.ui.components.ChoiceRow
 import io.github.andre88br.newgame.app.ui.difficultyName
+import io.github.andre88br.newgame.app.ui.theme.DeckColorChoice
 import io.github.andre88br.newgame.app.ui.theme.ThemeChoice
 import io.github.andre88br.newgame.core.ai.Difficulty
 
@@ -76,6 +77,23 @@ fun SettingsScreen(preferences: AppPreferences, onBack: () -> Unit) {
                 selected = settings.defaultDifficulty,
                 optionLabel = { difficultyName(it) },
                 onSelect = preferences::setDefaultDifficulty,
+            )
+
+            ChoiceRow(
+                label = stringResource(R.string.settings_deck_color),
+                options = DeckColorChoice.entries.toList(),
+                selected = settings.deckColor,
+                optionLabel = {
+                    stringResource(
+                        when (it) {
+                            DeckColorChoice.CLASSIC -> R.string.settings_deck_color_classic
+                            DeckColorChoice.RED -> R.string.settings_deck_color_red
+                            DeckColorChoice.BLUE -> R.string.settings_deck_color_blue
+                            DeckColorChoice.PURPLE -> R.string.settings_deck_color_purple
+                        },
+                    )
+                },
+                onSelect = preferences::setDeckColor,
             )
 
             SwitchRow(

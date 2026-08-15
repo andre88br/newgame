@@ -27,6 +27,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.andre88br.newgame.app.R
 import io.github.andre88br.newgame.app.ui.theme.BoardPalette
+import io.github.andre88br.newgame.app.ui.theme.DeckColorChoice
+import io.github.andre88br.newgame.app.ui.theme.LocalDeckColor
+import io.github.andre88br.newgame.app.ui.theme.Palette
 import io.github.andre88br.newgame.core.cards.Card
 import io.github.andre88br.newgame.core.cards.Rank
 import io.github.andre88br.newgame.core.cards.Suit
@@ -214,11 +217,19 @@ fun FaceDownCard(
     width: Dp = CARD_WIDTH,
     height: Dp = CARD_HEIGHT,
 ) {
+    // CLÁSSICA segue a paleta do tabuleiro (varia com claro/escuro, como sempre foi); as
+    // outras são cores fixas de baralho, do jeito que um baralho físico realmente é.
+    val (fundo, miolo) = when (LocalDeckColor.current) {
+        DeckColorChoice.CLASSIC -> palette.secondPiece to palette.secondPieceEdge
+        DeckColorChoice.RED -> Palette.DeckRed to Palette.DeckRedEdge
+        DeckColorChoice.BLUE -> Palette.DeckBlue to Palette.DeckBlueEdge
+        DeckColorChoice.PURPLE -> Palette.DeckPurple to Palette.DeckPurpleEdge
+    }
     Box(
         modifier = modifier
             .size(width, height)
             .clip(RoundedCornerShape(6.dp))
-            .background(palette.secondPiece)
+            .background(fundo)
             .border(1.dp, palette.border, RoundedCornerShape(6.dp)),
     ) {
         Box(
@@ -226,7 +237,7 @@ fun FaceDownCard(
                 .fillMaxSize()
                 .padding(5.dp)
                 .clip(RoundedCornerShape(3.dp))
-                .background(palette.secondPieceEdge),
+                .background(miolo),
         )
     }
 }

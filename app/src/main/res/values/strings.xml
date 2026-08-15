@@ -97,6 +97,11 @@
     <string name="settings_theme_light">Claro</string>
     <string name="settings_theme_dark">Escuro</string>
     <string name="settings_default_difficulty">Nível padrão do celular</string>
+    <string name="settings_deck_color">Cor do baralho</string>
+    <string name="settings_deck_color_classic">Clássica</string>
+    <string name="settings_deck_color_red">Vermelha</string>
+    <string name="settings_deck_color_blue">Azul</string>
+    <string name="settings_deck_color_purple">Roxa</string>
     <string name="settings_about">newgame · jogos de tabuleiro offline</string>
 
     <!-- Geral -->

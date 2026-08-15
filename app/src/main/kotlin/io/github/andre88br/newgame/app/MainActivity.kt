@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by container.preferences.settings.collectAsState()
 
-            NewgameTheme(choice = settings.theme) {
+            NewgameTheme(choice = settings.theme, deckColor = settings.deckColor) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,

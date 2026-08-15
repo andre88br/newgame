@@ -2,6 +2,7 @@ package io.github.andre88br.newgame.app.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import io.github.andre88br.newgame.app.ui.theme.DeckColorChoice
 import io.github.andre88br.newgame.app.ui.theme.ThemeChoice
 import io.github.andre88br.newgame.core.ai.Difficulty
 import io.github.andre88br.newgame.core.session.BotNames
@@ -28,6 +29,8 @@ data class Settings(
      * com "Você" como sugestão, em vez de inventar um nome que a pessoa nunca escolheu.
      */
     val playerName: String = "",
+    /** As costas do baralho, nas telas de carta. */
+    val deckColor: DeckColorChoice = DeckColorChoice.CLASSIC,
 )
 
 /**
@@ -78,6 +81,11 @@ class AppPreferences(context: Context) {
         _settings.value = _settings.value.copy(animations = enabled)
     }
 
+    fun setDeckColor(choice: DeckColorChoice) {
+        prefs.edit().putString(KEY_DECK_COLOR, choice.name).apply()
+        _settings.value = _settings.value.copy(deckColor = choice)
+    }
+
     private fun read(): Settings = Settings(
         theme = prefs.getString(KEY_THEME, null).toEnum(ThemeChoice.SYSTEM),
         defaultDifficulty = prefs.getString(KEY_DIFFICULTY, null).toEnum(Difficulty.MEDIUM),
@@ -85,6 +93,7 @@ class AppPreferences(context: Context) {
         haptics = prefs.getBoolean(KEY_HAPTICS, true),
         animations = prefs.getBoolean(KEY_ANIMATIONS, true),
         playerName = prefs.getString(KEY_PLAYER_NAME, "").orEmpty(),
+        deckColor = prefs.getString(KEY_DECK_COLOR, null).toEnum(DeckColorChoice.CLASSIC),
     )
 
     /** Valor gravado por uma versão anterior que não exista mais volta ao padrão. */
@@ -98,5 +107,6 @@ class AppPreferences(context: Context) {
         const val KEY_HAPTICS = "haptics"
         const val KEY_ANIMATIONS = "animations"
         const val KEY_PLAYER_NAME = "player_name"
+        const val KEY_DECK_COLOR = "deck_color"
     }
 }
