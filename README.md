@@ -3,9 +3,9 @@
 App Android com vários jogos de tabuleiro, jogáveis contra o aparelho ou entre duas
 pessoas no mesmo celular.
 
-> **Status: Fase 5 concluída — o projeto está completo.** Nove jogos: Jogo da Velha, Damas,
-> Reversi, Xadrez, Dominó, Ludo, Copas, Canastra e Pife. Contra o celular ou passa-e-joga,
-> com desfazer, dica, som,
+> **Status: Fase 5 concluída — o projeto está completo.** Dez jogos: Jogo da Velha, Damas,
+> Reversi, Xadrez, Dominó, Ludo, Copas, Canastra, Pife e Paciência. Contra o celular,
+> passa-e-joga ou sozinho, com desfazer, dica, som,
 > leitor de tela, português e inglês, e a partida sobrevive a fechar o app.
 > Para instalar sem montar ambiente, veja [baixar o APK do GitHub](#sem-instalar-nada-baixar-o-apk-do-github).
 
@@ -100,6 +100,7 @@ ludo, que se joga pelos peões.
 | Copas | passe de três cartas com rodízio (esquerda, direita, frente, sem passe), abertura obrigatória no 2 de paus, servir o naipe, copas trancada até sair, sem ponto na primeira vaza, correr todas, partida até 100 |
 | Canastra | brasileira, de dois (individual) ou quatro (em duplas), dois baralhos e quatro curingas, canastra limpa e suja, morto, **três vermelho** (100 parados na mesa, contra sem canastra, reposição automática) e **três preto** (tranca o lixo, só baixa ao bater), partida até 3000 |
 | Pife | dois baralhos com um curinga cada, nove cartas, compra do monte ou do lixo, bate quem fecha três grupos de três (trinca ou sequência), ás só por cima, monte remontado com o lixo e empate se ninguém fechar |
+| Paciência | klondike de uma pessoa só: sete colunas, quatro casas do ás ao rei, compra de uma em uma com o descarte voltando ao monte, coluna vazia só para rei, sequência que anda junto, carta que desvira sozinha e volta da casa para a coluna |
 
 ### A IA
 

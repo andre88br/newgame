@@ -12,6 +12,7 @@ import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.games.canastra.CanastraState
 import io.github.andre88br.newgame.core.games.dominoes.DominoesState
 import io.github.andre88br.newgame.core.games.hearts.HeartsState
+import io.github.andre88br.newgame.core.games.klondike.KlondikeState
 import io.github.andre88br.newgame.core.games.ludo.LudoState
 import io.github.andre88br.newgame.core.games.pife.PifeState
 
@@ -54,6 +55,9 @@ fun MoveSurface(
 
         gameId == GameId.PIFE && state is PifeState ->
             PifeSurface(state, viewer, names, enabled, hinted, modifier, onMove)
+
+        gameId == GameId.KLONDIKE && state is KlondikeState ->
+            KlondikeSurface(state, viewer, names, enabled, hinted, modifier, onMove)
 
         // Jogo sem tela: dizer isso é melhor do que mostrar uma área em branco.
         else -> Text(stringResource(R.string.board_no_surface, gameId.name))

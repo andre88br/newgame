@@ -16,6 +16,7 @@
     <string name="game_hearts">Hearts</string>
     <string name="game_canastra">Canastra</string>
     <string name="game_pife">Pife</string>
+    <string name="game_klondike">Solitaire</string>
     <string name="game_ludo">Ludo</string>
 
     <!-- Home -->
@@ -23,7 +24,8 @@
     <string name="home_history">History</string>
     <string name="home_settings">Settings</string>
     <string name="home_resume">Resume match</string>
-    <string name="home_players_two">2 players</string>
+    <string name="home_players_one">1 player</string>
+    <string name="home_players_exact">%1$d players</string>
     <string name="home_players_range">%1$d to %2$d players</string>
 
     <!-- Match setup -->
@@ -208,6 +210,8 @@
 
     <string name="rules_pife">Pife for two to four players. Two decks with one joker each, nine cards apiece, the rest becomes the stock and one card opens the discard pile.\n\nA turn has two beats: draw a card (from the stock or the top of the discard pile) and throw one away. The discard is what ends your turn.\n\nYou win by holding nine cards that close into three groups of three. A group is either three of the same rank or three in sequence in the same suit. A joker fits into either one, filling the gap — but a group of nothing but jokers does not count.\n\nThe ace is high, and only high: Q-K-A closes a run, A-2-3 does not.\n\nThe check happens after the discard, on the nine cards left: with ten in hand, closing three groups and having one over is the same thing as throwing that one away.\n\nWhat your opponent discards is information: the top of the pile is face up, and they can take yours too. When the stock runs out the discard pile is shuffled back in, minus the top card. If nobody closes after the deck has gone round three times, the hand is a draw.</string>
 
+    <string name="rules_klondike">Solitaire (Klondike), for one player. Twenty-eight cards in seven columns — one in the first, seven in the last —, the rest in the stock, and four foundations to fill.\n\nThe goal is to move all 52 cards to the foundations, one per suit, from ace to king.\n\nIn the columns cards run down: each one goes onto a card one rank higher and of the opposite colour. Here the ace is the lowest card of all — the king closes a column at the top and the ace at the bottom.\n\nAn empty column only takes a king. Tapping a card in the middle of a column picks it up along with everything above it: the run travels together.\n\nA face-down card that becomes exposed turns itself over. That is the game: turning cards over is the only thing that really opens it up.\n\nYou draw one card at a time, and the pile goes back to the stock as many times as you need, always in the same order.\n\nA card can come back down from a foundation — sometimes it is the only way to unstick the table.\n\nYou cannot lose. Either all 52 go up, or a moment comes when nothing else can move, and the app says so instead of leaving you hunting for a move that is not there.</string>
+
     <string name="rules_ludo">Ludo for two to four players, four tokens each. On a table of two the colours start from opposite corners.\n\nThe app rolls the die, not you: when your turn comes the value is already on screen, and the choice is which token moves.\n\nOnly a 6 brings a token out of the yard. Rolling a 6 also earns another turn.\n\nLanding on an opponent token sends it back to the yard — except on the marked squares, which are safe.\n\nComing home is exact: two squares short, a 5 is no good and the token stays put. You win by bringing all four tokens home.</string>
 
     <!-- Tables of more than two -->
@@ -291,6 +295,11 @@
     <string name="reason_canastra_black_three_only_out">A black three is only melded when going out</string>
     <string name="reason_pife_must_draw_first">Draw a card before discarding</string>
 
+    <string name="reason_klondike_stock_not_empty">There are still cards in the stock to draw</string>
+    <string name="reason_klondike_foundation_order">A foundation runs ace to king, all one suit</string>
+    <string name="reason_klondike_tableau_order">In a column a card goes one lower and changes colour</string>
+    <string name="reason_klondike_empty_pile_king_only">An empty column only takes a king</string>
+
     <!-- Canastra: screen -->
     <string name="canastra_you">You</string>
     <string name="canastra_them">Team %1$d</string>
@@ -323,4 +332,12 @@
     <string name="pife_draw_stock">Draw</string>
     <string name="pife_take_discard">Take the pile card</string>
     <string name="pife_discard">Discard</string>
+    <!-- Solitaire: screen -->
+    <string name="klondike_placed">On the foundations: %1$d of %2$d</string>
+    <string name="klondike_redeals">Times through the stock: %1$d</string>
+    <string name="klondike_pick_prompt">Tap a card to pick it up</string>
+    <string name="klondike_drop_prompt">Tap where it goes, or the same card to drop it</string>
+    <string name="klondike_wait">Hold on</string>
+    <string name="klondike_to_foundation">Send to the foundation</string>
+    <string name="board_stuck">No moves left</string>
 </resources>

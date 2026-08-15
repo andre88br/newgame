@@ -15,6 +15,8 @@ import io.github.andre88br.newgame.core.games.dominoes.DominoesGame
 import io.github.andre88br.newgame.core.games.hearts.HEARTS_SEATS
 import io.github.andre88br.newgame.core.games.hearts.HeartsAi
 import io.github.andre88br.newgame.core.games.hearts.HeartsGame
+import io.github.andre88br.newgame.core.games.klondike.KlondikeAi
+import io.github.andre88br.newgame.core.games.klondike.KlondikeGame
 import io.github.andre88br.newgame.core.games.pife.PifeAi
 import io.github.andre88br.newgame.core.games.pife.PifeGame
 import io.github.andre88br.newgame.core.games.ludo.LudoAi
@@ -124,6 +126,15 @@ object GameCatalog {
             nameKey = "game_pife",
             // Comprar e descartar são dois lances por vez: metade do compasso dos outros.
             aiPaceMillis = 500L,
+        ),
+        GameEntry(
+            rules = KlondikeGame.asAny(),
+            // Aqui a "IA" nunca joga: numa mesa de uma pessoa não há cadeira da máquina.
+            // Ela existe só para a dica, que é o mesmo botão dos outros jogos.
+            ai = KlondikeAi.asAnyAi(),
+            interactor = null,
+            nameKey = "game_klondike",
+            players = 1,
         ),
     )
 

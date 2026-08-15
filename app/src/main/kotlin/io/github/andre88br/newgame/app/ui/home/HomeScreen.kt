@@ -124,10 +124,12 @@ private fun GameCard(
             // alguém abrir o dominó procurando jogar com a família.
             val mesas = entry.rules.supportedSeats
             Text(
-                text = if (mesas.first == mesas.last) {
-                    stringResource(R.string.home_players_two)
-                } else {
-                    stringResource(R.string.home_players_range, mesas.first, mesas.last)
+                // Onde a mesa é fixa, o número sai do jogo em vez de ser dois por suposição:
+                // a copas é de quatro e a paciência é de uma pessoa só.
+                text = when {
+                    mesas.last == 1 -> stringResource(R.string.home_players_one)
+                    mesas.first == mesas.last -> stringResource(R.string.home_players_exact, mesas.first)
+                    else -> stringResource(R.string.home_players_range, mesas.first, mesas.last)
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

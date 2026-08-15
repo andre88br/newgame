@@ -307,6 +307,43 @@ class MatchSessionTest {
         assertEquals(0, (session.state as TicTacToeState).cells.count { it != -1 })
     }
 
+    /**
+     * A mesa de um, de ponta a ponta.
+     *
+     * Tudo aqui foi escrito supondo dois lados — de quem é a vez seguinte, quando a máquina
+     * pensa, até onde o desfazer volta. A paciência é a primeira mesa de uma cadeira só, e o
+     * que este teste cobre não é a paciência: é a sessão continuar inteira quando não há
+     * segundo lado nenhum.
+     */
+    @Test
+    fun `a mesa de uma cadeira joga, desfaz e recomeca`() {
+        val paciencia = GameCatalog.entry(GameId.KLONDIKE)
+        val session = MatchSession(
+            entry = paciencia,
+            config = MatchConfig(seed = 20, seats = 1),
+            players = mapOf(Seat.FIRST to Player.Human),
+        )
+
+        assertFalse(session.awaitingAi, "não há cadeira da máquina para esperar")
+        assertEquals(Seat.FIRST, session.turn)
+        assertNull(session.playAiTurn(), "ninguém joga pela máquina numa mesa de um")
+
+        val lance = paciencia.rules.legalMoves(session.state).first()
+        assertIs<PlayResult.Ok>(session.play(lance))
+        assertEquals(1, session.record.ply)
+        // A vez continua sendo da mesma pessoa: não há para quem passar.
+        assertEquals(Seat.FIRST, session.turn)
+
+        assertNotNull(session.hint(), "a dica funciona sem adversário")
+
+        assertTrue(session.undo(), "desfazer volta um lance, e não dois")
+        assertEquals(0, session.record.ply)
+
+        session.play(lance)
+        session.restart()
+        assertEquals(0, session.record.ply)
+    }
+
     @Test
     fun `sessao e registro de jogos diferentes nao se misturam`() {
         val alheio = io.github.andre88br.newgame.core.engine.MatchRecord(

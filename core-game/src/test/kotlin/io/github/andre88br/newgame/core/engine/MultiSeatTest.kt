@@ -78,10 +78,24 @@ class MultiSeatTest {
 
     @Test
     fun `mesa fora da faixa e recusada na configuracao`() {
-        for (seats in listOf(1, 5, 0, -1)) {
+        for (seats in listOf(5, 0, -1)) {
             val erro = runCatching { MatchConfig(seed = 1, seats = seats) }.exceptionOrNull()
             assertTrue(erro is IllegalArgumentException, "mesa de $seats devia ser recusada, veio $erro")
         }
+    }
+
+    /**
+     * Mesa de um é jogo de verdade — a paciência —, e mesa de nenhum não é.
+     *
+     * O limite de baixo passou de dois para um quando a paciência entrou, e este teste é o
+     * que impede a mudança de virar "qualquer número serve": zero continua recusado.
+     */
+    @Test
+    fun `mesa de um vale, mesa de nenhum nao`() {
+        MatchConfig(seed = 1, seats = 1)
+        assertTrue(
+            runCatching { MatchConfig(seed = 1, seats = 0) }.exceptionOrNull() is IllegalArgumentException,
+        )
     }
 
     // -------- dominó --------

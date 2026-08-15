@@ -11,6 +11,7 @@
     <string name="game_hearts">Copas</string>
     <string name="game_canastra">Canastra</string>
     <string name="game_pife">Pife</string>
+    <string name="game_klondike">Paciência</string>
     <string name="game_ludo">Ludo</string>
 
     <!-- Início -->
@@ -18,7 +19,8 @@
     <string name="home_history">Histórico</string>
     <string name="home_settings">Ajustes</string>
     <string name="home_resume">Continuar partida</string>
-    <string name="home_players_two">2 jogadores</string>
+    <string name="home_players_one">1 jogador</string>
+    <string name="home_players_exact">%1$d jogadores</string>
     <string name="home_players_range">%1$d a %2$d jogadores</string>
 
     <!-- Configuração da partida -->
@@ -206,6 +208,8 @@
 
     <string name="rules_pife">Pife de dois a quatro jogadores. Dois baralhos com um curinga cada, nove cartas para cada um, o resto vira monte e uma carta abre o lixo.\n\nA vez tem dois tempos: comprar uma carta (do monte ou a de cima do lixo) e jogar uma fora. É o descarte que passa a vez.\n\nGanha quem tiver as nove cartas fechadas em três grupos de três. Grupo é trinca (três do mesmo valor) ou sequência (três seguidas do mesmo naipe). O curinga entra em qualquer um dos dois, tapando o buraco — mas grupo só de curinga não vale.\n\nO ás é carta alta: Q-K-A fecha sequência, A-2-3 não.\n\nA conferência é feita depois do descarte, sobre as nove que ficaram: com dez na mão, fechar três grupos e sobrar uma é a mesma coisa que jogar fora a que sobra.\n\nO que o adversário descarta é informação: a carta de cima do lixo fica à vista, e ele também pode pegar a sua. Quando o monte acaba, o lixo volta embaralhado, menos a carta de cima. Se ninguém fechar depois de o baralho passar três vezes, a mão termina empatada.</string>
 
+    <string name="rules_klondike">Paciência (klondike), de uma pessoa só. Vinte e oito cartas em sete colunas — a primeira com uma, a última com sete —, o resto no monte, e quatro casas para encher.\n\nO objetivo é levar as 52 cartas para as casas, uma casa por naipe, do ás ao rei.\n\nNas colunas as cartas descem: cada uma entra sobre uma um ponto maior e de cor trocada. Aqui o ás é a menor de todas — o rei fecha a coluna por cima e o ás por baixo.\n\nColuna vazia só recebe rei. Tocar numa carta do meio de uma coluna pega ela e tudo o que está por cima: a sequência anda junto.\n\nCarta virada para baixo que fica exposta desvira sozinha. É esse o jogo: desvirar carta é a única coisa que abre caminho de verdade.\n\nCompra-se de uma em uma, e o descarte volta ao monte quantas vezes for preciso, sempre na mesma ordem.\n\nDa casa a carta pode voltar para a coluna — às vezes é o único jeito de destravar a mesa.\n\nNão há como perder. Ou as 52 sobem, ou chega o momento em que nada mais se move, e aí o app avisa em vez de deixar você procurando um lance que não existe.</string>
+
     <string name="rules_ludo">Ludo de dois a quatro jogadores, com quatro peões cada. Na mesa de dois, as duas cores saem de cantos opostos.\n\nO dado é rolado pelo app, não por você: quando chega a sua vez, o valor já está na tela e a escolha é qual peão anda.\n\nSó um 6 tira peão do curral. Tirar 6 também dá direito a jogar de novo.\n\nCair na casa de um peão adversário manda ele de volta para o curral — menos nas casas marcadas, que são seguras.\n\nA chegada é exata: faltando duas casas, um dado 5 não serve e o peão fica onde está. Vence quem levar os quatro peões à chegada.</string>
 
     <!-- Mesa de mais de dois -->
@@ -289,6 +293,11 @@
     <string name="reason_canastra_black_three_only_out">O três preto só é baixado na hora de bater</string>
     <string name="reason_pife_must_draw_first">Compre uma carta antes de descartar</string>
 
+    <string name="reason_klondike_stock_not_empty">Ainda há carta no monte para comprar</string>
+    <string name="reason_klondike_foundation_order">A casa sobe do ás ao rei, no mesmo naipe</string>
+    <string name="reason_klondike_tableau_order">Na coluna a carta desce uma e troca de cor</string>
+    <string name="reason_klondike_empty_pile_king_only">Coluna vazia só recebe rei</string>
+
     <!-- Canastra: tela -->
     <string name="canastra_you">Você</string>
     <string name="canastra_them">Dupla %1$d</string>
@@ -321,4 +330,12 @@
     <string name="pife_draw_stock">Comprar</string>
     <string name="pife_take_discard">Pegar do lixo</string>
     <string name="pife_discard">Descartar</string>
+    <!-- Paciência: tela -->
+    <string name="klondike_placed">Nas casas: %1$d de %2$d</string>
+    <string name="klondike_redeals">Voltas do monte: %1$d</string>
+    <string name="klondike_pick_prompt">Toque numa carta para pegá-la</string>
+    <string name="klondike_drop_prompt">Toque no destino, ou na mesma carta para soltar</string>
+    <string name="klondike_wait">Aguarde</string>
+    <string name="klondike_to_foundation">Mandar para a casa</string>
+    <string name="board_stuck">A mesa empacou</string>
 </resources>

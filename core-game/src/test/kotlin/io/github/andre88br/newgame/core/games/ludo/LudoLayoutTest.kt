@@ -14,8 +14,8 @@ import kotlin.test.assertTrue
  */
 class LudoLayoutTest {
 
-    /** As mesas possíveis: de dois a quatro. */
-    private val mesas = MatchConfig.MIN_SEATS..LUDO_ARMS
+    /** As mesas possíveis: as que o próprio ludo aceita, de dois a quatro. */
+    private val mesas = LudoGame.supportedSeats
 
     private fun cadeiras(seats: Int) = (0 until seats).map { Seat(it) }
 

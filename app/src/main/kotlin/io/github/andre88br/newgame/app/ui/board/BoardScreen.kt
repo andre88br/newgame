@@ -41,6 +41,7 @@ import io.github.andre88br.newgame.app.ui.board.surfaces.MoveSurface
 import io.github.andre88br.newgame.app.ui.gameName
 import io.github.andre88br.newgame.app.ui.reasonText
 import io.github.andre88br.newgame.app.ui.rules.HowToPlayDialog
+import io.github.andre88br.newgame.core.engine.GameCatalog
 import io.github.andre88br.newgame.core.engine.GameEntry
 import io.github.andre88br.newgame.core.engine.GameId
 import io.github.andre88br.newgame.core.engine.Outcome
@@ -253,10 +254,18 @@ private fun statusText(ui: BoardUiState, gameId: GameId): String = when (val sta
     }
 
     is BoardStatus.Finished -> when (val outcome = status.outcome) {
-        is Outcome.Draw -> stringResource(R.string.board_draw)
+        // Na paciência não há com quem empatar: o empate do motor quer dizer que a mesa
+        // empacou, e chamar aquilo de "empate" seria dizer a coisa errada.
+        is Outcome.Draw ->
+            if (soloGame(gameId)) stringResource(R.string.board_stuck) else stringResource(R.string.board_draw)
+
         is Outcome.Win -> {
             val name = ui.seatLabel(gameId, outcome.seat)
             when {
+                // Mesa de um: quem venceu foi quem está segurando o aparelho, e não há
+                // segunda leitura possível.
+                soloGame(gameId) -> stringResource(R.string.board_you_won)
+
                 // Ganhar continua sendo "você venceu": trocar por "André venceu" tiraria a
                 // única frase do app que fala com quem está segurando o aparelho.
                 ui.againstPhone && outcome.seat == ui.humanSeat ->
@@ -292,12 +301,23 @@ private fun BoardUiState.seatLabel(gameId: GameId, seat: Seat): String? {
 }
 
 /**
+ * Jogo de uma pessoa só.
+ *
+ * Sai do motor, e não de uma lista escrita aqui: quem declara o tamanho da mesa é o jogo, e
+ * um solitário novo entra sem esta tela precisar saber que ele existe.
+ */
+private fun soloGame(gameId: GameId): Boolean =
+    GameCatalog.entry(gameId).rules.supportedSeats.last == 1
+
+/**
  * "Brancas" e "pretas" só dizem alguma coisa onde as peças têm cor. No dominó as duas mãos
  * são iguais, no ludo o que distingue é o canto do tabuleiro, e na copas são quatro pessoas
  * com cartas — então nesses os lados são jogador 1, 2, 3 e 4.
  */
 private fun coloredPieces(gameId: GameId): Boolean = when (gameId) {
-    GameId.DOMINOES, GameId.LUDO, GameId.HEARTS, GameId.CANASTRA, GameId.PIFE -> false
+    GameId.DOMINOES, GameId.LUDO, GameId.HEARTS, GameId.CANASTRA, GameId.PIFE,
+    GameId.KLONDIKE,
+    -> false
     else -> true
 }
 

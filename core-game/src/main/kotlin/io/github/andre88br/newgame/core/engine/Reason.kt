@@ -137,6 +137,13 @@ enum class ReasonKey(
     // -------- pife --------
 
     PIFE_MUST_DRAW_FIRST("Compre uma carta antes de descartar"),
+
+    // -------- paciência --------
+
+    KLONDIKE_STOCK_NOT_EMPTY("Ainda há carta no monte para comprar"),
+    KLONDIKE_FOUNDATION_ORDER("A casa sobe do ás ao rei, no mesmo naipe"),
+    KLONDIKE_TABLEAU_ORDER("Na coluna a carta desce uma e troca de cor"),
+    KLONDIKE_EMPTY_PILE_KING_ONLY("Coluna vazia só recebe rei"),
     ;
 
     /** `reason_game_over`, e assim por diante. */

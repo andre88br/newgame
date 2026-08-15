@@ -15,6 +15,7 @@ enum class GameId {
     HEARTS,
     CANASTRA,
     PIFE,
+    KLONDIKE,
 }
 
 /**
@@ -140,7 +141,18 @@ data class MatchConfig(
     fun option(key: String): String? = options[key]
 
     companion object {
-        const val MIN_SEATS: Int = 2
+        /**
+         * Uma cadeira, e não duas.
+         *
+         * Foi dois durante todo o projeto, e a mudança tem um motivo só: a paciência. Ela é
+         * jogo de verdade e é de uma pessoa — quem joga não tem adversário, tem o baralho.
+         * Barrar a mesa de um aqui obrigaria a paciência a fingir um segundo jogador que
+         * nunca joga, e essa mentira apareceria em tudo: na vez que nunca passa, no
+         * "pensando" que nunca termina, no placar de dois lados.
+         *
+         * Zero continua recusado: mesa sem ninguém não é jogo.
+         */
+        const val MIN_SEATS: Int = 1
         const val MAX_SEATS: Int = 4
 
         /** Configuração sem aleatoriedade relevante — útil para jogos determinísticos e testes. */

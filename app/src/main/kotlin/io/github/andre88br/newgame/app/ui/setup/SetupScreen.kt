@@ -100,6 +100,17 @@ fun SetupScreen(
     var showingRules by remember { mutableStateOf(false) }
 
     val mesasPossiveis = entry.rules.supportedSeats.toList()
+
+    /**
+     * Jogo de uma pessoa só — hoje, a paciência.
+     *
+     * Sai do próprio jogo, e não de uma lista de exceções aqui: quem declara a mesa é o
+     * motor, e um jogo solitário novo entra sem tocar nesta tela. Quase tudo que esta tela
+     * pergunta pressupõe um segundo lado — contra quem, em que nível, quem começa —, e numa
+     * mesa de um não há pergunta nenhuma dessas para fazer.
+     */
+    val solitario = entry.rules.supportedSeats.last == 1
+    val modoEfetivo = if (solitario) MatchMode.PASS_AND_PLAY else mode
     var seats by remember(entry.id) { mutableStateOf(mesasPossiveis.first()) }
 
     // Some quando o número de cadeiras muda: uma cadeira escolhida numa mesa de quatro pode
@@ -129,7 +140,7 @@ fun SetupScreen(
 
     // Os nomes finais das cadeiras: o que foi digitado, ou o padrão; e nas cadeiras da
     // máquina, um nome sorteado que não colida com o de quem está jogando.
-    val nomesDaMaquina = if (mode == MatchMode.AGAINST_PHONE) {
+    val nomesDaMaquina = if (modoEfetivo == MatchMode.AGAINST_PHONE) {
         BotNames.pick(
             count = seats - 1,
             seed = sementeDosNomes,
@@ -142,15 +153,15 @@ fun SetupScreen(
     val nomes = buildList {
         var proximoDaMaquina = 0
         for (index in 0 until seats) {
-            val ehPessoa = mode == MatchMode.PASS_AND_PLAY || index == humanSeat.index
+            val ehPessoa = modoEfetivo == MatchMode.PASS_AND_PLAY || index == humanSeat.index
             val digitado = BotNames.sanitize(digitados.getOrElse(index) { "" })
             add(
                 when {
                     !ehPessoa -> nomesDaMaquina.getOrElse(proximoDaMaquina++) { nomesPadrao[index] }
                     digitado.isNotBlank() -> digitado
-                    // Contra o celular, quem joga é "Você"; numa mesa de gente, todo mundo
-                    // precisa de um nome que distinga um do outro.
-                    mode == MatchMode.AGAINST_PHONE -> nomePadrao
+                    // Contra o celular — e sozinho na paciência — quem joga é "Você"; numa
+                    // mesa de gente, todo mundo precisa de um nome que distinga um do outro.
+                    modoEfetivo == MatchMode.AGAINST_PHONE || solitario -> nomePadrao
                     else -> nomesPadrao[index]
                 },
             )
@@ -196,23 +207,26 @@ fun SetupScreen(
                 )
             }
 
-            ChoiceRow(
-                label = stringResource(R.string.setup_mode),
-                options = MatchMode.entries.toList(),
-                selected = mode,
-                optionLabel = {
-                    stringResource(
-                        when (it) {
-                            MatchMode.AGAINST_PHONE -> R.string.setup_mode_ai
-                            MatchMode.PASS_AND_PLAY -> R.string.setup_mode_local
-                        },
-                    )
-                },
-                onSelect = { mode = it },
-            )
+            // Numa mesa de um não há contra quem jogar, e a escolha some inteira.
+            if (!solitario) {
+                ChoiceRow(
+                    label = stringResource(R.string.setup_mode),
+                    options = MatchMode.entries.toList(),
+                    selected = mode,
+                    optionLabel = {
+                        stringResource(
+                            when (it) {
+                                MatchMode.AGAINST_PHONE -> R.string.setup_mode_ai
+                                MatchMode.PASS_AND_PLAY -> R.string.setup_mode_local
+                            },
+                        )
+                    },
+                    onSelect = { mode = it },
+                )
+            }
 
             // Nível e quem começa só fazem sentido contra o celular.
-            if (mode == MatchMode.AGAINST_PHONE) {
+            if (modoEfetivo == MatchMode.AGAINST_PHONE) {
                 if (seats > 2) {
                     Text(
                         text = stringResource(R.string.setup_many_opponents, seats - 1),
@@ -261,7 +275,8 @@ fun SetupScreen(
             }
 
             PlayerNames(
-                mode = mode,
+                mode = modoEfetivo,
+                solo = solitario,
                 seats = seats,
                 humanSeat = humanSeat,
                 typed = digitados,
@@ -294,14 +309,14 @@ fun SetupScreen(
                 onClick = {
                     onStart(
                         MatchSetup(
-                            mode = mode,
+                            mode = modoEfetivo,
                             difficulty = difficulty,
                             humanSeat = humanSeat,
                             seats = seats,
                             ludoFirstArm = ludoColor,
                             names = nomes,
                             typedOwnName = BotNames.sanitize(
-                                if (mode == MatchMode.AGAINST_PHONE) {
+                                if (modoEfetivo == MatchMode.AGAINST_PHONE) {
                                     meuNome
                                 } else {
                                     digitados.getOrElse(0) { "" }
@@ -332,6 +347,8 @@ fun SetupScreen(
 @Composable
 private fun PlayerNames(
     mode: MatchMode,
+    /** Mesa de um: um campo só, e nenhum adversário para batizar. */
+    solo: Boolean,
     seats: Int,
     humanSeat: Seat,
     typed: List<String>,
@@ -350,7 +367,7 @@ private fun PlayerNames(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        if (mode == MatchMode.AGAINST_PHONE) {
+        if (solo || mode == MatchMode.AGAINST_PHONE) {
             NameField(
                 label = stringResource(R.string.setup_your_name),
                 placeholder = stringResource(R.string.setup_name_placeholder),
@@ -361,19 +378,23 @@ private fun PlayerNames(
             // Os adversários da máquina, com o nome que o sorteio deu. É texto, e não campo:
             // batizar o adversário à mão tiraria a graça de encontrar um nome novo a cada
             // partida, e ninguém pediu para escolher o nome de quem joga contra.
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    text = stringResource(R.string.setup_phone_names) + ": " +
-                        machineNames.joinToString(", "),
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = onShuffle) {
-                    Text(stringResource(R.string.setup_shuffle_names))
+            //
+            // Na paciência não há adversário para nomear, e a fileira some junto.
+            if (!solo) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = stringResource(R.string.setup_phone_names) + ": " +
+                            machineNames.joinToString(", "),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = onShuffle) {
+                        Text(stringResource(R.string.setup_shuffle_names))
+                    }
                 }
             }
         } else {
