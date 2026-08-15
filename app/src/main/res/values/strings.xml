@@ -219,6 +219,7 @@
     <string name="setup_players_count">%1$d</string>
     <string name="setup_many_opponents">O celular joga com os outros %1$d jogadores.</string>
     <string name="dominoes_opponent_seat">Jogador %1$d</string>
+    <string name="player_you">Você</string>
 
     <!-- Dado do ludo -->
     <string name="ludo_roll">Rolar dado</string>
@@ -273,7 +274,6 @@
     <string name="suit_spades">espadas</string>
 
     <!-- Copas: tela -->
-    <string name="hearts_you">Você</string>
     <string name="hearts_score">%1$d pts (+%2$d)</string>
     <string name="hearts_table_empty">Puxe a vaza</string>
     <string name="hearts_table_passing">Escolhendo as cartas do passe</string>
@@ -309,8 +309,7 @@
     <string name="reason_truco_at_the_top">Doze é o máximo: não há como aumentar</string>
 
     <!-- Canastra: tela -->
-    <string name="canastra_you">Você</string>
-    <string name="canastra_them">Dupla %1$d</string>
+    <string name="canastra_team_names">%1$s e %2$s</string>
     <string name="canastra_team_line">%1$s — %2$d pts · %3$d canastra(s) · %4$d três vermelho(s)</string>
     <string name="canastra_stock">Monte: %1$d</string>
     <string name="canastra_pile">Lixo: %1$d</string>
@@ -318,7 +317,7 @@
     <string name="canastra_morto_on_table">Morto na mesa</string>
     <string name="canastra_morto_taken">Morto já pego</string>
     <string name="canastra_your_melds">Seus jogos</string>
-    <string name="canastra_their_melds">Jogos da dupla %1$d</string>
+    <string name="canastra_their_melds">Jogos de %1$s</string>
     <string name="canastra_no_melds">Nenhum jogo ainda</string>
     <string name="canastra_meld_size">%1$d cartas</string>
     <string name="canastra_clean">canastra limpa (%1$d)</string>
@@ -353,7 +352,6 @@
     <!-- Truco -->
     <string name="truco_score_line">Seu lado %1$d × %2$d outro lado</string>
     <string name="truco_stake">Valendo %1$d</string>
-    <string name="truco_you">Você</string>
     <string name="truco_table_empty">Ninguém jogou ainda nesta rodada</string>
     <string name="truco_wait">Vez do adversário</string>
     <string name="truco_play_prompt">Toque numa carta para jogar</string>

@@ -272,12 +272,7 @@ private fun TableArea(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CardFace(card = jogada.card, palette = palette)
                     Text(
-                        text = if (jogada.seat == viewer.index) {
-                            stringResource(R.string.truco_you)
-                        } else {
-                            names.getOrNull(jogada.seat)?.takeIf { it.isNotBlank() }
-                                ?: stringResource(R.string.dominoes_opponent_seat, jogada.seat + 1)
-                        },
+                        text = seatLabel(jogada.seat, viewer, names),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

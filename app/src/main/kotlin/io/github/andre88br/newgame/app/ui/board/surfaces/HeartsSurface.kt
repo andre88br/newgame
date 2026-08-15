@@ -161,12 +161,7 @@ private fun Scoreboard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    text = if (seat == viewer) {
-                        stringResource(R.string.hearts_you)
-                    } else {
-                        names.getOrNull(index)?.takeIf { it.isNotBlank() }
-                            ?: stringResource(R.string.dominoes_opponent_seat, index + 1)
-                    },
+                    text = seatLabel(index, viewer, names),
                     style = MaterialTheme.typography.labelMedium,
                     color = if (seat == state.turn) {
                         MaterialTheme.colorScheme.primary

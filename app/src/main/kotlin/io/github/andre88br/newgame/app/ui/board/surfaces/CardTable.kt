@@ -30,6 +30,24 @@ private val OPPONENT_CARD_HEIGHT = 46.dp
 private val OPPONENT_FAN_STEP = 9.dp
 
 /**
+ * O nome de uma cadeira, para quem quer que olhe.
+ *
+ * A própria cadeira já chega com o nome que a pessoa digitou (o campo "Seu nome" da
+ * configuração escreve exatamente no índice dela) — só cai no "Você"/"Jogador N" genérico
+ * numa partida salva de antes de os nomes existirem. É por isso que a mesma função serve
+ * para o viewer e para os adversários: a diferença de tratamento está só no texto de
+ * reserva, não na fonte da informação.
+ */
+@Composable
+fun seatLabel(index: Int, viewer: Seat, names: List<String>): String =
+    names.getOrNull(index)?.takeIf { it.isNotBlank() }
+        ?: if (index == viewer.index) {
+            stringResource(R.string.player_you)
+        } else {
+            stringResource(R.string.dominoes_opponent_seat, index + 1)
+        }
+
+/**
  * A mesa com os adversários sentados ao redor, e o que estiver em jogo no meio — o monte, a
  * vaza, as cartas da rodada.
  *
@@ -54,11 +72,6 @@ fun CardTable(
     modifier: Modifier = Modifier,
     center: @Composable () -> Unit,
 ) {
-    @Composable
-    fun nomeDe(seat: Seat): String =
-        names.getOrNull(seat.index)?.takeIf { it.isNotBlank() }
-            ?: stringResource(R.string.dominoes_opponent_seat, seat.index + 1)
-
     // A cadeira seguinte à sua, depois a de duas adiante, depois a de três — na ordem em que
     // se dá a volta na mesa a partir de quem olha.
     val outras = (1 until seats).map { offset -> Seat((viewer.index + offset) % seats) }
@@ -71,19 +84,19 @@ fun CardTable(
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         if (cima != null) {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                OpponentHand(count = handSize(cima), name = nomeDe(cima), palette = palette)
+                OpponentHand(count = handSize(cima), name = seatLabel(cima.index, viewer, names), palette = palette)
             }
             Spacer(modifier = Modifier.height(6.dp))
         }
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (esquerda != null) {
-                OpponentHand(count = handSize(esquerda), name = nomeDe(esquerda), palette = palette)
+                OpponentHand(count = handSize(esquerda), name = seatLabel(esquerda.index, viewer, names), palette = palette)
                 Spacer(modifier = Modifier.width(6.dp))
             }
             Box(modifier = Modifier.weight(1f)) { center() }
             if (direita != null) {
                 Spacer(modifier = Modifier.width(6.dp))
-                OpponentHand(count = handSize(direita), name = nomeDe(direita), palette = palette)
+                OpponentHand(count = handSize(direita), name = seatLabel(direita.index, viewer, names), palette = palette)
             }
         }
     }

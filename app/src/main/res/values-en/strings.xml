@@ -221,6 +221,7 @@
     <string name="setup_players_count">%1$d</string>
     <string name="setup_many_opponents">The phone plays the other %1$d players.</string>
     <string name="dominoes_opponent_seat">Player %1$d</string>
+    <string name="player_you">You</string>
 
     <!-- Ludo die -->
     <string name="ludo_roll">Roll the die</string>
@@ -275,7 +276,6 @@
     <string name="suit_spades">spades</string>
 
     <!-- Hearts: screen -->
-    <string name="hearts_you">You</string>
     <string name="hearts_score">%1$d pts (+%2$d)</string>
     <string name="hearts_table_empty">Lead the trick</string>
     <string name="hearts_table_passing">Choosing the cards to pass</string>
@@ -311,8 +311,7 @@
     <string name="reason_truco_at_the_top">Twelve is the ceiling: there is no raise left</string>
 
     <!-- Canastra: screen -->
-    <string name="canastra_you">You</string>
-    <string name="canastra_them">Team %1$d</string>
+    <string name="canastra_team_names">%1$s and %2$s</string>
     <string name="canastra_team_line">%1$s — %2$d pts · %3$d canasta(s) · %4$d red three(s)</string>
     <string name="canastra_stock">Stock: %1$d</string>
     <string name="canastra_pile">Pile: %1$d</string>
@@ -320,7 +319,7 @@
     <string name="canastra_morto_on_table">Dead hand on the table</string>
     <string name="canastra_morto_taken">Dead hand already taken</string>
     <string name="canastra_your_melds">Your melds</string>
-    <string name="canastra_their_melds">Team %1$d melds</string>
+    <string name="canastra_their_melds">%1$s\'s melds</string>
     <string name="canastra_no_melds">No melds yet</string>
     <string name="canastra_meld_size">%1$d cards</string>
     <string name="canastra_clean">clean canasta (%1$d)</string>
@@ -355,7 +354,6 @@
     <!-- Truco -->
     <string name="truco_score_line">Your side %1$d × %2$d other side</string>
     <string name="truco_stake">Worth %1$d</string>
-    <string name="truco_you">You</string>
     <string name="truco_table_empty">Nobody has played this round yet</string>
     <string name="truco_wait">Opponent\'s turn</string>
     <string name="truco_play_prompt">Tap a card to play it</string>

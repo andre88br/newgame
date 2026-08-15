@@ -84,7 +84,7 @@ fun CanastraSurface(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Scoreboard(state = state, viewer = viewer)
+        Scoreboard(state = state, viewer = viewer, names = names)
 
         // Os adversários sentados ao redor, com o monte, o lixo e o morto no meio.
         CardTable(
@@ -127,7 +127,7 @@ fun CanastraSurface(
         for (time in 0 until state.teams) {
             if (time == meuTime) continue
             MeldRow(
-                title = stringResource(R.string.canastra_their_melds, time + 1),
+                title = stringResource(R.string.canastra_their_melds, teamLabel(state, time, viewer, names)),
                 melds = state.melds.getOrElse(time) { emptyList() },
                 palette = palette,
                 onMeldClick = null,
@@ -182,7 +182,7 @@ fun CanastraSurface(
  * precisa saber as duas coisas para decidir se corre para bater ou se segura.
  */
 @Composable
-private fun Scoreboard(state: CanastraState, viewer: Seat) {
+private fun Scoreboard(state: CanastraState, viewer: Seat, names: List<String>) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(3.dp),
@@ -193,7 +193,7 @@ private fun Scoreboard(state: CanastraState, viewer: Seat) {
             Text(
                 text = stringResource(
                     R.string.canastra_team_line,
-                    if (meu) stringResource(R.string.canastra_you) else stringResource(R.string.canastra_them, time + 1),
+                    teamLabel(state, time, viewer, names),
                     state.scores.getOrElse(time) { 0 },
                     canastras,
                     state.redThrees.getOrElse(time) { 0 },
@@ -203,6 +203,18 @@ private fun Scoreboard(state: CanastraState, viewer: Seat) {
             )
         }
     }
+}
+
+/**
+ * O nome de um time: o nome da pessoa, para time de uma cadeira só (a mesa de 2 e a de 3
+ * nunca têm dupla de verdade); "Fulano e Sicrano", para o time de duas cadeiras que só existe
+ * na mesa de 4. Nunca "Dupla N" — esse número não significa nada para quem está jogando.
+ */
+@Composable
+private fun teamLabel(state: CanastraState, time: Int, viewer: Seat, names: List<String>): String {
+    val cadeiras = (0 until state.seats).filter { state.teamOf(Seat(it)) == time }
+    val nomes = cadeiras.map { seatLabel(it, viewer, names) }
+    return if (nomes.size == 2) stringResource(R.string.canastra_team_names, nomes[0], nomes[1]) else nomes.first()
 }
 
 /** Monte, lixo e mortos — de onde as cartas vêm e para onde elas vão. */
