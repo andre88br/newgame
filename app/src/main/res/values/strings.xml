@@ -8,6 +8,7 @@
     <string name="game_reversi">Reversi</string>
     <string name="game_chess">Xadrez</string>
     <string name="game_dominoes">Dominó</string>
+    <string name="game_hearts">Copas</string>
     <string name="game_ludo">Ludo</string>
 
     <!-- Início -->
@@ -197,6 +198,8 @@
 
     <string name="rules_dominoes">Dominó de bater, com as 28 peças, de dois a quatro jogadores. Cada um recebe sete e o resto fica no monte — a quatro as peças acabam na distribuição e não sobra monte.\n\nAbre quem tiver a maior carroça; se ninguém tiver, quem tiver a peça mais alta.\n\nNa sua vez, toque numa peça da mão para encostá-la numa das pontas da mesa. Se ela servir nas duas, o app pergunta em qual. Sem peça que sirva, você compra do monte automaticamente até conseguir; com o monte vazio, passa a vez.\n\nVence quem ficar sem peça na mão. Se a mesa der a volta inteira só com passes, o jogo fecha e ganha quem tiver menos pontos na mão.\n\nA mão do adversário fica escondida, inclusive da máquina: o que aparece é só quantas peças ele tem.</string>
 
+    <string name="rules_hearts">Copas, de quatro jogadores, com as 52 cartas. Ganhar vaza aqui é ruim: cada copas vale 1 ponto e a dama de espadas vale 13. A partida acaba quando alguém chega a 100, e vence quem tiver MENOS pontos.\n\nAntes de cada mão, cada um passa três cartas: para a esquerda, para a direita, para quem está à frente, e a quarta mão sem passe — depois o rodízio recomeça.\n\nAbre a mão quem tem o 2 de paus, e abre com ele. É obrigatório servir o naipe pedido; sem ele, vale qualquer carta. Na primeira vaza ninguém descarta ponto.\n\nCopas só pode ser puxada depois de já ter saído em alguma vaza — ou quando é a única coisa que resta na mão.\n\nLeva a vaza a carta mais alta do naipe pedido, e com ela os pontos que estiverem na mesa.\n\nCorrer todas: quem fizer os 26 pontos de uma mão não leva nenhum, e os outros três levam 26 cada.</string>
+
     <string name="rules_ludo">Ludo de dois a quatro jogadores, com quatro peões cada. Na mesa de dois, as duas cores saem de cantos opostos.\n\nO dado é rolado pelo app, não por você: quando chega a sua vez, o valor já está na tela e a escolha é qual peão anda.\n\nSó um 6 tira peão do curral. Tirar 6 também dá direito a jogar de novo.\n\nCair na casa de um peão adversário manda ele de volta para o curral — menos nas casas marcadas, que são seguras.\n\nA chegada é exata: faltando duas casas, um dado 5 não serve e o peão fica onde está. Vence quem levar os quatro peões à chegada.</string>
 
     <!-- Mesa de mais de dois -->
@@ -232,4 +235,11 @@
     <string name="board_side_second">pretas</string>
     <string name="board_name_with_side">%1$s (%2$s)</string>
     <string name="history_versus">%1$s vs %2$s</string>
+
+    <!-- Copas -->
+    <string name="reason_hearts_not_in_hand">Você não tem essa carta</string>
+    <string name="reason_hearts_must_follow_suit">É preciso servir o naipe pedido</string>
+    <string name="reason_hearts_not_broken">Copas ainda não saiu: não dá para puxar copas</string>
+    <string name="reason_hearts_must_lead_two">Quem tem o 2 de paus abre a mão com ele</string>
+    <string name="reason_hearts_no_points_first_trick">Na primeira vaza não se descarta ponto</string>
 </resources>

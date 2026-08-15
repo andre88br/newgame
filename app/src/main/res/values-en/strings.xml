@@ -13,6 +13,7 @@
     <string name="game_reversi">Reversi</string>
     <string name="game_chess">Chess</string>
     <string name="game_dominoes">Dominoes</string>
+    <string name="game_hearts">Hearts</string>
     <string name="game_ludo">Ludo</string>
 
     <!-- Home -->
@@ -199,6 +200,8 @@
 
     <string name="rules_dominoes">Block dominoes with the full set of 28, for two to four players. Each player gets seven and the rest go to the boneyard — with four players the tiles run out on the deal and there is no boneyard.\n\nWhoever holds the highest double opens; if neither has one, the highest tile opens.\n\nOn your turn, tap a tile in your hand to lay it against one end of the line. If it fits both ends, the app asks which. With nothing that fits you draw from the boneyard automatically until you can play; with the boneyard empty you pass.\n\nYou win by playing your last tile. If the table goes all the way round on passes alone the game is blocked, and whoever holds fewer pips wins.\n\nYour opponent\'s hand stays hidden — from the phone too: all you see is how many tiles they hold.</string>
 
+    <string name="rules_hearts">Hearts, four players, full 52-card deck. Winning tricks is bad here: every heart is worth 1 point and the queen of spades is worth 13. The match ends when somebody reaches 100, and whoever has the FEWEST points wins.\n\nBefore each hand everyone passes three cards: to the left, to the right, across, and then a fourth hand with no passing — after which the rotation starts over.\n\nWhoever holds the 2 of clubs leads, and leads with it. You must follow the suit that was led; without it, anything goes. No penalty cards on the first trick.\n\nHearts may only be led once they have already appeared in a trick — or when they are all you have left.\n\nThe highest card of the suit led takes the trick, along with any points on the table.\n\nShooting the moon: take all 26 points in a hand and you score none, while the other three score 26 each.</string>
+
     <string name="rules_ludo">Ludo for two to four players, four tokens each. On a table of two the colours start from opposite corners.\n\nThe app rolls the die, not you: when your turn comes the value is already on screen, and the choice is which token moves.\n\nOnly a 6 brings a token out of the yard. Rolling a 6 also earns another turn.\n\nLanding on an opponent token sends it back to the yard — except on the marked squares, which are safe.\n\nComing home is exact: two squares short, a 5 is no good and the token stays put. You win by bringing all four tokens home.</string>
 
     <!-- Tables of more than two -->
@@ -234,4 +237,11 @@
     <string name="board_side_second">black</string>
     <string name="board_name_with_side">%1$s (%2$s)</string>
     <string name="history_versus">%1$s vs %2$s</string>
+
+    <!-- Copas -->
+    <string name="reason_hearts_not_in_hand">You do not hold that card</string>
+    <string name="reason_hearts_must_follow_suit">You must follow the suit that was led</string>
+    <string name="reason_hearts_not_broken">Hearts have not been broken yet</string>
+    <string name="reason_hearts_must_lead_two">Whoever holds the 2 of clubs leads with it</string>
+    <string name="reason_hearts_no_points_first_trick">No penalty cards on the first trick</string>
 </resources>

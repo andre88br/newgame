@@ -10,6 +10,9 @@ import io.github.andre88br.newgame.core.games.chess.ChessGame
 import io.github.andre88br.newgame.core.games.chess.ChessInteractor
 import io.github.andre88br.newgame.core.games.dominoes.DominoesAi
 import io.github.andre88br.newgame.core.games.dominoes.DominoesGame
+import io.github.andre88br.newgame.core.games.hearts.HEARTS_SEATS
+import io.github.andre88br.newgame.core.games.hearts.HeartsAi
+import io.github.andre88br.newgame.core.games.hearts.HeartsGame
 import io.github.andre88br.newgame.core.games.ludo.LudoAi
 import io.github.andre88br.newgame.core.games.ludo.LudoGame
 import io.github.andre88br.newgame.core.games.reversi.ReversiAi
@@ -81,6 +84,14 @@ object GameCatalog {
             ai = LudoAi.asAnyAi(),
             interactor = null,
             nameKey = "game_ludo",
+        ),
+        GameEntry(
+            rules = HeartsGame.asAny(),
+            ai = HeartsAi.asAnyAi(),
+            // Jogo de carta: a mão é a interface, e a tela do jogo monta o lance.
+            interactor = null,
+            nameKey = "game_hearts",
+            players = HEARTS_SEATS,
         ),
     )
 

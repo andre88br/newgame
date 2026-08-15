@@ -12,6 +12,7 @@ enum class GameId {
     REVERSI,
     DOMINOES,
     LUDO,
+    HEARTS,
 }
 
 /**

@@ -143,8 +143,9 @@ object BoardSpeech {
             GameId.CHECKERS -> checkers(state as CheckersState, square)
             GameId.REVERSI -> reversi(state as ReversiState, square)
             GameId.CHESS -> chess(state as ChessState, square)
-            // Dominó e ludo não têm casas de grade: veja [tile] e [token].
-            GameId.DOMINOES, GameId.LUDO -> null
+            // Dominó, ludo e os jogos de carta não têm casas de grade: veja [tile], [token]
+            // e, nas cartas, a descrição que a própria tela monta a partir da mão.
+            GameId.DOMINOES, GameId.LUDO, GameId.HEARTS -> null
         }
 
     // -------- jogos de grade --------

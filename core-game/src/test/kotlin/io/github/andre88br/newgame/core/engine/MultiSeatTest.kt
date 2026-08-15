@@ -27,15 +27,30 @@ class MultiSeatTest {
 
     private fun jogosComMesaGrande() = GameCatalog.available.filter { it.rules.supportedSeats.last > 2 }
 
+    /**
+     * Quais jogos vão além de dois — e quais **escolhem** o tamanho da mesa.
+     *
+     * São coisas diferentes, e a copas mostra por quê: ela é de quatro e só de quatro, então
+     * abre mesa grande mas não oferece escolha nenhuma. Confundir as duas faria a tela de
+     * configuração perguntar o número de jogadores para um jogo que não tem alternativa.
+     */
     @Test
-    fun `so o domino e o ludo abrem mesa para mais de dois`() {
+    fun `mesa grande e mesa que se escolhe nao sao a mesma coisa`() {
         val grandes = jogosComMesaGrande().map { it.id }.toSet()
-        assertEquals(setOf(GameId.DOMINOES, GameId.LUDO), grandes)
+        assertEquals(setOf(GameId.DOMINOES, GameId.LUDO, GameId.HEARTS), grandes)
+
+        val escolhem = GameCatalog.available
+            .filter { it.rules.supportedSeats.first != it.rules.supportedSeats.last }
+            .map { it.id }
+            .toSet()
+        assertEquals(setOf(GameId.DOMINOES, GameId.LUDO), escolhem, "copas não escolhe mesa")
 
         for (entry in GameCatalog.available) {
+            val faixa = entry.rules.supportedSeats
             assertTrue(
-                entry.rules.supportedSeats.first == 2,
-                "${entry.id} precisa aceitar pelo menos dois",
+                faixa.first in MatchConfig.MIN_SEATS..MatchConfig.MAX_SEATS &&
+                    faixa.last in MatchConfig.MIN_SEATS..MatchConfig.MAX_SEATS,
+                "${entry.id} declara mesa fora do que a configuração aceita: $faixa",
             )
         }
     }

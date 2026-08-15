@@ -110,6 +110,14 @@ enum class ReasonKey(
     LUDO_ALREADY_HOME("Esse peão já chegou"),
     LUDO_EXACT_FINISH("A chegada é exata: esse peão precisa de %1\$s", arity = 1),
     LUDO_SQUARE_OCCUPIED("Já há um peão seu nessa casa"),
+
+    // -------- copas --------
+
+    HEARTS_NOT_IN_HAND("Você não tem essa carta"),
+    HEARTS_MUST_FOLLOW_SUIT("É preciso servir o naipe pedido"),
+    HEARTS_NOT_BROKEN("Copas ainda não saiu: não dá para puxar copas"),
+    HEARTS_MUST_LEAD_TWO("Quem tem o 2 de paus abre a mão com ele"),
+    HEARTS_NO_POINTS_FIRST_TRICK("Na primeira vaza não se descarta ponto"),
     ;
 
     /** `reason_game_over`, e assim por diante. */
