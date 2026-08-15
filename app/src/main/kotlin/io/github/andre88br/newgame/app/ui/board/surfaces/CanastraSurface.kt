@@ -137,11 +137,12 @@ fun CanastraSurface(
         Text(
             text = when {
                 !minhaVez -> stringResource(R.string.canastra_wait)
+                state.owedCard != null -> stringResource(R.string.canastra_owed_card_prompt, cardName(state.owedCard!!))
                 state.phase == CanastraPhase.DRAW -> stringResource(R.string.canastra_draw_prompt)
                 else -> stringResource(R.string.canastra_play_prompt)
             },
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (state.owedCard != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         Actions(
@@ -161,7 +162,7 @@ fun CanastraSurface(
                 palette = palette,
                 // A carta escolhida sai do leque: é o único retorno de que ela entrou na
                 // conta, já que ela continua na mão até o lance acontecer.
-                isRaised = { index, _ -> index in escolhidas },
+                isRaised = { index, carta -> index in escolhidas || carta == state.owedCard },
                 onClick = if (enabled && minhaVez && state.phase == CanastraPhase.PLAY) {
                     { index, _ ->
                         escolhidas = if (index in escolhidas) escolhidas - index else escolhidas + index

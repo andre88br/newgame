@@ -297,8 +297,11 @@ class MultiSeatTest {
                 },
             )
 
+            // A canastra é a mais longa da mesa: pegar o lixo exige que a carta do topo
+            // forme jogo, então a máquina compra do monte com mais frequência do que antes
+            // de a regra existir, e a partida gasta mais lances para chegar aos 3000.
             var guard = 0
-            while (!session.isOver && guard++ < 800) {
+            while (!session.isOver && guard++ < 2_000) {
                 if (session.awaitingAi) {
                     assertTrue(session.playAiTurn() != null, "${entry.id}: a máquina não jogou")
                 } else {

@@ -137,6 +137,9 @@ enum class ReasonKey(
     CANASTRA_TRINCA_NEEDS_CANASTRA("Trinca só pode ser baixada depois da primeira canastra da dupla"),
     CANASTRA_NO_WILD_TO_SWAP("Esse jogo não tem curinga para trocar"),
     CANASTRA_WILD_CANNOT_SWAP("Não há ponta livre para o curinga ir"),
+    CANASTRA_PILE_NEEDS_MELD("Só dá para pegar o lixo se a carta de cima formar algum jogo"),
+    CANASTRA_OWED_CARD_FIRST("Baixe a carta que você pegou do lixo antes de qualquer outra coisa"),
+    CANASTRA_OPENING_MELD_TOO_LOW("Com 1500 pontos ou mais, o primeiro jogo da mão precisa valer ao menos 150"),
 
     // -------- pife --------
 

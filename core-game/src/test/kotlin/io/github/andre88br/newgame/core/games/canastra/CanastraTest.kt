@@ -228,16 +228,25 @@ class CanastraTest {
 
     @Test
     fun `sem o tres preto em cima o lixo pode ser pego`() {
-        val state = novo().copy(
-            phase = CanastraPhase.DRAW,
-            discard = listOf(carta(Rank.THREE, Suit.SPADES), carta(Rank.KING, Suit.HEARTS)),
-        )
+        // A carta do topo (rei de copas) precisa formar jogo para poder ser pega — regra nova
+        // —, então a mão ganha dama e valete de copas para fechar a sequência com ela.
+        val rei = carta(Rank.KING, Suit.HEARTS)
+        val state = novo().let {
+            it.copy(
+                phase = CanastraPhase.DRAW,
+                discard = listOf(carta(Rank.THREE, Suit.SPADES), rei),
+                hands = it.hands.mapIndexed { index, mao ->
+                    if (index == 0) mao + listOf(carta(Rank.QUEEN, Suit.HEARTS), carta(Rank.JACK, Suit.HEARTS)) else mao
+                },
+            )
+        }
         assertTrue(!state.discardBlocked, "o três preto embaixo não tranca nada")
 
         val antes = state.handSize(Seat.FIRST)
         val depois = CanastraGame.applyOrThrow(state, CanastraMove.TakeDiscard)
         assertEquals(antes + 2, depois.handSize(Seat.FIRST), "pega-se o lixo inteiro")
         assertTrue(depois.discard.isEmpty(), "o lixo fica vazio depois de pego")
+        assertEquals(rei, depois.owedCard, "a carta do topo fica devida até entrar em jogo")
     }
 
     @Test
@@ -549,6 +558,193 @@ class CanastraTest {
         )
         val resultado = CanastraGame.applyMove(state, CanastraMove.SwapWild(0, as_))
         assertTrue(resultado is MoveResult.Illegal, "as duas pontas já estão ocupadas")
+    }
+
+    // -------- pegar o lixo obriga baixar --------
+
+    @Test
+    fun `pegar o lixo e recusado se a carta do topo nao forma jogo nenhum`() {
+        // Rei de copas sozinho: sem outra copa por perto na mão, e sem canastra para valer
+        // trinca — não há como formar jogo nenhum com ele.
+        val rei = carta(Rank.KING, Suit.HEARTS)
+        val state = novo(seats = 4).copy(
+            phase = CanastraPhase.DRAW,
+            discard = listOf(rei),
+            hands = listOf(List(10) { carta(Rank.FOUR, Suit.CLUBS) }, emptyList(), emptyList(), emptyList()),
+        )
+        assertTrue(
+            CanastraMove.TakeDiscard !in CanastraGame.legalMoves(state),
+            "sem jogo possível com o rei de copas, pegar o lixo não é lance",
+        )
+        val resultado = CanastraGame.applyMove(state, CanastraMove.TakeDiscard)
+        assertTrue(resultado is MoveResult.Illegal, "pegar o lixo sem jogo possível devia ser recusado")
+    }
+
+    @Test
+    fun `pegar o lixo com jogo possivel deixa a carta devida, e so ela vira lance ate ser baixada`() {
+        val rei = carta(Rank.KING, Suit.HEARTS)
+        val dama = carta(Rank.QUEEN, Suit.HEARTS)
+        val valete = carta(Rank.JACK, Suit.HEARTS)
+        val state = novo(seats = 4).copy(
+            phase = CanastraPhase.DRAW,
+            discard = listOf(rei),
+            hands = listOf(
+                listOf(dama, valete) + List(8) { carta(Rank.FOUR, Suit.CLUBS) },
+                emptyList(), emptyList(), emptyList(),
+            ),
+        )
+        assertTrue(
+            CanastraMove.TakeDiscard in CanastraGame.legalMoves(state),
+            "rei fecha sequência com a dama e o valete de copas na mão",
+        )
+
+        val depois = CanastraGame.applyOrThrow(state, CanastraMove.TakeDiscard)
+        assertEquals(rei, depois.owedCard, "a carta do topo fica devida")
+
+        val legais = CanastraGame.legalMoves(depois)
+        assertTrue(legais.isNotEmpty(), "sempre existe pelo menos um jeito de cumprir a dívida")
+        assertTrue(
+            legais.all { move ->
+                when (move) {
+                    is CanastraMove.Meld -> rei in move.cards
+                    is CanastraMove.SwapWild -> move.card == rei
+                    else -> false
+                }
+            },
+            "com carta devida, só valem lances que a incluam: $legais",
+        )
+
+        val cumpre = legais.filterIsInstance<CanastraMove.Meld>().first { rei in it.cards }
+        val depoisDeBaixar = CanastraGame.applyOrThrow(depois, cumpre)
+        assertNull(depoisDeBaixar.owedCard, "baixar a carta devida limpa a dívida")
+        assertTrue(
+            CanastraGame.legalMoves(depoisDeBaixar).any { it is CanastraMove.Discard },
+            "depois de cumprida a dívida, a vez volta ao normal e dá para descartar",
+        )
+    }
+
+    @Test
+    fun `monte seco e lixo sem jogo possivel fecha a mao sozinha, sem travar`() {
+        val rei = carta(Rank.KING, Suit.HEARTS)
+        val state = novo(seats = 2).copy(
+            phase = CanastraPhase.PLAY,
+            stock = emptyList(),
+            discard = emptyList(),
+            hands = listOf(
+                listOf(rei) + List(10) { carta(Rank.FOUR, Suit.CLUBS) },
+                List(10) { carta(Rank.SEVEN, Suit.DIAMONDS) },
+            ),
+        )
+        // O rei de copas não fecha jogo nenhum para quem recebe a vez (sem copa na mão, e
+        // sem canastra para valer trinca), e o monte já secou: sem a correção em `settle`,
+        // isto travaria a tela numa vez sem lance nenhum — o motor precisa reconhecer que
+        // travou e fechar a mão sozinho, como já faz para o três preto.
+        val depois = CanastraGame.applyOrThrow(state, CanastraMove.Discard(rei))
+        assertTrue(
+            depois.phase != CanastraPhase.DRAW || CanastraGame.legalMoves(depois).isNotEmpty(),
+            "a mão devia fechar sozinha, não travar sem lance nenhum: $depois",
+        )
+    }
+
+    // -------- mínimo de abertura com 1500 pontos --------
+
+    @Test
+    fun `abaixo de 1500 o primeiro jogo da mao pode valer qualquer coisa`() {
+        val baixo = listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FIVE, Suit.HEARTS), carta(Rank.SIX, Suit.HEARTS))
+        val state = novo(seats = 4).copy(
+            phase = CanastraPhase.PLAY,
+            hands = listOf(baixo + List(10) { carta(Rank.KING, Suit.CLUBS) }, emptyList(), emptyList(), emptyList()),
+        )
+        val resultado = CanastraGame.applyMove(state, CanastraMove.Meld(baixo))
+        assertTrue(resultado is MoveResult.Ok, "abaixo de 1500 não há mínimo de abertura")
+    }
+
+    @Test
+    fun `com 1500 pontos, o primeiro jogo da mao abaixo de 150 e recusado e nem e oferecido`() {
+        val baixo = listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FIVE, Suit.HEARTS), carta(Rank.SIX, Suit.HEARTS))
+        assertTrue(
+            baixo.sumOf { cardValue(it) } < CANASTRA_OPENING_MIN_VALUE,
+            "o jogo de teste precisa valer menos que o mínimo, senão o teste não prova nada",
+        )
+        val state = novo(seats = 4).copy(
+            phase = CanastraPhase.PLAY,
+            hands = listOf(baixo + List(10) { carta(Rank.KING, Suit.CLUBS) }, emptyList(), emptyList(), emptyList()),
+            scores = listOf(CANASTRA_OPENING_THRESHOLD, 0),
+        )
+        assertTrue(
+            CanastraMove.Meld(baixo) !in CanastraGame.legalMoves(state),
+            "jogo abaixo do mínimo nem aparece como lance oferecido",
+        )
+        val resultado = CanastraGame.applyMove(state, CanastraMove.Meld(baixo))
+        assertTrue(resultado is MoveResult.Illegal, "jogo abaixo do mínimo de abertura devia ser recusado")
+    }
+
+    @Test
+    fun `um jogo de 150 ou mais passa com 1500 pontos, e marca o primeiro jogo feito`() {
+        // Nenhuma sequência chega a 150 (o teto, do quatro ao ás, é 100) — só uma trinca
+        // grande, e trinca pede canastra já feita. Oito ases (20 cada, 160 no total) bastam,
+        // com uma canastra qualquer, noutro naipe, já pronta na mesa para liberar a trinca.
+        val jaTemCanastra = Meld(CANASTRA_SEQUENCE_RANKS.take(CANASTRA_SIZE).map { carta(it, Suit.CLUBS) })
+        val ases = listOf(Suit.HEARTS, Suit.DIAMONDS, Suit.CLUBS, Suit.SPADES)
+            .flatMap { listOf(carta(Rank.ACE, it), carta(Rank.ACE, it)) }
+        assertTrue(ases.sumOf { cardValue(it) } >= CANASTRA_OPENING_MIN_VALUE, "o jogo de teste precisa bater o mínimo")
+
+        val state = novo(seats = 4).copy(
+            phase = CanastraPhase.PLAY,
+            hands = listOf(ases + List(5) { carta(Rank.KING, Suit.DIAMONDS) }, emptyList(), emptyList(), emptyList()),
+            melds = listOf(listOf(jaTemCanastra), emptyList()),
+            scores = listOf(CANASTRA_OPENING_THRESHOLD, 0),
+        )
+        val depois = CanastraGame.applyOrThrow(state, CanastraMove.Meld(ases))
+        assertTrue(depois.firstMeldDone[state.teamOf(Seat.FIRST)], "o primeiro jogo da mão ficou marcado")
+    }
+
+    @Test
+    fun `depois do primeiro jogo, extensao nao precisa bater o minimo de abertura`() {
+        // Em ordem canônica (crescente): dez, valete, dama, rei — como um jogo já na mesa
+        // precisa estar para `sequenceSpan` fazer sentido.
+        val existente = Meld(
+            listOf(
+                carta(Rank.TEN, Suit.HEARTS), carta(Rank.JACK, Suit.HEARTS),
+                carta(Rank.QUEEN, Suit.HEARTS), carta(Rank.KING, Suit.HEARTS),
+            ),
+        )
+        val nove = carta(Rank.NINE, Suit.HEARTS)
+        val state = novo(seats = 4).copy(
+            phase = CanastraPhase.PLAY,
+            hands = listOf(listOf(nove) + List(10) { carta(Rank.KING, Suit.CLUBS) }, emptyList(), emptyList(), emptyList()),
+            melds = listOf(listOf(existente), emptyList()),
+            firstMeldDone = listOf(true, false),
+            scores = listOf(CANASTRA_OPENING_THRESHOLD, 0),
+        )
+        // O nove sozinho vale só 5 pontos, bem abaixo do mínimo — é assim que o teste prova
+        // que a extensão não passa pela checagem, e não que ela por acaso bateria o mínimo.
+        val resultado = CanastraGame.applyMove(state, CanastraMove.Meld(listOf(nove), into = 0))
+        assertTrue(resultado is MoveResult.Ok, "extensão não é o primeiro jogo, e o mínimo não vale para ela")
+    }
+
+    @Test
+    fun `pegar o lixo e recusado se o unico jogo possivel nao bate o minimo de 150`() {
+        // Quatro, cinco e seis de copas fecham sequência com o topo do lixo, mas valem só
+        // 15 pontos — bem abaixo do que a dupla, já em 1500, deve no primeiro jogo da mão.
+        val quatro = carta(Rank.FOUR, Suit.HEARTS)
+        val cinco = carta(Rank.FIVE, Suit.HEARTS)
+        val seis = carta(Rank.SIX, Suit.HEARTS)
+        val state = novo(seats = 4).copy(
+            phase = CanastraPhase.DRAW,
+            discard = listOf(seis),
+            hands = listOf(
+                listOf(quatro, cinco) + List(8) { carta(Rank.KING, Suit.CLUBS) },
+                emptyList(), emptyList(), emptyList(),
+            ),
+            scores = listOf(CANASTRA_OPENING_THRESHOLD, 0),
+        )
+        assertTrue(
+            CanastraMove.TakeDiscard !in CanastraGame.legalMoves(state),
+            "o único jogo possível (4-5-6 de copas) não bate os 150: pegar o lixo não é lance",
+        )
+        val resultado = CanastraGame.applyMove(state, CanastraMove.TakeDiscard)
+        assertTrue(resultado is MoveResult.Illegal, "pegar o lixo devia ser recusado")
     }
 
     // -------- canastra e o prêmio de render --------

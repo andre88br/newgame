@@ -59,6 +59,12 @@ const val CANASTRA_GOING_OUT_BONUS: Int = 50
 /** Vale um três vermelho, e só conta se a dupla tiver canastra. */
 const val RED_THREE_VALUE: Int = 100
 
+/** A partir daqui, o primeiro jogo da mão da dupla precisa valer [CANASTRA_OPENING_MIN_VALUE]. */
+const val CANASTRA_OPENING_THRESHOLD: Int = 1500
+
+/** O mínimo do primeiro jogo da mão, para quem já está em [CANASTRA_OPENING_THRESHOLD]. */
+const val CANASTRA_OPENING_MIN_VALUE: Int = 150
+
 /**
  * **Curinga**: o coringa e o dois.
  *
@@ -349,6 +355,17 @@ data class CanastraState(
     val tookMorto: List<Boolean> = emptyList(),
     /** Quantas vezes a dupla ficou sem cartas nesta mão — pegando o morto ou batendo de vez. */
     val batidas: List<Int> = emptyList(),
+    /** A dupla já baixou o primeiro jogo desta mão? Reseta a cada mão nova. */
+    val firstMeldDone: List<Boolean> = emptyList(),
+    /**
+     * A carta do lixo que se acabou de pegar, ainda sem entrar em jogo nenhum.
+     *
+     * Enquanto não for `null`, o único lance permitido é baixar (ou trocar curinga com)
+     * exatamente esta carta — nada de descartar, nem baixar outra coisa primeiro. Ver
+     * [CanastraGame.canPlayCard]: quem pega o lixo já provou, no instante de pegar, que existe
+     * pelo menos um jeito de cumprir isso, então esta restrição nunca fecha todos os lances.
+     */
+    val owedCard: Card? = null,
     override val turn: Seat = Seat.FIRST,
     override val ply: Int = 0,
     val phase: CanastraPhase = CanastraPhase.DRAW,
@@ -534,6 +551,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             redThrees = vermelhos.toList(),
             tookMorto = List(teams) { false },
             batidas = List(teams) { 0 },
+            firstMeldDone = List(teams) { false },
             turn = Seat.FIRST,
             phase = CanastraPhase.DRAW,
             scores = scores,
@@ -550,12 +568,28 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         if (state.phase == CanastraPhase.DRAW) {
             val saida = mutableListOf<CanastraMove>()
             if (state.stock.isNotEmpty()) saida += CanastraMove.DrawStock
-            if (state.discard.isNotEmpty() && !state.discardBlocked) saida += CanastraMove.TakeDiscard
-            // Monte vazio e lixo trancado: a mão acaba, e `outcome` cuida disso.
+            if (state.discard.isNotEmpty() && !state.discardBlocked && canTakeDiscard(state)) {
+                saida += CanastraMove.TakeDiscard
+            }
+            // Monte vazio e lixo trancado (ou sem jogo possível): a mão acaba, e `outcome`
+            // cuida disso.
             return saida
         }
 
-        return meldMoves(state, mao) + discardMoves(state, mao)
+        val jogos = meldMoves(state, mao)
+        val devida = state.owedCard
+        if (devida != null) {
+            // A carta que se acabou de pegar do lixo tem que entrar em jogo antes de
+            // qualquer outra coisa — nada de descartar, nada de baixar outra coisa primeiro.
+            return jogos.filter { move ->
+                when (move) {
+                    is CanastraMove.Meld -> devida in move.cards
+                    is CanastraMove.SwapWild -> move.card == devida
+                    else -> false
+                }
+            }
+        }
+        return jogos + discardMoves(state, mao)
     }
 
     /**
@@ -570,51 +604,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
      */
     private fun meldMoves(state: CanastraState, mao: List<Card>): List<CanastraMove> {
         val saida = mutableListOf<CanastraMove>()
-        val curingas = mao.filter { isWild(it) }
-        val naturaisMao = mao.filterNot { isWild(it) || it.rank == Rank.THREE }
-
-        // Sequências novas: por naipe, as corridas máximas de valores seguidos na mão.
-        val porNaipe = naturaisMao.groupBy { it.suit }
-        for ((_, cartasDoNaipe) in porNaipe) {
-            val porOrdem = cartasDoNaipe.distinctBy { it.rank }.associateBy { sequenceOrder(it.rank) }
-            val ordens = porOrdem.keys.sorted()
-
-            var inicio = 0
-            while (inicio < ordens.size) {
-                var fim = inicio
-                while (fim + 1 < ordens.size && ordens[fim + 1] == ordens[fim] + 1) fim++
-                val corrida = ordens.subList(inicio, fim + 1).map { porOrdem.getValue(it) }
-                if (corrida.size >= CANASTRA_MIN_MELD) saida += CanastraMove.Meld(corrida)
-                if (corrida.size >= 2 && curingas.isNotEmpty()) {
-                    val comCuringa = corrida + curingas.first()
-                    if (asSequence(comCuringa) != null) saida += CanastraMove.Meld(comCuringa)
-                }
-                inicio = fim + 1
-            }
-
-            // Duas cartas com um buraco só entre elas: o curinga fecha o meio.
-            if (curingas.isNotEmpty()) {
-                for (i in ordens.indices) {
-                    for (j in i + 1 until ordens.size) {
-                        if (ordens[j] - ordens[i] != 2) continue
-                        val par = listOf(porOrdem.getValue(ordens[i]), porOrdem.getValue(ordens[j]), curingas.first())
-                        if (asSequence(par) != null) saida += CanastraMove.Meld(par)
-                    }
-                }
-            }
-        }
-
-        // Trincas novas: só depois que a dupla já tem canastra.
-        if (state.hasCanastra(state.teamOf(state.turn))) {
-            val porValor = naturaisMao.groupBy { it.rank }
-            for ((_, iguais) in porValor) {
-                if (iguais.size >= CANASTRA_MIN_MELD) {
-                    saida += CanastraMove.Meld(iguais)
-                } else if (iguais.size == 2 && curingas.isNotEmpty()) {
-                    saida += CanastraMove.Meld(iguais + curingas.first())
-                }
-            }
-        }
+        saida += newMeldCandidates(state, mao).map { CanastraMove.Meld(it.cards) }
 
         // Acrescentar a um jogo da dupla: cada carta que serve, uma de cada vez.
         state.meldsOf(state.turn).forEachIndexed { index, jogo ->
@@ -627,11 +617,122 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
 
         return saida.filterNot { move ->
             when (move) {
-                is CanastraMove.Meld -> encurrala(state, move.cards.size, teraCanastra(state, move))
-                is CanastraMove.SwapWild -> encurrala(state, 1, teraCanastraSwap(state, move))
+                is CanastraMove.Meld ->
+                    encurrala(state, mao.size, move.cards.size, teraCanastra(state, move)) ||
+                        (move.into == null && !meetsOpeningRequirement(state, move.cards, move.into))
+                is CanastraMove.SwapWild -> encurrala(state, mao.size, 1, teraCanastraSwap(state, move))
                 else -> false
             }
         }
+    }
+
+    /**
+     * Os jogos **novos** que [hand] permite formar — sem contar extensão de jogo já na mesa,
+     * que depende de onde o jogo está, não só da mão.
+     *
+     * Enumerar toda combinação estoura (treze cartas dão milhares de subconjuntos); aqui saem
+     * as corridas máximas de cada naipe, as que um curinga fecha (tapando um buraco ou
+     * esticando a ponta de uma corrida já pronta) e as trincas (só depois da primeira
+     * canastra). Não é exaustivo — é o que efetivamente aparece pronto na mão —, mas é o
+     * bastante tanto para oferecer lance quanto para provar que uma carta específica tem como
+     * entrar em algum jogo (ver [canPlayCard]).
+     */
+    private fun newMeldCandidates(state: CanastraState, hand: List<Card>): List<Meld> {
+        val saida = mutableListOf<Meld>()
+        val curingas = hand.filter { isWild(it) }
+        val naturaisMao = hand.filterNot { isWild(it) || it.rank == Rank.THREE }
+
+        // Sequências novas: por naipe, as corridas máximas de valores seguidos na mão.
+        val porNaipe = naturaisMao.groupBy { it.suit }
+        for ((_, cartasDoNaipe) in porNaipe) {
+            val porOrdem = cartasDoNaipe.distinctBy { it.rank }.associateBy { sequenceOrder(it.rank) }
+            val ordens = porOrdem.keys.sorted()
+
+            var inicio = 0
+            while (inicio < ordens.size) {
+                var fim = inicio
+                while (fim + 1 < ordens.size && ordens[fim + 1] == ordens[fim] + 1) fim++
+                val corrida = ordens.subList(inicio, fim + 1).map { porOrdem.getValue(it) }
+                if (corrida.size >= CANASTRA_MIN_MELD) saida += Meld(corrida)
+                if (corrida.size >= 2 && curingas.isNotEmpty()) {
+                    val comCuringa = corrida + curingas.first()
+                    asSequence(comCuringa)?.let { saida += Meld(it) }
+                }
+                inicio = fim + 1
+            }
+
+            // Duas cartas com um buraco só entre elas: o curinga fecha o meio.
+            if (curingas.isNotEmpty()) {
+                for (i in ordens.indices) {
+                    for (j in i + 1 until ordens.size) {
+                        if (ordens[j] - ordens[i] != 2) continue
+                        val par = listOf(porOrdem.getValue(ordens[i]), porOrdem.getValue(ordens[j]), curingas.first())
+                        asSequence(par)?.let { saida += Meld(it) }
+                    }
+                }
+            }
+        }
+
+        // Trincas novas: só depois que a dupla já tem canastra.
+        if (state.hasCanastra(state.teamOf(state.turn))) {
+            val porValor = naturaisMao.groupBy { it.rank }
+            for ((_, iguais) in porValor) {
+                if (iguais.size >= CANASTRA_MIN_MELD) {
+                    saida += Meld(iguais)
+                } else if (iguais.size == 2 && curingas.isNotEmpty()) {
+                    saida += Meld(iguais + curingas.first())
+                }
+            }
+        }
+
+        return saida
+    }
+
+    /**
+     * O primeiro jogo da mão, quando a dupla já soma [CANASTRA_OPENING_THRESHOLD] pontos ou
+     * mais, precisa valer ao menos [CANASTRA_OPENING_MIN_VALUE] — senão bastaria baixar
+     * qualquer trinquinho para não arriscar nada. Extensão de jogo já na mesa ([into] não
+     * nulo) nunca é "o primeiro jogo", e troca de curinga também não passa por aqui: as duas
+     * só existem depois que já há pelo menos um jogo baixado.
+     *
+     * Usa [CanastraState.scores] como estava **no começo desta mão** — só muda de valor
+     * quando a mão fecha —, que é exatamente "a partir da mão seguinte à que completou 1500".
+     */
+    private fun meetsOpeningRequirement(state: CanastraState, cards: List<Card>, into: Int?): Boolean {
+        if (into != null) return true
+        val time = state.teamOf(state.turn)
+        if (state.firstMeldDone.getOrElse(time) { false }) return true
+        if (state.scores.getOrElse(time) { 0 } < CANASTRA_OPENING_THRESHOLD) return true
+        return cards.sumOf { cardValue(it) } >= CANASTRA_OPENING_MIN_VALUE
+    }
+
+    /**
+     * Existe algum jogo — novo, ou extensão de um já na mesa — que [card] participe, usando
+     * [hand]? É a mesma pergunta de "dá para baixar isso", restrita a jogos que carregam esta
+     * carta específica, e já filtrada pelas mesmas regras que valeriam para o lance de
+     * verdade (não pode encurralar a mão, e o jogo novo precisa bater o mínimo de abertura).
+     *
+     * Reaproveita [meldMoves] inteiro, com [hand] no lugar da mão real do estado — é o que
+     * garante que a resposta aqui e o lance realmente oferecido depois de pegar o lixo nunca
+     * se contradizem: são a mesma conta, com a mesma mão.
+     */
+    private fun canPlayCard(state: CanastraState, hand: List<Card>, card: Card): Boolean =
+        meldMoves(state, hand).any { move ->
+            when (move) {
+                is CanastraMove.Meld -> card in move.cards
+                is CanastraMove.SwapWild -> move.card == card
+                else -> false
+            }
+        }
+
+    /**
+     * Dá para pegar o lixo? Só se a carta do topo tiver como entrar em algum jogo, contando
+     * com a mão de agora **mais** o resto do lixo — é tudo isso que se pega junto.
+     */
+    private fun canTakeDiscard(state: CanastraState): Boolean {
+        val topo = state.discardTop ?: return false
+        val maoDepois = state.hand(state.turn) + state.discard.filterNot { isRedThree(it) }
+        return canPlayCard(state, maoDepois, topo)
     }
 
     /**
@@ -683,9 +784,13 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
      * um descarte, e esse descarte zeraria a mão. Então o corte é em duas cartas — quem não
      * pode zerar precisa guardar uma para descartar e outra para ficar. [cartasRemovidas] é
      * quantas cartas o lance tira da mão — três ou mais para baixar, uma para trocar curinga.
+     *
+     * [handSize] chega como parâmetro, e não vem de `state.hand(state.turn).size`, porque
+     * [canPlayCard] usa esta mesma função para avaliar uma mão **hipotética** — a que se
+     * teria depois de pegar o lixo inteiro, antes de ter pegado de verdade.
      */
-    private fun encurrala(state: CanastraState, cartasRemovidas: Int, teraCanastra: Boolean): Boolean {
-        val restante = state.hand(state.turn).size - cartasRemovidas
+    private fun encurrala(state: CanastraState, handSize: Int, cartasRemovidas: Int, teraCanastra: Boolean): Boolean {
+        val restante = handSize - cartasRemovidas
         if (restante >= 2) return false
         return !podeZerar(state, state.teamOf(state.turn), teraCanastra)
     }
@@ -710,6 +815,16 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         if (outcome(state).isOver) return MoveResult.Illegal(ReasonKey.GAME_OVER)
         val mao = state.hand(state.turn)
 
+        val devida = state.owedCard
+        if (devida != null) {
+            val cumpre = when (move) {
+                is CanastraMove.Meld -> devida in move.cards
+                is CanastraMove.SwapWild -> move.card == devida
+                else -> false
+            }
+            if (!cumpre) return MoveResult.Illegal(ReasonKey.CANASTRA_OWED_CARD_FIRST)
+        }
+
         when (move) {
             CanastraMove.DrawStock -> {
                 if (state.phase != CanastraPhase.DRAW) {
@@ -724,6 +839,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 }
                 if (state.discard.isEmpty()) return MoveResult.Illegal(ReasonKey.CARD_NOTHING_TO_DRAW)
                 if (state.discardBlocked) return MoveResult.Illegal(ReasonKey.CANASTRA_PILE_BLOCKED)
+                if (!canTakeDiscard(state)) return MoveResult.Illegal(ReasonKey.CANASTRA_PILE_NEEDS_MELD)
             }
 
             is CanastraMove.Meld -> {
@@ -750,8 +866,11 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                     if (jogo.kind == MeldKind.SET && !state.hasCanastra(state.teamOf(state.turn))) {
                         return MoveResult.Illegal(ReasonKey.CANASTRA_TRINCA_NEEDS_CANASTRA)
                     }
+                    if (!meetsOpeningRequirement(state, move.cards, move.into)) {
+                        return MoveResult.Illegal(ReasonKey.CANASTRA_OPENING_MELD_TOO_LOW)
+                    }
                 }
-                if (encurrala(state, move.cards.size, teraCanastra(state, move))) {
+                if (encurrala(state, mao.size, move.cards.size, teraCanastra(state, move))) {
                     return MoveResult.Illegal(ReasonKey.CANASTRA_NEEDS_CANASTRA_TO_GO_OUT)
                 }
             }
@@ -767,7 +886,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                     ?: return MoveResult.Illegal(ReasonKey.CANASTRA_NO_WILD_TO_SWAP)
                 if (move.card != esperada) return MoveResult.Illegal(ReasonKey.CANASTRA_DOES_NOT_FIT)
                 if (!hasFreeEnd(jogo)) return MoveResult.Illegal(ReasonKey.CANASTRA_WILD_CANNOT_SWAP)
-                if (encurrala(state, 1, teraCanastraSwap(state, move))) {
+                if (encurrala(state, mao.size, 1, teraCanastraSwap(state, move))) {
                     return MoveResult.Illegal(ReasonKey.CANASTRA_NEEDS_CANASTRA_TO_GO_OUT)
                 }
             }
@@ -835,8 +954,15 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         )
     }
 
-    /** Pega o lixo inteiro. Três vermelho que estiver ali também vai para a mesa. */
+    /**
+     * Pega o lixo inteiro. Três vermelho que estiver ali também vai para a mesa.
+     *
+     * A carta que estava no topo vira [CanastraState.owedCard]: [canTakeDiscard] já provou,
+     * antes de este lance ser aceito, que existe algum jogo para ela — e é esse jogo, e só
+     * ele, que fica disponível a seguir.
+     */
     private fun takeDiscard(state: CanastraState): CanastraState {
+        val devida = state.discardTop
         val mao = state.hand(state.turn).toMutableList()
         val vermelhos = state.redThrees.toMutableList()
         val time = state.teamOf(state.turn)
@@ -851,6 +977,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             redThrees = vermelhos,
             phase = CanastraPhase.PLAY,
             ply = state.ply + 1,
+            owedCard = devida,
         )
     }
 
@@ -874,6 +1001,17 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val mesa = state.melds.toMutableList()
         mesa[time] = jogos.toList()
 
+        // Jogo novo (não extensão) é sempre "o primeiro jogo", se ainda não havia nenhum —
+        // extensão e troca de curinga só existem depois que já há pelo menos um.
+        val primeiroJogo = if (move.into == null) {
+            state.firstMeldDone.toMutableList().also { it[time] = true }.toList()
+        } else {
+            state.firstMeldDone
+        }
+        // A carta devida (regra do lixo que obriga a baixar) só se quita se estiver entre as
+        // que este lance baixou.
+        val devida = if (state.owedCard != null && state.owedCard in move.cards) null else state.owedCard
+
         // Baixar pode esvaziar a mão, e aí pega-se o morto — mas a vez **continua**: ainda
         // falta descartar, agora com as cartas novas.
         return settle(
@@ -881,6 +1019,8 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 state.copy(
                     hands = trocarMao(state, mao),
                     melds = mesa.toList(),
+                    firstMeldDone = primeiroJogo,
+                    owedCard = devida,
                     ply = state.ply + 1,
                 ),
             ),
@@ -913,11 +1053,14 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val mesa = state.melds.toMutableList()
         mesa[time] = jogos.toList()
 
+        val devida = if (state.owedCard == move.card) null else state.owedCard
+
         return settle(
             semMao(
                 state.copy(
                     hands = trocarMao(state, mao),
                     melds = mesa.toList(),
+                    owedCard = devida,
                     ply = state.ply + 1,
                 ),
             ),
@@ -994,7 +1137,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
     private fun settle(state: CanastraState): CanastraState {
         val travou = state.phase == CanastraPhase.DRAW &&
             state.stock.isEmpty() &&
-            (state.discard.isEmpty() || state.discardBlocked)
+            (state.discard.isEmpty() || state.discardBlocked || !canTakeDiscard(state))
         if (state.wentOut < 0 && !travou) return state
 
         val ganhos = scoreHand(state)
