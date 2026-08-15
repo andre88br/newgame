@@ -88,7 +88,17 @@ fun TrucoSurface(
 
         RoundMarkers(state = state, viewer = viewer, palette = palette)
 
-        TableArea(state = state, viewer = viewer, names = names, palette = palette)
+        // Os adversários sentados ao redor, com a rodada corrente no meio.
+        CardTable(
+            seats = state.seats,
+            viewer = viewer,
+            names = names,
+            handSize = { seat -> state.handSize(seat) },
+            palette = palette,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            TableArea(state = state, viewer = viewer, names = names, palette = palette)
+        }
 
         if (state.answering) {
             BetBanner(state = state, viewer = viewer, palette = palette)

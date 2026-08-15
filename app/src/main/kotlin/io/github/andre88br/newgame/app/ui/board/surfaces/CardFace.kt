@@ -22,6 +22,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.andre88br.newgame.app.R
@@ -201,12 +202,21 @@ fun CardFace(
  *
  * Aparece na mão de quem está do outro lado. O que existe ali é literalmente [Card.HIDDEN]:
  * o estado já chegou redigido do motor, e não há valor nenhum guardado atrás deste desenho.
+ *
+ * [width] e [height] têm o tamanho de uma carta normal como padrão, mas quem desenha a mesa
+ * inteira — com os adversários sentados ao redor — passa um tamanho menor: o que importa ali
+ * é quantas cartas há, não lê-las, e um baralho de verdade visto de longe também encolhe.
  */
 @Composable
-fun FaceDownCard(palette: BoardPalette, modifier: Modifier = Modifier) {
+fun FaceDownCard(
+    palette: BoardPalette,
+    modifier: Modifier = Modifier,
+    width: Dp = CARD_WIDTH,
+    height: Dp = CARD_HEIGHT,
+) {
     Box(
         modifier = modifier
-            .size(CARD_WIDTH, CARD_HEIGHT)
+            .size(width, height)
             .clip(RoundedCornerShape(6.dp))
             .background(palette.secondPiece)
             .border(1.dp, palette.border, RoundedCornerShape(6.dp)),

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -67,20 +68,25 @@ fun HeartsSurface(
     val minhaVez = state.turn == viewer
 
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Scoreboard(state = state, viewer = viewer, names = names)
 
-        // A vaza fica com o espaço que sobrar: é o que muda a cada lance.
-        TrickArea(
-            state = state,
+        // Os adversários sentados ao redor, com a vaza no meio — a mesma mesa que a copas
+        // sempre foi, só que agora desenhada, e não contada em texto.
+        CardTable(
+            seats = HEARTS_SEATS,
+            viewer = viewer,
             names = names,
+            handSize = { seat -> state.handSize(seat) },
             palette = palette,
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-        )
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            TrickArea(state = state, names = names, palette = palette, modifier = Modifier.fillMaxWidth())
+        }
 
         Text(
             text = phaseText(state, viewer),
@@ -176,11 +182,6 @@ private fun Scoreboard(
                         daMao,
                     ),
                     style = MaterialTheme.typography.labelMedium,
-                )
-                Text(
-                    text = stringResource(R.string.hearts_cards_left, state.handSize(seat)),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

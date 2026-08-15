@@ -37,13 +37,9 @@ import io.github.andre88br.newgame.core.games.pife.bestGroupCount
 /**
  * A mesa do pife.
  *
- * É a mais enxuta dos jogos de carta, porque o jogo é: comprar uma e jogar uma fora. A tela
- * tem os mesmos três blocos das outras — quem tem quantas cartas, de onde se compra, a mão —
- * e os botões trocam conforme o tempo da vez, como na canastra.
- *
- * O que ela acrescenta é a contagem de grupos fechados. Não é informação escondida: quem
- * olha a própria mão sabe o que já fechou. Mas com nove cartas fora de ordem a conta escapa,
- * e errar de menos aqui custa a partida — a pessoa descarta a carta que fechava o grupo.
+ * É a mais enxuta dos jogos de carta, porque o jogo é: comprar uma e jogar uma fora. A mesa
+ * mostra os adversários sentados ao redor, de onde se compra no meio, e a mão embaixo — e os
+ * botões trocam conforme o tempo da vez, como na canastra.
  *
  * O descarte é escolhido e só então confirmado, e não jogado no toque, de propósito: é o
  * único lance do jogo, é irreversível, e um toque torto jogaria fora a carta errada.
@@ -74,9 +70,19 @@ fun PifeSurface(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        HandCounts(state = state, viewer = viewer, names = names)
+        HandCounts(state = state, viewer = viewer)
 
-        TableInfo(state = state, palette = palette)
+        // Os adversários sentados ao redor, com o monte e o lixo no meio.
+        CardTable(
+            seats = state.seats,
+            viewer = viewer,
+            names = names,
+            handSize = { seat -> state.handSize(seat) },
+            palette = palette,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            TableInfo(state = state, palette = palette)
+        }
 
         Text(
             text = when {
@@ -138,40 +144,24 @@ fun PifeSurface(
 }
 
 /**
- * Quantas cartas cada um tem, e quantos grupos a sua mão já fecha.
+ * Quantos grupos a sua mão já fecha.
  *
- * A contagem alheia importa pouco no pife — a mão é sempre de nove —, mas na hora em que
- * alguém compra e ainda não descartou ela mostra de quem é a vez sem precisar dizer.
+ * Não é informação escondida: quem olha a própria mão sabe o que já fechou. Mas com nove
+ * cartas fora de ordem a conta escapa, e errar de menos aqui custa a partida — a pessoa
+ * descarta a carta que fechava o grupo. A contagem alheia aparece na mesa, com os
+ * adversários sentados ao redor.
  */
 @Composable
-private fun HandCounts(state: PifeState, viewer: Seat, names: List<String>) {
+private fun HandCounts(state: PifeState, viewer: Seat) {
     // A conta percorre todos os arranjos de nove cartas: barata uma vez, cara a cada
     // recomposição. Ela só muda quando a mão muda.
     val fechados = remember(state, viewer) { bestGroupCount(state.hand(viewer)) }
 
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.pife_groups, fechados, PIFE_GROUPS),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
-
-        // O nome sai de um `map`, que é inline e deixa chamar `stringResource` de dentro;
-        // `joinToString` não é, e a chamada ali não compilaria.
-        val contagens = (0 until state.seats).map { index ->
-            val nome = names.getOrNull(index)?.takeIf { it.isNotBlank() }
-                ?: stringResource(R.string.dominoes_opponent_seat, index + 1)
-            "$nome ${state.handSize(Seat(index))}"
-        }
-        Text(
-            text = contagens.joinToString("  "),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    Text(
+        text = stringResource(R.string.pife_groups, fechados, PIFE_GROUPS),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+    )
 }
 
 /** De onde se compra: o monte virado para baixo e a carta de cima do lixo, à vista. */
