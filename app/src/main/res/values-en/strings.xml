@@ -205,7 +205,7 @@
 
     <string name="rules_dominoes">Block dominoes with the full set of 28, for two to four players. Each player gets seven and the rest go to the boneyard — with four players the tiles run out on the deal and there is no boneyard.\n\nWhoever holds the highest double opens; if neither has one, the highest tile opens.\n\nOn your turn, tap a tile in your hand to lay it against one end of the line. If it fits both ends, the app asks which. With nothing that fits you draw from the boneyard automatically until you can play; with the boneyard empty you pass.\n\nYou win by playing your last tile. If the table goes all the way round on passes alone the game is blocked, and whoever holds fewer pips wins.\n\nYour opponent\'s hand stays hidden — from the phone too: all you see is how many tiles they hold.</string>
 
-    <string name="rules_canastra">Brazilian canastra, two or three players (solo) or four (in partnerships: the player across from you is your partner). Two decks, four jokers and thirteen cards each.\n\nA turn has three beats: draw (from the stock or the whole discard pile), meld whatever you like, and discard. The discard is what ends your turn.\n\nA meld is three or more cards of the same rank, with at least two natural cards and at most three wildcards. Wildcards are jokers and twos. Seven cards make a CANASTA: clean is worth 200, dirty is worth 100 — and what makes it dirty is the TWO. A canasta closed with a joker still counts as clean.\n\nRED THREE: never played. It is worth 100 points sitting on the table and goes there by itself as soon as it appears — draw one from the stock and you take another card in its place. All four in one partnership are worth double each. But careful: with no canasta at all, they count AGAINST you.\n\nBLACK THREE: blocks the pile. Discarded, it stops the next player from taking the discard pile. It may only be melded when going out, and holding it costs 5 points in hand.\n\nDEAD HAND: only one, and only with two or three players — partnerships play without it. It belongs to whoever runs out of cards first, and taking it is not going out: you pick up the thirteen cards and the hand carries on.\n\nGOING OUT means running out of cards when there is no dead hand left to take, and that requires a canasta. Without one you may not meld your hand empty: keep a card to discard. Going out scores 100.\n\nAt the end of the hand, what is on the table adds up and what is left in hand subtracts. The match runs to 3000.</string>
+    <string name="rules_canastra">Brazilian canastra, two or three players (solo) or four (in partnerships: the player across from you is your partner). Two decks, four jokers and thirteen cards each.\n\nA turn has three beats: draw (from the stock or the whole discard pile), meld whatever you like, and discard. The discard is what ends your turn.\n\nTHE NORMAL MELD is a RUN of three or more cards in a row of the same suit (four to ace — the two is always a wildcard and the three never enters), with at most one wildcard filling a gap or an end. A SET (three or more cards of the same rank) also exists, but may only be melded after the partnership already has a canasta.\n\nWith the exact card in hand, you can swap the wildcard out of a run already on the table: it does not go back to your hand, it slides to a free end of that same meld, which grows by one card.\n\nSeven cards make a CANASTA: clean is worth 200, dirty is worth 100 — and what makes it dirty is the TWO, not the joker. In a CLEAN canasta, every card past the seventh is worth another 100.\n\nVALUES: joker and two are worth 50; three is worth 100; eight through king are worth 10; ace is worth 20; four through seven are worth 5.\n\nRED THREE: never played. It is worth 100 points sitting on the table — only if the partnership has a canasta — and goes there by itself as soon as it appears; draw one from the stock and you take another card in its place.\n\nBLACK THREE: blocks the pile. Discarded, it stops the next player from taking the discard pile. It never melds — holding it costs 100 points in hand.\n\nDEAD HAND: only one, and only with two or three players — partnerships play without it. It belongs to whoever runs out of cards first, and taking it is not going out: you pick up the thirteen cards and the hand carries on.\n\nGOING OUT means running out of cards when there is no dead hand left to take, and that requires a canasta. Every time the partnership runs out of cards — taking the dead hand or going out for real — it scores 50, and both can happen in the same hand.\n\nAt the end of the hand, what is on the table adds up and what is left in hand subtracts. The match runs to 3000.</string>
 
     <string name="rules_hearts">Hearts, four players, full 52-card deck. Winning tricks is bad here: every heart is worth 1 point and the queen of spades is worth 13. The match ends when somebody reaches 100, and whoever has the FEWEST points wins.\n\nBefore each hand everyone passes three cards: to the left, to the right, across, and then a fourth hand with no passing — after which the rotation starts over.\n\nWhoever holds the 2 of clubs leads, and leads with it. You must follow the suit that was led; without it, anything goes. No penalty cards on the first trick.\n\nHearts may only be led once they have already appeared in a trick — or when they are all you have left.\n\nThe highest card of the suit led takes the trick, along with any points on the table.\n\nShooting the moon: take all 26 points in a hand and you score none, while the other three score 26 each.</string>
 
@@ -263,6 +263,7 @@
     <string name="a11y_card">%1$s of %2$s</string>
     <string name="a11y_card_hidden">face-down card</string>
     <string name="a11y_card_joker">joker</string>
+    <string name="a11y_opponent_hand">%1$s, %2$d cards</string>
     <string name="rank_number">%1$s</string>
     <string name="rank_ace">ace</string>
     <string name="rank_jack">jack</string>
@@ -276,7 +277,6 @@
     <!-- Hearts: screen -->
     <string name="hearts_you">You</string>
     <string name="hearts_score">%1$d pts (+%2$d)</string>
-    <string name="hearts_cards_left">%1$d cards</string>
     <string name="hearts_table_empty">Lead the trick</string>
     <string name="hearts_table_passing">Choosing the cards to pass</string>
     <string name="hearts_pass_prompt">Pass 3 cards %1$s — %2$d of %3$d chosen</string>
@@ -290,12 +290,15 @@
     <!-- Canastra -->
     <string name="reason_canastra_must_draw_first">Draw before melding or discarding</string>
     <string name="reason_canastra_pile_blocked">The pile is blocked by a black three</string>
-    <string name="reason_canastra_invalid_meld">A meld needs three cards of the same rank, with at most three wildcards and at least two natural cards</string>
+    <string name="reason_canastra_invalid_meld">A meld is a run of three or more cards of the same suit, or a set of the same rank — with at most one wildcard</string>
     <string name="reason_canastra_does_not_fit">That card does not fit that meld</string>
     <string name="reason_canastra_no_such_meld">That meld is not on the table</string>
     <string name="reason_canastra_red_three_not_playable">A red three scores sitting on the table: it is never played or discarded</string>
-    <string name="reason_canastra_black_three_only_out">A black three is only melded when going out</string>
+    <string name="reason_canastra_black_three_never_melds">A black three never melds: it only blocks the pile</string>
     <string name="reason_canastra_needs_canastra_to_go_out">Without a canastra you cannot run out of cards: keep one to discard</string>
+    <string name="reason_canastra_trinca_needs_canastra">A set may only be melded after the partnership\'s first canastra</string>
+    <string name="reason_canastra_no_wild_to_swap">That meld has no wildcard to swap</string>
+    <string name="reason_canastra_wild_cannot_swap">There is no free end for the wildcard to go to</string>
     <string name="reason_pife_must_draw_first">Draw a card before discarding</string>
 
     <string name="reason_klondike_stock_not_empty">There are still cards in the stock to draw</string>

@@ -42,47 +42,76 @@ const val CANASTRA_MIN_MELD: Int = 3
 /** Sete cartas fazem canastra. */
 const val CANASTRA_SIZE: Int = 7
 
-/** Curingas por jogo. Mais do que isso vira jogo de curinga, não de carta. */
-const val CANASTRA_MAX_WILDS: Int = 3
+/**
+ * No máximo um curinga por jogo.
+ *
+ * Mais do que isso e o jogo deixa de ser de cartas — é a diferença entre tapar um buraco na
+ * sequência e viver de curinga.
+ */
+const val CANASTRA_MAX_WILDS: Int = 1
 
 /** A partida vai até aqui. */
 const val CANASTRA_TARGET: Int = 3_000
 
-/** Bônus de bater. */
-const val CANASTRA_GOING_OUT_BONUS: Int = 100
+/** Bônus de bater — e bater é qualquer vez que a mão fica vazia, inclusive ao pegar o morto. */
+const val CANASTRA_GOING_OUT_BONUS: Int = 50
 
-/** Vale um três vermelho; os quatro juntos valem o dobro disso cada. */
+/** Vale um três vermelho, e só conta se a dupla tiver canastra. */
 const val RED_THREE_VALUE: Int = 100
 
 /**
  * **Curinga**: o coringa e o dois.
  *
- * O dois é curinga em canastra, e é por isso que ele vale vinte pontos apesar de ser a carta
- * mais baixa do baralho — o valor segue a utilidade, não a ordem.
+ * O dois é curinga em canastra, e é por isso que ele vale cinquenta pontos apesar de ser a
+ * carta mais baixa do baralho — o valor segue a utilidade, não a ordem.
  */
 fun isWild(card: Card): Boolean = card.isJoker || card.rank == Rank.TWO
 
-/** O três vermelho, que não se joga: vale ponto parado na mesa. */
+/** O três vermelho, que não se joga: vale ponto parado na mesa, e só com canastra. */
 fun isRedThree(card: Card): Boolean = card.rank == Rank.THREE && card.isRed
 
-/** O três preto, que tranca o lixo. */
+/** O três preto, que tranca o lixo. Não entra em jogo nenhum. */
 fun isBlackThree(card: Card): Boolean = card.rank == Rank.THREE && !card.isRed
 
-/** Quanto a carta vale na contagem. */
+/** Quanto a carta vale na contagem. O três vale caro porque, na mão, ele é o que mais pesa. */
 fun cardValue(card: Card): Int = when {
     card.isJoker -> 50
-    card.rank == Rank.TWO -> 20
+    card.rank == Rank.TWO -> 50
+    card.rank == Rank.THREE -> 100
     card.rank == Rank.ACE -> 20
-    card.rank == Rank.THREE -> 5
     card.rank.order >= Rank.EIGHT.order -> 10
     else -> 5
 }
 
 /**
- * Um jogo na mesa: cartas do mesmo valor, com ou sem curinga.
+ * Os valores que entram numa sequência, do quatro ao ás — onze degraus.
+ *
+ * O dois fica de fora porque é sempre curinga, e o três porque nunca entra em jogo nenhum.
+ * A sequência não dá a volta: o ás fecha por cima, e não emenda de novo com o quatro.
+ */
+val CANASTRA_SEQUENCE_RANKS: List<Rank> = listOf(
+    Rank.FOUR, Rank.FIVE, Rank.SIX, Rank.SEVEN, Rank.EIGHT, Rank.NINE, Rank.TEN,
+    Rank.JACK, Rank.QUEEN, Rank.KING, Rank.ACE,
+)
+
+/** A posição do valor na escala da sequência, ou `-1` se ele não entra numa. */
+fun sequenceOrder(rank: Rank): Int = CANASTRA_SEQUENCE_RANKS.indexOf(rank)
+
+/** Sequência (mesmo naipe, valores seguidos) ou trinca (mesmo valor)? */
+@Serializable
+enum class MeldKind { SEQUENCE, SET }
+
+/**
+ * Um jogo na mesa: uma sequência do mesmo naipe, ou uma trinca do mesmo valor — com ou sem
+ * curinga.
  *
  * A dupla é dona do jogo, não a pessoa — em canastra de quatro, quem começou o jogo e quem o
  * completa costumam ser jogadores diferentes, e a canastra conta para os dois.
+ *
+ * [cards] fica em **ordem canônica**: numa sequência, do menor valor ao maior, com o curinga
+ * já na posição exata que ele representa. É essa ordem que permite recuperar, só olhando o
+ * índice de uma carta na lista, que degrau da escada ela ocupa — sem guardar mais nenhum
+ * campo. Ver [sequenceSpan].
  */
 @Serializable
 data class Meld(val cards: List<Card> = emptyList()) {
@@ -91,7 +120,7 @@ data class Meld(val cards: List<Card> = emptyList()) {
 
     val naturals: List<Card> get() = cards.filterNot { isWild(it) }
 
-    /** O valor de que é este jogo, ou `null` num jogo só de curinga — que não existe. */
+    /** O valor de que é este jogo, ou `null` num jogo só de curinga — que não existe. Só faz sentido para trinca. */
     val rank: Rank? get() = naturals.firstOrNull()?.rank
 
     val isCanastra: Boolean get() = cards.size >= CANASTRA_SIZE
@@ -107,10 +136,43 @@ data class Meld(val cards: List<Card> = emptyList()) {
      */
     val isClean: Boolean get() = isCanastra && cards.none { it.rank == Rank.TWO }
 
-    /** Pontos das cartas mais o prêmio da canastra. */
+    /**
+     * Sequência ou trinca? É derivado, e não guardado, porque a distinção nunca pode mentir:
+     * duas cartas naturais do mesmo valor não formam sequência, e de valores diferentes não
+     * formam trinca, então um jogo já validado nunca fica ambíguo.
+     */
+    val kind: MeldKind
+        get() = if (naturals.size >= 2 && naturals.map { it.rank }.distinct().size == 1) {
+            MeldKind.SET
+        } else {
+            MeldKind.SEQUENCE
+        }
+
+    /**
+     * O intervalo de posições, na escala de [CANASTRA_SEQUENCE_RANKS], que este jogo ocupa.
+     * Só faz sentido para [MeldKind.SEQUENCE].
+     *
+     * Basta achar uma carta natural qualquer e olhar o índice dela na lista: como [cards]
+     * está em ordem canônica, a diferença entre a posição real do valor e o índice na lista é
+     * constante — é o começo do intervalo, esteja o curinga onde estiver.
+     */
+    fun sequenceSpan(): IntRange {
+        val indice = cards.indexOfFirst { !isWild(it) }
+        val posicao = sequenceOrder(cards[indice].rank)
+        val inicio = posicao - indice
+        return inicio until (inicio + cards.size)
+    }
+
+    /**
+     * Pontos das cartas, mais o prêmio da canastra.
+     *
+     * Só a canastra **limpa** rende por render: a partir da oitava carta, cada carta além
+     * soma mais cem — o prêmio de uma sequência que não parou de crescer. A suja vale o
+     * bônus fixo de sempre, do mesmo jeito que uma de sete cartas.
+     */
     val score: Int
         get() = cards.sumOf { cardValue(it) } + when {
-            isClean -> 200
+            isClean -> 200 + (cards.size - CANASTRA_SIZE) * 100
             isCanastra -> 100
             else -> 0
         }
@@ -119,15 +181,10 @@ data class Meld(val cards: List<Card> = emptyList()) {
 }
 
 /**
- * Um jogo é válido?
- *
- * Três exigências, e cada uma existe por um motivo: três cartas no mínimo, porque duas não
- * formam jogo; ao menos duas cartas naturais, porque um jogo sustentado por curinga não é um
- * jogo; e teto de curingas, senão o baralho de curingas viraria canastra sozinho.
- *
- * O três fica de fora: o vermelho vale ponto parado e o preto só entra na hora de bater.
+ * Uma trinca é válida? Três cartas do mesmo valor, ao menos duas naturais, no máximo um
+ * curinga — e nunca um três, que não entra em jogo nenhum.
  */
-fun isValidMeld(cards: List<Card>): Boolean {
+fun isValidSet(cards: List<Card>): Boolean {
     if (cards.size < CANASTRA_MIN_MELD) return false
     val naturais = cards.filterNot { isWild(it) }
     val curingas = cards.filter { isWild(it) }
@@ -135,6 +192,133 @@ fun isValidMeld(cards: List<Card>): Boolean {
     if (curingas.size > CANASTRA_MAX_WILDS) return false
     if (naturais.any { it.rank == Rank.THREE }) return false
     return naturais.map { it.rank }.distinct().size == 1
+}
+
+/**
+ * O arranjo canônico de [cards] como sequência do mesmo naipe — com o curinga, se houver, já
+ * na posição do valor que ele representa —, ou `null` se elas não formam uma.
+ *
+ * O algoritmo é determinístico e sem tentativa e erro, porque o teto de um curinga por jogo
+ * torna isso possível: sem curinga, as naturais têm de fechar uma corrida sem buraco. Com um
+ * curinga, só há dois jeitos de ele caber — tapando o único buraco no meio das naturais, ou
+ * ocupando uma ponta livre quando as naturais já são uma corrida fechada — e nunca os dois ao
+ * mesmo tempo. Quando o curinga vai para a ponta, a escolha é a cauda primeiro: é o que faz
+ * `{4, 5, curinga}` fechar como 4-5-6, e nunca como o três, que a canastra proíbe em jogo.
+ */
+fun asSequence(cards: List<Card>): List<Card>? {
+    if (cards.size < CANASTRA_MIN_MELD) return null
+    val naturais = cards.filterNot { isWild(it) }
+    val curingas = cards.filter { isWild(it) }
+    if (curingas.size > CANASTRA_MAX_WILDS) return null
+    if (naturais.size < 2) return null
+    if (naturais.any { it.rank == Rank.THREE }) return null
+    if (naturais.any { sequenceOrder(it.rank) < 0 }) return null
+    val naipe = naturais.first().suit
+    if (naturais.any { it.suit != naipe }) return null
+
+    val ordens = naturais.map { sequenceOrder(it.rank) }
+    if (ordens.distinct().size != ordens.size) return null
+    val ordenadas = ordens.sorted()
+    val menor = ordenadas.first()
+    val maior = ordenadas.last()
+    val vao = maior - menor + 1
+
+    val curinga = curingas.firstOrNull()
+    val posicoes: List<Int> = when {
+        curinga == null -> {
+            if (vao != naturais.size) return null
+            ordenadas
+        }
+
+        vao == naturais.size + 1 -> {
+            // Um buraco só entre as naturais: o curinga o tapa, e a posição é fixa.
+            val buraco = (menor..maior).first { it !in ordenadas }
+            ordenadas + buraco
+        }
+
+        vao == naturais.size -> {
+            // Corrida já fechada: o curinga vai numa ponta, cauda primeiro.
+            when {
+                maior + 1 < CANASTRA_SEQUENCE_RANKS.size -> ordenadas + (maior + 1)
+                menor - 1 >= 0 -> ordenadas + (menor - 1)
+                else -> return null
+            }
+        }
+
+        else -> return null
+    }
+
+    return posicoes.sorted().map { posicao ->
+        naturais.firstOrNull { sequenceOrder(it.rank) == posicao } ?: curinga!!
+    }
+}
+
+/** Um jogo novo, já no arranjo canônico — sequência ou trinca —, ou `null` se não fecha nenhuma. */
+fun asMeld(cards: List<Card>): Meld? {
+    asSequence(cards)?.let { return Meld(it) }
+    if (isValidSet(cards)) return Meld(cards)
+    return null
+}
+
+/**
+ * O jogo depois de acrescentar [card], ou `null` se ela não encaixa.
+ *
+ * Numa sequência a carta natural só entra numa ponta — uma abaixo do começo, ou uma acima do
+ * fim —, e as duas nunca coincidem porque o jogo tem no mínimo três cartas. Um curinga só
+ * entra se o jogo ainda não tem nenhum, na mesma ponta que ganharia uma natural do mesmo
+ * jeito. Numa trinca, qualquer carta do valor entra, e o curinga só se ainda não houver um.
+ */
+fun extendMeld(meld: Meld, card: Card): Meld? {
+    if (isRedThree(card) || isBlackThree(card)) return null
+    return when (meld.kind) {
+        MeldKind.SET -> extendSet(meld, card)
+        MeldKind.SEQUENCE -> extendSequence(meld, card)
+    }
+}
+
+private fun extendSet(meld: Meld, card: Card): Meld? = when {
+    isWild(card) -> if (meld.wilds.size < CANASTRA_MAX_WILDS) Meld(meld.cards + card) else null
+    meld.rank == card.rank -> Meld(meld.cards + card)
+    else -> null
+}
+
+private fun extendSequence(meld: Meld, card: Card): Meld? {
+    val naipe = meld.naturals.first().suit
+    val span = meld.sequenceSpan()
+
+    if (isWild(card)) {
+        if (meld.wilds.size >= CANASTRA_MAX_WILDS) return null
+        return when {
+            span.last + 1 < CANASTRA_SEQUENCE_RANKS.size -> Meld(meld.cards + card)
+            span.first - 1 >= 0 -> Meld(listOf(card) + meld.cards)
+            else -> null
+        }
+    }
+
+    if (card.suit != naipe) return null
+    return when (sequenceOrder(card.rank)) {
+        span.last + 1 -> Meld(meld.cards + card)
+        span.first - 1 -> Meld(listOf(card) + meld.cards)
+        else -> null
+    }
+}
+
+/**
+ * A carta que o curinga deste jogo está representando, ou `null` se o jogo não tem curinga —
+ * ou é trinca, onde o curinga não representa valor nenhum específico.
+ */
+fun wildRepresents(meld: Meld): Card? {
+    if (meld.kind != MeldKind.SEQUENCE || meld.wilds.isEmpty()) return null
+    val indice = meld.cards.indexOfFirst { isWild(it) }
+    val posicao = meld.sequenceSpan().first + indice
+    val rank = CANASTRA_SEQUENCE_RANKS.getOrNull(posicao) ?: return null
+    return Card(rank, meld.naturals.first().suit)
+}
+
+/** Este jogo (uma sequência) tem alguma ponta livre para onde um curinga possa ir? */
+fun hasFreeEnd(meld: Meld): Boolean {
+    val span = meld.sequenceSpan()
+    return span.last + 1 < CANASTRA_SEQUENCE_RANKS.size || span.first - 1 >= 0
 }
 
 /** Em que ponto da vez o jogo está. */
@@ -163,6 +347,8 @@ data class CanastraState(
     val redThrees: List<Int> = emptyList(),
     /** Se a dupla já pegou um morto. Sem isso não se bate. */
     val tookMorto: List<Boolean> = emptyList(),
+    /** Quantas vezes a dupla ficou sem cartas nesta mão — pegando o morto ou batendo de vez. */
+    val batidas: List<Int> = emptyList(),
     override val turn: Seat = Seat.FIRST,
     override val ply: Int = 0,
     val phase: CanastraPhase = CanastraPhase.DRAW,
@@ -192,7 +378,7 @@ data class CanastraState(
     /** O lixo está trancado: um três preto em cima impede a próxima pessoa de pegá-lo. */
     val discardBlocked: Boolean get() = discardTop?.let { isBlackThree(it) } ?: false
 
-    /** A dupla tem canastra? Sem uma, ninguém bate. */
+    /** A dupla tem canastra? Sem uma, ninguém bate, e nenhuma trinca pode ser baixada. */
     fun hasCanastra(team: Int): Boolean =
         melds.getOrElse(team) { emptyList() }.any { it.isCanastra }
 
@@ -230,6 +416,15 @@ sealed interface CanastraMove : Move {
             cards.joinToString(" ") + if (into != null) " →$into" else ""
     }
 
+    /**
+     * Troca o curinga do jogo [into] pela carta natural exata que ele representa — o curinga
+     * se desloca para uma ponta livre da própria sequência, que cresce em uma carta.
+     */
+    @Serializable
+    data class SwapWild(val into: Int, val card: Card) : CanastraMove {
+        override fun describe(): String = "$card troca o curinga em →$into"
+    }
+
     /** Descartar, o que fecha a vez. */
     @Serializable
     data class Discard(val card: Card) : CanastraMove {
@@ -244,21 +439,29 @@ sealed interface CanastraMove : Move {
  * compra-se (do monte ou o lixo inteiro), baixa-se o que quiser, e descarta-se — e é o
  * descarte que passa a vez.
  *
+ * **O jogo normal é uma sequência do mesmo naipe**, do quatro ao ás, com no máximo um
+ * curinga tapando um buraco ou ocupando uma ponta. **A trinca** (três ou mais cartas do
+ * mesmo valor) existe, mas só pode ser baixada depois que a dupla já tiver uma canastra —
+ * antes disso, só a sequência serve para abrir jogo.
+ *
+ * Com a carta natural exata na mão, dá para **trocar o curinga** de uma sequência já baixada:
+ * ele não volta para a mão, desloca-se para uma ponta livre do próprio jogo, que cresce em
+ * uma carta.
+ *
  * **O morto é um só, e nem sempre existe**: mesa de duas ou três pessoas tem um morto na
  * mesa, que é de quem chegar primeiro; mesa de duplas não tem morto nenhum. Ver [mortosFor].
  *
  * **As duas regras do três**, que são o que separa canastra de qualquer outro jogo de
- * formar trincas:
+ * formar sequências:
  *
- * - O **três vermelho** não se joga. Ele vale cem pontos parado na mesa, vai para lá sozinho
- *   assim que aparece na mão, e quem o tira do monte compra outra carta no lugar. É ponto de
- *   graça — e é ponto do adversário se a dupla não fizer canastra nenhuma.
+ * - O **três vermelho** não se joga. Ele vale cem pontos parado na mesa — só se a dupla tiver
+ *   canastra — e vai para lá sozinho assim que aparece na mão; quem o tira do monte compra
+ *   outra carta no lugar.
  * - O **três preto** tranca o lixo: descartado, impede a pessoa seguinte de pegar o monte de
- *   descarte. É a única carta que se joga contra alguém em vez de a favor de si, e por isso
- *   ela só pode ser baixada na hora de bater — guardá-la custa cinco pontos na mão.
+ *   descarte. Nunca entra em jogo nenhum — guardá-lo custa cem pontos na mão.
  *
  * Bater exige canastra. Ficar sem cartas com o morto ainda na mesa não é bater: pega-se o
- * morto e a vez continua.
+ * morto e a vez continua — e as duas coisas valem cinquenta pontos de bônus.
  */
 object CanastraGame : BoardGame<CanastraState, CanastraMove> {
 
@@ -322,6 +525,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             mortos = mortos,
             redThrees = vermelhos.toList(),
             tookMorto = List(teams) { false },
+            batidas = List(teams) { 0 },
             turn = Seat.FIRST,
             phase = CanastraPhase.DRAW,
             scores = scores,
@@ -349,32 +553,77 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
     /**
      * Os jogos que valem a pena oferecer, e não todos os que existem.
      *
-     * Enumerar toda combinação de cartas que forma jogo estoura: onze cartas dão milhares de
-     * subconjuntos, e a busca da IA morreria neles. Aqui saem os que uma pessoa jogaria — o
-     * jogo inteiro de cada valor, e cada carta que encaixa num jogo já baixado. Quem valida
-     * é [applyMove], que aceita qualquer jogo bem formado que a tela mandar.
+     * Enumerar toda combinação de cartas que forma jogo estoura: treze cartas dão milhares de
+     * subconjuntos, e a busca da IA morreria neles. Aqui saem os que uma pessoa jogaria — as
+     * corridas que já estão prontas na mão, as que um curinga fecha, as trincas (só depois da
+     * primeira canastra), cada carta que estende um jogo já baixado e cada troca de curinga
+     * possível. Quem valida de verdade é [applyMove] — e a tela pergunta com [canMeld] a um
+     * conjunto exato de cartas, sem depender desta lista ser exaustiva.
      */
     private fun meldMoves(state: CanastraState, mao: List<Card>): List<CanastraMove> {
         val saida = mutableListOf<CanastraMove>()
         val curingas = mao.filter { isWild(it) }
+        val naturaisMao = mao.filterNot { isWild(it) || it.rank == Rank.THREE }
 
-        // Jogo novo: todas as naturais de um valor, com um curinga se faltar uma.
-        val porValor = mao.filterNot { isWild(it) || it.rank == Rank.THREE }.groupBy { it.rank }
-        for ((_, iguais) in porValor) {
-            if (iguais.size >= CANASTRA_MIN_MELD) {
-                saida += CanastraMove.Meld(iguais)
-            } else if (iguais.size == 2 && curingas.isNotEmpty()) {
-                saida += CanastraMove.Meld(iguais + curingas.first())
+        // Sequências novas: por naipe, as corridas máximas de valores seguidos na mão.
+        val porNaipe = naturaisMao.groupBy { it.suit }
+        for ((_, cartasDoNaipe) in porNaipe) {
+            val porOrdem = cartasDoNaipe.distinctBy { it.rank }.associateBy { sequenceOrder(it.rank) }
+            val ordens = porOrdem.keys.sorted()
+
+            var inicio = 0
+            while (inicio < ordens.size) {
+                var fim = inicio
+                while (fim + 1 < ordens.size && ordens[fim + 1] == ordens[fim] + 1) fim++
+                val corrida = ordens.subList(inicio, fim + 1).map { porOrdem.getValue(it) }
+                if (corrida.size >= CANASTRA_MIN_MELD) saida += CanastraMove.Meld(corrida)
+                if (corrida.size >= 2 && curingas.isNotEmpty()) {
+                    val comCuringa = corrida + curingas.first()
+                    if (asSequence(comCuringa) != null) saida += CanastraMove.Meld(comCuringa)
+                }
+                inicio = fim + 1
+            }
+
+            // Duas cartas com um buraco só entre elas: o curinga fecha o meio.
+            if (curingas.isNotEmpty()) {
+                for (i in ordens.indices) {
+                    for (j in i + 1 until ordens.size) {
+                        if (ordens[j] - ordens[i] != 2) continue
+                        val par = listOf(porOrdem.getValue(ordens[i]), porOrdem.getValue(ordens[j]), curingas.first())
+                        if (asSequence(par) != null) saida += CanastraMove.Meld(par)
+                    }
+                }
+            }
+        }
+
+        // Trincas novas: só depois que a dupla já tem canastra.
+        if (state.hasCanastra(state.teamOf(state.turn))) {
+            val porValor = naturaisMao.groupBy { it.rank }
+            for ((_, iguais) in porValor) {
+                if (iguais.size >= CANASTRA_MIN_MELD) {
+                    saida += CanastraMove.Meld(iguais)
+                } else if (iguais.size == 2 && curingas.isNotEmpty()) {
+                    saida += CanastraMove.Meld(iguais + curingas.first())
+                }
             }
         }
 
         // Acrescentar a um jogo da dupla: cada carta que serve, uma de cada vez.
         state.meldsOf(state.turn).forEachIndexed { index, jogo ->
             for (carta in mao.distinct()) {
-                if (canExtend(jogo, carta)) saida += CanastraMove.Meld(listOf(carta), into = index)
+                if (extendMeld(jogo, carta) != null) saida += CanastraMove.Meld(listOf(carta), into = index)
+            }
+            // Trocar o curinga: só se a carta exata que ele representa estiver na mão.
+            wildRepresents(jogo)?.let { exata -> if (exata in mao) saida += CanastraMove.SwapWild(index, exata) }
+        }
+
+        return saida.filterNot { move ->
+            when (move) {
+                is CanastraMove.Meld -> encurrala(state, move.cards.size, teraCanastra(state, move))
+                is CanastraMove.SwapWild -> encurrala(state, 1, teraCanastraSwap(state, move))
+                else -> false
             }
         }
-        return saida.filterNot { encurrala(state, it as CanastraMove.Meld) }
     }
 
     /**
@@ -399,16 +648,23 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
     private fun podeZerar(state: CanastraState, team: Int, teraCanastra: Boolean): Boolean =
         temMortoParaPegar(state, team) || teraCanastra
 
-    /** A dupla terá canastra depois deste lance? O próprio lance pode fechar a sétima carta. */
+    /** A dupla terá canastra depois deste lance de baixar? O próprio lance pode fechar a sétima carta. */
     private fun teraCanastra(state: CanastraState, move: CanastraMove.Meld): Boolean {
         val time = state.teamOf(state.turn)
         if (state.hasCanastra(time)) return true
-        val jogos = state.melds.getOrElse(time) { emptyList() }
         val tamanho = if (move.into != null) {
-            (jogos.getOrNull(move.into)?.cards?.size ?: 0) + move.cards.size
+            (state.meldsOf(state.turn).getOrNull(move.into)?.cards?.size ?: 0) + move.cards.size
         } else {
             move.cards.size
         }
+        return tamanho >= CANASTRA_SIZE
+    }
+
+    /** O mesmo, para a troca do curinga: ela sempre cresce o jogo em exatamente uma carta. */
+    private fun teraCanastraSwap(state: CanastraState, move: CanastraMove.SwapWild): Boolean {
+        val time = state.teamOf(state.turn)
+        if (state.hasCanastra(time)) return true
+        val tamanho = (state.meldsOf(state.turn).getOrNull(move.into)?.cards?.size ?: 0) + 1
         return tamanho >= CANASTRA_SIZE
     }
 
@@ -417,19 +673,13 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
      *
      * Baixar até sobrar uma carta é o mesmo que baixar tudo: a vez ainda tem de terminar com
      * um descarte, e esse descarte zeraria a mão. Então o corte é em duas cartas — quem não
-     * pode zerar precisa guardar uma para descartar e outra para ficar.
+     * pode zerar precisa guardar uma para descartar e outra para ficar. [cartasRemovidas] é
+     * quantas cartas o lance tira da mão — três ou mais para baixar, uma para trocar curinga.
      */
-    private fun encurrala(state: CanastraState, move: CanastraMove.Meld): Boolean {
-        val restante = state.hand(state.turn).size - move.cards.size
+    private fun encurrala(state: CanastraState, cartasRemovidas: Int, teraCanastra: Boolean): Boolean {
+        val restante = state.hand(state.turn).size - cartasRemovidas
         if (restante >= 2) return false
-        return !podeZerar(state, state.teamOf(state.turn), teraCanastra(state, move))
-    }
-
-    /** A carta serve neste jogo? */
-    fun canExtend(meld: Meld, card: Card): Boolean {
-        if (isRedThree(card) || isBlackThree(card)) return false
-        if (isWild(card)) return meld.wilds.size < CANASTRA_MAX_WILDS
-        return meld.rank == card.rank
+        return !podeZerar(state, state.teamOf(state.turn), teraCanastra)
     }
 
     /**
@@ -443,6 +693,10 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         // bater; nesse caso ainda há morto para pegar, e quem cuida disso é `applyKnownLegal`.
         return mao.distinct().filterNot { isRedThree(it) }.map { CanastraMove.Discard(it) }
     }
+
+    /** As cartas escolhidas formam, agora, um jogo novo válido para a vez de quem joga? */
+    fun canMeld(state: CanastraState, cards: List<Card>): Boolean =
+        cards.isNotEmpty() && applyMove(state, CanastraMove.Meld(cards)) is MoveResult.Ok
 
     override fun applyMove(state: CanastraState, move: CanastraMove): MoveResult<CanastraState> {
         if (outcome(state).isOver) return MoveResult.Illegal(ReasonKey.GAME_OVER)
@@ -475,19 +729,37 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                     return MoveResult.Illegal(ReasonKey.CANASTRA_RED_THREE_NOT_PLAYABLE)
                 }
                 if (move.cards.any { isBlackThree(it) }) {
-                    return MoveResult.Illegal(ReasonKey.CANASTRA_BLACK_THREE_ONLY_OUT)
+                    return MoveResult.Illegal(ReasonKey.CANASTRA_BLACK_THREE_NEVER_MELDS)
                 }
-                val jogos = state.meldsOf(state.turn)
                 if (move.into != null) {
-                    val jogo = jogos.getOrNull(move.into)
+                    var atual = state.meldsOf(state.turn).getOrNull(move.into)
                         ?: return MoveResult.Illegal(ReasonKey.CANASTRA_NO_SUCH_MELD)
-                    if (move.cards.any { !canExtend(jogo, it) }) {
-                        return MoveResult.Illegal(ReasonKey.CANASTRA_DOES_NOT_FIT)
+                    for (carta in move.cards) {
+                        atual = extendMeld(atual, carta) ?: return MoveResult.Illegal(ReasonKey.CANASTRA_DOES_NOT_FIT)
                     }
-                } else if (!isValidMeld(move.cards)) {
-                    return MoveResult.Illegal(ReasonKey.CANASTRA_INVALID_MELD)
+                } else {
+                    val jogo = asMeld(move.cards) ?: return MoveResult.Illegal(ReasonKey.CANASTRA_INVALID_MELD)
+                    if (jogo.kind == MeldKind.SET && !state.hasCanastra(state.teamOf(state.turn))) {
+                        return MoveResult.Illegal(ReasonKey.CANASTRA_TRINCA_NEEDS_CANASTRA)
+                    }
                 }
-                if (encurrala(state, move)) {
+                if (encurrala(state, move.cards.size, teraCanastra(state, move))) {
+                    return MoveResult.Illegal(ReasonKey.CANASTRA_NEEDS_CANASTRA_TO_GO_OUT)
+                }
+            }
+
+            is CanastraMove.SwapWild -> {
+                if (state.phase != CanastraPhase.PLAY) {
+                    return MoveResult.Illegal(ReasonKey.CANASTRA_MUST_DRAW_FIRST)
+                }
+                if (move.card !in mao) return MoveResult.Illegal(ReasonKey.CARD_NOT_IN_HAND)
+                val jogo = state.meldsOf(state.turn).getOrNull(move.into)
+                    ?: return MoveResult.Illegal(ReasonKey.CANASTRA_NO_SUCH_MELD)
+                val esperada = wildRepresents(jogo)
+                    ?: return MoveResult.Illegal(ReasonKey.CANASTRA_NO_WILD_TO_SWAP)
+                if (move.card != esperada) return MoveResult.Illegal(ReasonKey.CANASTRA_DOES_NOT_FIT)
+                if (!hasFreeEnd(jogo)) return MoveResult.Illegal(ReasonKey.CANASTRA_WILD_CANNOT_SWAP)
+                if (encurrala(state, 1, teraCanastraSwap(state, move))) {
                     return MoveResult.Illegal(ReasonKey.CANASTRA_NEEDS_CANASTRA_TO_GO_OUT)
                 }
             }
@@ -519,6 +791,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             CanastraMove.DrawStock -> drawFromStock(state)
             CanastraMove.TakeDiscard -> takeDiscard(state)
             is CanastraMove.Meld -> applyMeld(state, move)
+            is CanastraMove.SwapWild -> applySwapWild(state, move)
             is CanastraMove.Discard -> applyDiscard(state, move)
         }
 
@@ -580,10 +853,14 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val time = state.teamOf(state.turn)
         val jogos = state.melds[time].toMutableList()
         if (move.into != null) {
-            val antigo = jogos[move.into]
-            jogos[move.into] = Meld(antigo.cards + move.cards)
+            var atual = jogos[move.into]
+            // Já validado por applyMove: cada carta encaixa numa ponta, uma de cada vez —
+            // e é por isso que dá para crescer as duas pontas no mesmo lance.
+            for (carta in move.cards) atual = extendMeld(atual, carta)!!
+            jogos[move.into] = atual
         } else {
-            jogos += Meld(move.cards)
+            // Já validado por applyMove: o arranjo canônico existe.
+            jogos += asMeld(move.cards)!!
         }
 
         val mesa = state.melds.toMutableList()
@@ -591,6 +868,43 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
 
         // Baixar pode esvaziar a mão, e aí pega-se o morto — mas a vez **continua**: ainda
         // falta descartar, agora com as cartas novas.
+        return settle(
+            semMao(
+                state.copy(
+                    hands = trocarMao(state, mao),
+                    melds = mesa.toList(),
+                    ply = state.ply + 1,
+                ),
+            ),
+        )
+    }
+
+    /**
+     * Encaixa a carta natural no lugar do curinga; ele desce para uma ponta livre da própria
+     * sequência, que cresce de N para N+1 cartas.
+     */
+    private fun applySwapWild(state: CanastraState, move: CanastraMove.SwapWild): CanastraState {
+        val mao = state.hand(state.turn).toMutableList()
+        mao.remove(move.card)
+
+        val time = state.teamOf(state.turn)
+        val jogos = state.melds[time].toMutableList()
+        val antigo = jogos[move.into]
+        val indiceCuringa = antigo.cards.indexOfFirst { isWild(it) }
+        val curinga = antigo.cards[indiceCuringa]
+        val semCuringa = antigo.cards.toMutableList().also { it[indiceCuringa] = move.card }
+
+        val span = antigo.sequenceSpan()
+        val novo = if (span.last + 1 < CANASTRA_SEQUENCE_RANKS.size) {
+            semCuringa + curinga
+        } else {
+            listOf(curinga) + semCuringa
+        }
+        jogos[move.into] = Meld(novo)
+
+        val mesa = state.melds.toMutableList()
+        mesa[time] = jogos.toList()
+
         return settle(
             semMao(
                 state.copy(
@@ -621,7 +935,8 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
     }
 
     /**
-     * Ficou sem cartas: pega o morto, ou bate.
+     * Ficou sem cartas: pega o morto, ou bate. Os dois casos valem cinquenta pontos de
+     * bônus, e é por isso que a mesma mão pode marcá-lo duas vezes.
      *
      * Acabar as cartas não termina a mão enquanto houver morto: quem chega primeiro pega as
      * treze cartas dele e continua jogando. Só que o morto é um e só existe até três
@@ -635,6 +950,9 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         if (state.hand(cadeira).isNotEmpty()) return state
 
         val time = state.teamOf(cadeira)
+        val batidas = state.batidas.toMutableList()
+        batidas[time] = batidas[time] + 1
+
         if (temMortoParaPegar(state, time)) {
             // O morto também pode trazer três vermelho, e ele não vai para a mão: vai para a
             // mesa, com carta comprada no lugar. Sem isto uma mão podia ficar só com três
@@ -648,13 +966,14 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 redThrees = recebida.redThrees,
                 mortos = state.mortos.drop(1),
                 tookMorto = pegou.toList(),
+                batidas = batidas.toList(),
             )
         }
 
         // Sem cartas e sem morto para pegar, a mão acabou para todo mundo. Ter canastra
-        // muda o quanto se ganha — quem bate leva bônus, e o três vermelho troca de sinal —,
-        // e quem cuida disso é a contagem.
-        return state.copy(wentOut = time)
+        // muda o quanto se ganha — o três vermelho só conta a favor com ela —, e quem cuida
+        // disso é a contagem.
+        return state.copy(wentOut = time, batidas = batidas.toList())
     }
 
     /**
@@ -726,10 +1045,10 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
     /**
      * A mão acabou: conta os pontos e reparte a seguinte, se a partida continuar.
      *
-     * A conta é da **dupla**: o que está na mesa soma, o que ficou na mão subtrai, e o três
-     * vermelho entra por último — a favor de quem fez canastra, contra quem não fez. Essa
-     * última regra é o que impede alguém de guardar três vermelho como ponto garantido sem
-     * jogar.
+     * A conta é da **dupla**: o que está na mesa soma (com o prêmio de cada canastra e de
+     * cada carta além da sétima), o que ficou na mão subtrai, o três vermelho entra só se a
+     * dupla tem canastra, e cada vez que a dupla ficou sem cartas soma cinquenta — seja
+     * pegando o morto, seja batendo de vez.
      */
     fun scoreHand(state: CanastraState): List<Int> = List(state.teams) { time ->
         val naMesa = state.melds.getOrElse(time) { emptyList() }.sumOf { it.score }
@@ -738,19 +1057,11 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             .sumOf { state.hand(Seat(it)).sumOf { carta -> cardValue(carta) } }
 
         val quantos = state.redThrees.getOrElse(time) { 0 }
-        // Os quatro na mesma dupla valem o dobro cada; é o prêmio de ter todos.
-        val porVermelho = if (quantos == 4) RED_THREE_VALUE * 2 else RED_THREE_VALUE
-        val vermelhos = quantos * porVermelho
-        val comSinal = if (state.hasCanastra(time)) vermelhos else -vermelhos
+        val vermelhos = if (state.hasCanastra(time)) quantos * RED_THREE_VALUE else 0
 
-        // O bônus é de bater, e bater é com canastra. A mão pode fechar sem ninguém bater —
-        // monte seco, lixo trancado —, e aí o bônus não é de ninguém.
-        val bateu = if (state.wentOut == time && state.hasCanastra(time)) {
-            CANASTRA_GOING_OUT_BONUS
-        } else {
-            0
-        }
-        naMesa - naMao + comSinal + bateu
+        val bateu = CANASTRA_GOING_OUT_BONUS * state.batidas.getOrElse(time) { 0 }
+
+        naMesa - naMao + vermelhos + bateu
     }
 
     override fun outcome(state: CanastraState): Outcome {
@@ -761,9 +1072,9 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         return Outcome.Win(Seat(campeao))
     }
 
-    /** Baixar carta é o lance que muda a mesa; a tela dá destaque a ele. */
+    /** Baixar carta ou trocar o curinga são os lances que mudam a mesa; a tela dá destaque a eles. */
     override fun isCapture(state: CanastraState, move: CanastraMove): Boolean =
-        move is CanastraMove.Meld
+        move is CanastraMove.Meld || move is CanastraMove.SwapWild
 
     /**
      * A mão dos outros vira, e o monte e os mortos também.

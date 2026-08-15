@@ -128,12 +128,15 @@ enum class ReasonKey(
 
     CANASTRA_MUST_DRAW_FIRST("Compre antes de baixar ou descartar"),
     CANASTRA_PILE_BLOCKED("O lixo está trancado por um três preto"),
-    CANASTRA_INVALID_MELD("Um jogo precisa de três cartas do mesmo valor, com no máximo três curingas e ao menos duas cartas naturais"),
+    CANASTRA_INVALID_MELD("Um jogo é uma sequência de três ou mais cartas seguidas do mesmo naipe, ou uma trinca do mesmo valor — com no máximo um curinga"),
     CANASTRA_DOES_NOT_FIT("Essa carta não encaixa nesse jogo"),
     CANASTRA_NO_SUCH_MELD("Esse jogo não existe na mesa"),
     CANASTRA_RED_THREE_NOT_PLAYABLE("O três vermelho vale ponto parado na mesa: não se joga nem se descarta"),
-    CANASTRA_BLACK_THREE_ONLY_OUT("O três preto só é baixado na hora de bater"),
+    CANASTRA_BLACK_THREE_NEVER_MELDS("O três preto nunca entra em jogo: ele só serve para trancar o lixo"),
     CANASTRA_NEEDS_CANASTRA_TO_GO_OUT("Sem canastra você não pode ficar sem cartas: guarde uma para descartar"),
+    CANASTRA_TRINCA_NEEDS_CANASTRA("Trinca só pode ser baixada depois da primeira canastra da dupla"),
+    CANASTRA_NO_WILD_TO_SWAP("Esse jogo não tem curinga para trocar"),
+    CANASTRA_WILD_CANNOT_SWAP("Não há ponta livre para o curinga ir"),
 
     // -------- pife --------
 

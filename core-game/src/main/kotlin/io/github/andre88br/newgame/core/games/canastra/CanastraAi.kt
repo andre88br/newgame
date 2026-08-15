@@ -53,10 +53,10 @@ object CanastraEvaluator : Evaluator<CanastraState> {
             if (!jogo.isCanastra) total += (jogo.cards.size - CANASTRA_MIN_MELD) * PROGRESS_WEIGHT
         }
 
-        // Três vermelho troca de sinal conforme a dupla tenha ou não canastra — é a regra
-        // que impede tratá-lo como ponto garantido, e a avaliação precisa enxergar isso.
+        // Três vermelho só vale alguma coisa com canastra — é a regra que impede tratá-lo
+        // como ponto garantido, e a avaliação precisa enxergar isso.
         val vermelhos = state.redThrees.getOrElse(team) { 0 } * RED_THREE_VALUE
-        total += if (jogos.any { it.isCanastra }) vermelhos else -vermelhos
+        if (jogos.any { it.isCanastra }) total += vermelhos
 
         if (state.tookMorto.getOrElse(team) { false }) total += MORTO_WEIGHT
 
@@ -82,6 +82,9 @@ val CanastraOrdering: MoveOrdering<CanastraState, CanastraMove> =
             moves.sortedByDescending { move ->
                 when (move) {
                     is CanastraMove.Meld -> 1_000 + move.cards.sumOf { cardValue(it) }
+                    // Trocar o curinga libera ele para outro jogo e não gasta carta de mais:
+                    // quase sempre vale a pena, tanto quanto baixar.
+                    is CanastraMove.SwapWild -> 1_000 + cardValue(move.card)
                     CanastraMove.TakeDiscard -> 900
                     CanastraMove.DrawStock -> 800
                     // Descartar: quanto mais barata a carta, melhor. Curinga nunca.

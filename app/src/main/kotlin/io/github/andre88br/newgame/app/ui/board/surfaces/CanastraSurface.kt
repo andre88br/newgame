@@ -33,11 +33,13 @@ import io.github.andre88br.newgame.core.cards.Card
 import io.github.andre88br.newgame.core.cards.sortedForHand
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.Seat
+import io.github.andre88br.newgame.core.games.canastra.CanastraGame
 import io.github.andre88br.newgame.core.games.canastra.CanastraMove
 import io.github.andre88br.newgame.core.games.canastra.CanastraPhase
 import io.github.andre88br.newgame.core.games.canastra.CanastraState
 import io.github.andre88br.newgame.core.games.canastra.Meld
 import io.github.andre88br.newgame.core.games.canastra.mortosFor
+import io.github.andre88br.newgame.core.games.canastra.wildRepresents
 
 /**
  * A mesa da canastra.
@@ -47,9 +49,14 @@ import io.github.andre88br.newgame.core.games.canastra.mortosFor
  * vez de espalhar isso, a tela mostra sempre os mesmos blocos e só troca os botões de ação
  * conforme o tempo em que a vez está.
  *
- * Baixar exige escolher **várias** cartas antes de agir, e é a única tela do app em que um
- * toque não é um lance. A escolha é por posição na mão, e não por carta: com dois baralhos,
- * dois reis de paus iguais seriam escolhidos juntos se a conta fosse pelo valor.
+ * Baixar exige escolher cartas antes de agir, e é a única tela do app em que um toque não é
+ * um lance. A escolha é por posição na mão, e não por carta: com dois baralhos, dois reis de
+ * paus iguais seriam escolhidos juntos se a conta fosse pelo valor.
+ *
+ * Tocar num jogo já baixado com **uma** carta escolhida pode ser duas coisas diferentes, e a
+ * tela não pergunta qual: se aquela carta é a que o curinga do jogo está representando, é
+ * troca de curinga; senão, é extensão comum. As duas nunca se confundem — o valor que o
+ * curinga faz de conta que é está sempre dentro do jogo, nunca numa ponta livre.
  */
 @Composable
 fun CanastraSurface(
@@ -77,19 +84,42 @@ fun CanastraSurface(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Scoreboard(state = state, viewer = viewer, names = names)
+        Scoreboard(state = state, viewer = viewer)
 
-        TableInfo(state = state, palette = palette)
+        // Os adversários sentados ao redor, com o monte, o lixo e o morto no meio.
+        CardTable(
+            seats = state.seats,
+            viewer = viewer,
+            names = names,
+            handSize = { seat -> state.handSize(seat) },
+            palette = palette,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            TableInfo(state = state, palette = palette)
+        }
 
         // Os jogos da própria dupla vêm primeiro e são tocáveis: tocar num deles acrescenta
         // as cartas escolhidas. Os do adversário aparecem só para serem vistos — mas
         // aparecem, porque saber o que o outro lado já fez é metade da decisão.
+        val meusJogos = state.melds.getOrElse(meuTime) { emptyList() }
         MeldRow(
             title = stringResource(R.string.canastra_your_melds),
-            melds = state.melds.getOrElse(meuTime) { emptyList() },
+            melds = meusJogos,
             palette = palette,
             onMeldClick = if (enabled && minhaVez && cartasEscolhidas.isNotEmpty()) {
-                { index -> onMove(CanastraMove.Meld(cartasEscolhidas, into = index)) }
+                { index ->
+                    // Uma carta só, e é justo a que o curinga daquele jogo está fazendo de
+                    // conta que é: então é troca, e não extensão comum. Nunca é as duas
+                    // coisas ao mesmo tempo — o valor que o curinga representa está sempre
+                    // dentro do jogo, nunca numa ponta livre.
+                    val unica = cartasEscolhidas.singleOrNull()
+                    val jogo = meusJogos.getOrNull(index)
+                    if (jogo != null && unica != null && unica == wildRepresents(jogo)) {
+                        onMove(CanastraMove.SwapWild(index, unica))
+                    } else {
+                        onMove(CanastraMove.Meld(cartasEscolhidas, into = index))
+                    }
+                }
             } else {
                 null
             },
@@ -147,12 +177,12 @@ fun CanastraSurface(
 /**
  * O placar por dupla, com o que decide a mão além dos pontos.
  *
- * Três vermelho e morto aparecem aqui porque não são enfeite de contagem: o vermelho troca
- * de sinal conforme a dupla tenha canastra, e sem morto pego ninguém bate. Quem olha o
- * placar precisa saber as duas coisas para decidir se corre para bater ou se segura.
+ * Três vermelho e morto aparecem aqui porque não são enfeite de contagem: o vermelho só vale
+ * alguma coisa se a dupla tem canastra, e sem morto pego ninguém bate. Quem olha o placar
+ * precisa saber as duas coisas para decidir se corre para bater ou se segura.
  */
 @Composable
-private fun Scoreboard(state: CanastraState, viewer: Seat, names: List<String>) {
+private fun Scoreboard(state: CanastraState, viewer: Seat) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(3.dp),
@@ -172,21 +202,6 @@ private fun Scoreboard(state: CanastraState, viewer: Seat, names: List<String>) 
                 color = if (meu) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-
-        // Quantas cartas cada um tem na mão: é o aviso de que alguém está prestes a bater.
-        //
-        // O nome é montado num `map`, que é inline e por isso deixa chamar `stringResource`
-        // de dentro; `joinToString` não é, e a chamada ali não compilaria.
-        val contagens = (0 until state.seats).map { index ->
-            val nome = names.getOrNull(index)?.takeIf { it.isNotBlank() }
-                ?: stringResource(R.string.dominoes_opponent_seat, index + 1)
-            "$nome ${state.handSize(Seat(index))}"
-        }
-        Text(
-            text = contagens.joinToString("  "),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
@@ -358,7 +373,9 @@ private fun Actions(
 
         Button(
             onClick = { onMove(CanastraMove.Meld(escolhidas)) },
-            enabled = enabled && escolhidas.size >= 3,
+            // Sequência ou trinca, com trinca gated por já ter canastra: quem sabe dizer se
+            // isto fecha jogo agora é o motor, não um número fixo de cartas na tela.
+            enabled = enabled && CanastraGame.canMeld(state, escolhidas),
             modifier = Modifier.weight(1f),
         ) {
             Text(stringResource(R.string.canastra_meld, escolhidas.size))

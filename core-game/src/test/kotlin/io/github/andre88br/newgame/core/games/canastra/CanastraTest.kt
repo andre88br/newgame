@@ -11,13 +11,16 @@ import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.applyOrThrow
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Canastra tem duas regras que não existem em nenhum outro jogo de formar trincas, e são as
- * que o usuário pediu por nome: o três vermelho, que vale ponto parado e nunca se joga, e o
- * três preto, que tranca o lixo de quem vem a seguir. O resto do arquivo cuida do que
- * sustenta as duas — morto, canastra e a contagem.
+ * Canastra tem regras que não existem em nenhum outro jogo deste app, e são as que o usuário
+ * pediu por nome: o jogo normal é uma **sequência** do mesmo naipe, e não uma trinca; a
+ * **trinca** só se libera depois da primeira canastra; o três vermelho vale ponto parado, e
+ * só com canastra; o três preto tranca o lixo e nunca entra em jogo; e cada carta além da
+ * sétima numa canastra **limpa** rende mais cem pontos. O resto do arquivo cuida do que
+ * sustenta tudo isso — morto, distribuição e a contagem.
  */
 class CanastraTest {
 
@@ -160,29 +163,47 @@ class CanastraTest {
     }
 
     /**
-     * O sinal do três vermelho depende de a dupla ter canastra. É o que impede alguém de
-     * tratá-lo como ponto garantido e não jogar.
+     * O três vermelho só vale alguma coisa se a dupla tem canastra. Sem canastra, ele não
+     * subtrai nem soma: fica em zero. É o que impede alguém de tratá-lo como ponto garantido
+     * e não jogar — mas também não pune quem simplesmente ainda não fechou nenhuma.
      */
     @Test
-    fun `o tres vermelho conta a favor com canastra e contra sem`() {
+    fun `o tres vermelho conta com canastra e nao conta sem`() {
         val comCanastra = novo().copy(
             melds = listOf(listOf(Meld(List(7) { carta(Rank.KING, Suit.CLUBS) })), emptyList()),
             redThrees = listOf(2, 0),
             hands = List(4) { emptyList() },
             scores = listOf(0, 0),
+            batidas = listOf(0, 0),
         )
         val semCanastra = comCanastra.copy(melds = listOf(emptyList(), emptyList()))
 
         val com = CanastraGame.scoreHand(comCanastra)[0]
         val sem = CanastraGame.scoreHand(semCanastra)[0]
 
-        assertTrue(com > sem, "com canastra o vermelho soma; sem, subtrai (com=$com sem=$sem)")
-        // A diferença é a canastra mais o **dobro** do que valem os vermelhos: num lado eles
-        // entram somando, no outro subtraindo, e a distância entre os dois é duas vezes.
+        // A diferença é a canastra (que só existe do lado "com") mais os dois vermelhos a
+        // 100 cada — e nada além disso, porque sem canastra eles não descontam.
         assertEquals(
-            2 * (2 * RED_THREE_VALUE),
-            com - sem - Meld(List(7) { carta(Rank.KING, Suit.CLUBS) }).score,
-            "os três vermelhos trocam de sinal conforme a dupla tenha canastra",
+            Meld(List(7) { carta(Rank.KING, Suit.CLUBS) }).score + 2 * RED_THREE_VALUE,
+            com - sem,
+            "com canastra a canastra soma e os vermelhos somam; sem, só falta os dois",
+        )
+    }
+
+    @Test
+    fun `quatro tres vermelhos somam quatrocentos, sem dobrar`() {
+        val state = novo().copy(
+            melds = listOf(listOf(Meld(List(7) { carta(Rank.KING, Suit.CLUBS) })), emptyList()),
+            redThrees = listOf(4, 0),
+            hands = List(4) { emptyList() },
+            scores = listOf(0, 0),
+            batidas = listOf(0, 0),
+        )
+        val pontos = CanastraGame.scoreHand(state)[0]
+        assertEquals(
+            Meld(List(7) { carta(Rank.KING, Suit.CLUBS) }).score + 4 * RED_THREE_VALUE,
+            pontos,
+            "quatro vermelhos são 400, não 800",
         )
     }
 
@@ -233,7 +254,7 @@ class CanastraTest {
     }
 
     @Test
-    fun `o tres preto nao entra em jogo comum`() {
+    fun `o tres preto nao entra em jogo nenhum`() {
         val preto = carta(Rank.THREE, Suit.CLUBS)
         val state = novo().let {
             it.copy(
@@ -244,35 +265,260 @@ class CanastraTest {
             )
         }
         val recusa = CanastraGame.applyMove(state, CanastraMove.Meld(List(3) { preto }))
-        assertTrue(recusa is MoveResult.Illegal, "baixar três preto fora da batida devia ser recusado")
+        assertTrue(recusa is MoveResult.Illegal, "baixar três preto devia ser recusado")
     }
 
-    // -------- jogos e canastra --------
+    /** Guardar um três preto na mão custa caro — é o preço de segurar a tranca do lixo. */
+    @Test
+    fun `o tres preto na mao custa cem pontos negativos`() {
+        val state = novo().copy(
+            hands = listOf(listOf(carta(Rank.THREE, Suit.CLUBS)), emptyList(), emptyList(), emptyList()),
+            melds = List(2) { emptyList() },
+            redThrees = listOf(0, 0),
+            scores = listOf(0, 0),
+            batidas = listOf(0, 0),
+        )
+        assertEquals(-100, CanastraGame.scoreHand(state)[0])
+    }
+
+    // -------- sequências --------
 
     @Test
-    fun `um jogo precisa de tres cartas, duas naturais e no maximo tres curingas`() {
-        val rei = carta(Rank.KING, Suit.CLUBS)
-        val coringa = carta(Rank.JOKER, Suit.HEARTS)
-        val dois = carta(Rank.TWO, Suit.SPADES)
+    fun `tres cartas seguidas do mesmo naipe formam sequencia`() {
+        val seq = listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FIVE, Suit.HEARTS), carta(Rank.SIX, Suit.HEARTS))
+        assertEquals(seq, asSequence(seq), "já vinha na ordem certa")
+        assertEquals(seq, asSequence(seq.shuffled(kotlin.random.Random(1))), "a ordem de escolha não importa")
+    }
 
-        assertTrue(isValidMeld(List(3) { rei }), "três reis formam jogo")
-        assertTrue(isValidMeld(listOf(rei, rei, coringa)), "duas naturais e um curinga formam jogo")
-        assertTrue(!isValidMeld(listOf(rei, rei)), "duas cartas não formam jogo")
-        assertTrue(!isValidMeld(listOf(rei, coringa, dois)), "uma natural só não sustenta jogo")
-        assertTrue(
-            !isValidMeld(listOf(rei, rei, coringa, coringa, dois, dois)),
-            "mais de três curingas não é jogo",
-        )
-        assertTrue(
-            !isValidMeld(listOf(rei, rei, carta(Rank.QUEEN, Suit.CLUBS))),
-            "valores diferentes não formam jogo",
+    @Test
+    fun `naipes diferentes nao formam sequencia`() {
+        val mista = listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FIVE, Suit.SPADES), carta(Rank.SIX, Suit.HEARTS))
+        assertNull(asSequence(mista), "naipe misto não é sequência")
+    }
+
+    @Test
+    fun `o tres nunca entra em sequencia`() {
+        val comTres = listOf(carta(Rank.THREE, Suit.HEARTS), carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FIVE, Suit.HEARTS))
+        assertNull(asSequence(comTres), "o três não é carta de sequência")
+    }
+
+    @Test
+    fun `o as fecha por cima e nao da a volta`() {
+        val fecha = listOf(carta(Rank.QUEEN, Suit.SPADES), carta(Rank.KING, Suit.SPADES), carta(Rank.ACE, Suit.SPADES))
+        assertEquals(fecha, asSequence(fecha), "dama, rei, ás fecha a sequência")
+
+        // Ás mais quatro não é sequência: não existe "ás-dois-três-quatro" na canastra.
+        val naoDaVolta = listOf(carta(Rank.ACE, Suit.SPADES), carta(Rank.FOUR, Suit.SPADES), carta(Rank.FIVE, Suit.SPADES))
+        assertNull(asSequence(naoDaVolta), "o ás não emenda com o quatro")
+    }
+
+    @Test
+    fun `um curinga tapa um buraco so, na posicao exata`() {
+        val par = listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.SIX, Suit.HEARTS), carta(Rank.JOKER, Suit.SPADES))
+        val arranjo = asSequence(par)
+        assertEquals(
+            listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.JOKER, Suit.SPADES), carta(Rank.SIX, Suit.HEARTS)),
+            arranjo,
+            "o curinga tapa o cinco, no meio",
         )
     }
 
     /**
-     * O que suja a canastra é o **dois**, e não o curinga em geral. Os dois são curinga do
-     * mesmo jeito na hora de formar o jogo; a diferença é só de prêmio.
+     * `{4, 5, curinga}` só pode fechar como 4-5-6: o curinga na frente seria o três, que a
+     * canastra proíbe em jogo. A cauda é a escolha certa, e não uma entre duas.
      */
+    @Test
+    fun `curinga em corrida fechada vai para a cauda, nunca vira o tres`() {
+        val par = listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FIVE, Suit.HEARTS), carta(Rank.JOKER, Suit.SPADES))
+        val arranjo = asSequence(par)
+        assertEquals(
+            listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FIVE, Suit.HEARTS), carta(Rank.JOKER, Suit.SPADES)),
+            arranjo,
+            "o curinga vira o seis, não o três",
+        )
+    }
+
+    @Test
+    fun `dois curingas na mesma sequencia sao recusados`() {
+        val doisCuringas = listOf(
+            carta(Rank.FOUR, Suit.HEARTS),
+            carta(Rank.JOKER, Suit.SPADES),
+            carta(Rank.JOKER, Suit.HEARTS),
+        )
+        assertNull(asSequence(doisCuringas), "no máximo um curinga por jogo")
+    }
+
+    @Test
+    fun `duas cartas do mesmo valor nao formam sequencia`() {
+        val repetida = listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FOUR, Suit.SPADES), carta(Rank.FIVE, Suit.HEARTS))
+        assertNull(asSequence(repetida), "valor repetido não é corrida")
+    }
+
+    // -------- trincas --------
+
+    @Test
+    fun `tres cartas do mesmo valor formam trinca, com no maximo um curinga`() {
+        val rei = carta(Rank.KING, Suit.CLUBS)
+        assertTrue(isValidSet(List(3) { rei }), "três reis formam trinca")
+        assertTrue(isValidSet(listOf(rei, rei, carta(Rank.JOKER, Suit.HEARTS))), "duas naturais e um curinga")
+        assertTrue(!isValidSet(listOf(rei, rei)), "duas cartas não formam jogo")
+        assertTrue(
+            !isValidSet(listOf(rei, rei, carta(Rank.JOKER, Suit.HEARTS), carta(Rank.TWO, Suit.SPADES))),
+            "mais de um curinga não é jogo",
+        )
+        assertTrue(
+            !isValidSet(listOf(rei, rei, carta(Rank.QUEEN, Suit.CLUBS))),
+            "valores diferentes não formam trinca",
+        )
+    }
+
+    @Test
+    fun `asMeld escolhe sequencia ou trinca conforme as cartas`() {
+        val sequencia = listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FIVE, Suit.HEARTS), carta(Rank.SIX, Suit.HEARTS))
+        assertEquals(MeldKind.SEQUENCE, asMeld(sequencia)?.kind)
+
+        val trinca = List(3) { carta(Rank.KING, Suit.CLUBS) }
+        assertEquals(MeldKind.SET, asMeld(trinca)?.kind)
+
+        assertNull(asMeld(listOf(carta(Rank.KING, Suit.CLUBS), carta(Rank.QUEEN, Suit.HEARTS))))
+    }
+
+    /** A regra do usuário: trinca só desce depois que a dupla já tem uma canastra. */
+    @Test
+    fun `trinca e recusada antes da primeira canastra, e aceita depois`() {
+        val rei = carta(Rank.KING, Suit.CLUBS)
+        val state = novo(seats = 4).copy(
+            phase = CanastraPhase.PLAY,
+            hands = listOf(List(3) { rei } + List(10) { carta(Rank.SEVEN, Suit.SPADES) }, emptyList(), emptyList(), emptyList()),
+            melds = List(2) { emptyList() },
+        )
+        val lance = CanastraMove.Meld(List(3) { rei })
+
+        assertTrue(
+            CanastraGame.applyMove(state, lance) is MoveResult.Illegal,
+            "sem canastra, trinca é recusada",
+        )
+        assertTrue(lance !in CanastraGame.legalMoves(state), "e nem devia ser oferecida")
+
+        val comCanastra = state.copy(
+            melds = listOf(listOf(Meld(List(7) { carta(Rank.QUEEN, Suit.CLUBS) })), emptyList()),
+        )
+        assertTrue(
+            CanastraGame.applyMove(comCanastra, lance) is MoveResult.Ok,
+            "com canastra, a trinca passa a valer",
+        )
+    }
+
+    // -------- estender jogo baixado --------
+
+    @Test
+    fun `uma carta natural estende pela cabeca ou pela cauda`() {
+        val meio = Meld(listOf(carta(Rank.FIVE, Suit.HEARTS), carta(Rank.SIX, Suit.HEARTS), carta(Rank.SEVEN, Suit.HEARTS)))
+
+        val comCauda = extendMeld(meio, carta(Rank.EIGHT, Suit.HEARTS))
+        assertEquals(
+            listOf(
+                carta(Rank.FIVE, Suit.HEARTS), carta(Rank.SIX, Suit.HEARTS),
+                carta(Rank.SEVEN, Suit.HEARTS), carta(Rank.EIGHT, Suit.HEARTS),
+            ),
+            comCauda?.cards,
+        )
+
+        val comCabeca = extendMeld(meio, carta(Rank.FOUR, Suit.HEARTS))
+        assertEquals(
+            listOf(
+                carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FIVE, Suit.HEARTS),
+                carta(Rank.SIX, Suit.HEARTS), carta(Rank.SEVEN, Suit.HEARTS),
+            ),
+            comCabeca?.cards,
+        )
+
+        assertNull(extendMeld(meio, carta(Rank.NINE, Suit.HEARTS)), "um degrau a mais não encaixa")
+        assertNull(extendMeld(meio, carta(Rank.EIGHT, Suit.SPADES)), "naipe errado não encaixa")
+    }
+
+    /** Um lance só pode crescer as duas pontas de uma vez: uma carta abre espaço para a outra. */
+    @Test
+    fun `um lance pode estender as duas pontas ao mesmo tempo`() {
+        val rei = carta(Rank.KING, Suit.CLUBS)
+        val state = novo(seats = 4).copy(
+            phase = CanastraPhase.PLAY,
+            hands = listOf(
+                listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.NINE, Suit.HEARTS)) + List(9) { rei },
+                emptyList(), emptyList(), emptyList(),
+            ),
+            melds = listOf(
+                listOf(
+                    Meld(
+                        listOf(
+                            carta(Rank.FIVE, Suit.HEARTS), carta(Rank.SIX, Suit.HEARTS),
+                            carta(Rank.SEVEN, Suit.HEARTS), carta(Rank.EIGHT, Suit.HEARTS),
+                        ),
+                    ),
+                ),
+                emptyList(),
+            ),
+        )
+        val lance = CanastraMove.Meld(
+            listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.NINE, Suit.HEARTS)),
+            into = 0,
+        )
+        val depois = CanastraGame.applyOrThrow(state, lance)
+        assertEquals(6, depois.meldsOf(Seat.FIRST).first().cards.size, "cresceu dos dois lados")
+    }
+
+    // -------- trocar o curinga --------
+
+    @Test
+    fun `trocar o curinga cresce o jogo em uma carta e o desloca para a ponta`() {
+        val naipe = Suit.SPADES
+        val seis = carta(Rank.SIX, naipe)
+        val jogo = Meld(
+            listOf(
+                carta(Rank.FOUR, naipe), carta(Rank.FIVE, naipe),
+                carta(Rank.JOKER, Suit.HEARTS), carta(Rank.SEVEN, naipe),
+            ),
+        )
+        assertEquals(seis, wildRepresents(jogo), "o curinga está fazendo de seis")
+
+        val state = novo(seats = 4).copy(
+            phase = CanastraPhase.PLAY,
+            hands = listOf(listOf(seis) + List(10) { carta(Rank.KING, Suit.CLUBS) }, emptyList(), emptyList(), emptyList()),
+            melds = listOf(listOf(jogo), emptyList()),
+        )
+        val depois = CanastraGame.applyOrThrow(state, CanastraMove.SwapWild(0, seis))
+        val jogoDepois = depois.meldsOf(Seat.FIRST).first()
+
+        assertEquals(5, jogoDepois.cards.size, "o jogo cresceu de quatro para cinco")
+        assertEquals(1, jogoDepois.wilds.size, "o curinga continua lá, só mudou de lugar")
+        assertEquals(
+            carta(Rank.EIGHT, naipe),
+            wildRepresents(jogoDepois),
+            "o curinga desceu para a ponta livre, que era o oito",
+        )
+        assertTrue(seis !in depois.hand(Seat.FIRST), "a carta trocada saiu da mão")
+    }
+
+    @Test
+    fun `sem ponta livre nao da para trocar o curinga`() {
+        val naipe = Suit.SPADES
+        // Do quatro ao rei, mais o curinga fazendo de ás: a sequência já ocupa a escala inteira.
+        val completa = CANASTRA_SEQUENCE_RANKS.dropLast(1).map { carta(it, naipe) } + carta(Rank.JOKER, Suit.HEARTS)
+        val jogo = Meld(completa)
+        val as_ = carta(Rank.ACE, naipe)
+        assertEquals(as_, wildRepresents(jogo), "o curinga está fazendo de ás")
+
+        val state = novo(seats = 4).copy(
+            phase = CanastraPhase.PLAY,
+            hands = listOf(listOf(as_) + List(10) { carta(Rank.KING, Suit.DIAMONDS) }, emptyList(), emptyList(), emptyList()),
+            melds = listOf(listOf(jogo), emptyList()),
+        )
+        val resultado = CanastraGame.applyMove(state, CanastraMove.SwapWild(0, as_))
+        assertTrue(resultado is MoveResult.Illegal, "as duas pontas já estão ocupadas")
+    }
+
+    // -------- canastra e o prêmio de render --------
+
     @Test
     fun `sete cartas fazem canastra, e so o dois a suja`() {
         val rei = carta(Rank.KING, Suit.CLUBS)
@@ -289,45 +535,51 @@ class CanastraTest {
         assertEquals(suja.cards.sumOf { cardValue(it) } + 100, suja.score)
     }
 
+    /**
+     * A conta do usuário: canastra limpa do quatro ao ás, sem curinga, vale 700. É o que prova
+     * que cada carta além da sétima soma mais cem — só na limpa.
+     */
     @Test
-    fun `os valores das cartas seguem a tabela da canastra`() {
-        assertEquals(50, cardValue(carta(Rank.JOKER, Suit.HEARTS)))
-        assertEquals(20, cardValue(carta(Rank.TWO, Suit.CLUBS)))
-        assertEquals(20, cardValue(carta(Rank.ACE, Suit.SPADES)))
-        assertEquals(10, cardValue(carta(Rank.KING, Suit.HEARTS)))
-        assertEquals(10, cardValue(carta(Rank.EIGHT, Suit.CLUBS)))
-        assertEquals(5, cardValue(carta(Rank.SEVEN, Suit.CLUBS)))
-        assertEquals(5, cardValue(carta(Rank.FOUR, Suit.DIAMONDS)))
-        assertEquals(5, cardValue(carta(Rank.THREE, Suit.CLUBS)))
+    fun `canastra limpa do quatro ao as vale setecentos`() {
+        val naipe = Suit.HEARTS
+        val quatroAoAs = Meld(CANASTRA_SEQUENCE_RANKS.map { carta(it, naipe) })
+
+        assertEquals(11, quatroAoAs.cards.size)
+        assertTrue(quatroAoAs.isClean)
+        assertEquals(700, quatroAoAs.score)
     }
 
     @Test
-    fun `o dois e curinga, e por isso vale mais do que a ordem dele sugere`() {
-        assertTrue(isWild(carta(Rank.TWO, Suit.HEARTS)))
-        assertTrue(isWild(carta(Rank.JOKER, Suit.CLUBS)))
-        assertTrue(!isWild(carta(Rank.THREE, Suit.HEARTS)))
-        assertTrue(cardValue(carta(Rank.TWO, Suit.CLUBS)) > cardValue(carta(Rank.FOUR, Suit.CLUBS)))
+    fun `o premio de render so vale para a canastra limpa`() {
+        val rei = carta(Rank.KING, Suit.CLUBS)
+        // Oito reis mais um dois: nove cartas, e é o dois que suja.
+        val suja = Meld(List(8) { rei } + carta(Rank.TWO, Suit.SPADES))
+        assertTrue(suja.isCanastra && !suja.isClean, "o dois suja mesmo com nove cartas")
+        // Sem o prêmio de render, o bônus fica fixo em cem, não importa quantas cartas a mais.
+        assertEquals(suja.cards.sumOf { cardValue(it) } + 100, suja.score)
     }
 
     // -------- o morto --------
 
     /**
      * Ficar sem cartas não acaba a mão: pega-se o morto e continua. É o que separa canastra
-     * de um jogo em que basta se livrar das cartas.
+     * de um jogo em que basta se livrar das cartas. Usa uma sequência (e não trinca) para não
+     * disparar, sem querer, o portão da trinca — que é outra regra.
      */
     @Test
     fun `ficar sem cartas pega o morto em vez de bater`() {
-        val rei = carta(Rank.KING, Suit.CLUBS)
+        val sequencia = listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FIVE, Suit.HEARTS), carta(Rank.SIX, Suit.HEARTS))
         val state = novo(seats = 2).copy(
             phase = CanastraPhase.PLAY,
-            hands = listOf(List(3) { rei }, emptyList()),
+            hands = listOf(sequencia, emptyList()),
         )
-        val depois = CanastraGame.applyOrThrow(state, CanastraMove.Meld(List(3) { rei }))
+        val depois = CanastraGame.applyOrThrow(state, CanastraMove.Meld(sequencia))
 
         assertTrue(depois.tookMorto[depois.teamOf(Seat.FIRST)], "quem zerou devia ter pegado o morto")
         assertEquals(CANASTRA_HAND_SIZE, depois.handSize(Seat.FIRST), "o morto tem treze cartas")
         assertTrue(depois.mortos.isEmpty(), "o morto é um só: pego, a mesa fica sem")
         assertEquals(-1, depois.wentOut, "pegar o morto não é bater")
+        assertEquals(1, depois.batidas[depois.teamOf(Seat.FIRST)], "pegar o morto conta como batida")
     }
 
     /**
@@ -336,13 +588,13 @@ class CanastraTest {
      */
     @Test
     fun `pego o morto, o outro lado fica sem`() {
-        val rei = carta(Rank.KING, Suit.CLUBS)
+        val sequencia = listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FIVE, Suit.HEARTS), carta(Rank.SIX, Suit.HEARTS))
         val primeiro = CanastraGame.applyOrThrow(
             novo(seats = 2).copy(
                 phase = CanastraPhase.PLAY,
-                hands = listOf(List(3) { rei }, emptyList()),
+                hands = listOf(sequencia, emptyList()),
             ),
-            CanastraMove.Meld(List(3) { rei }),
+            CanastraMove.Meld(sequencia),
         )
         assertTrue(primeiro.mortos.isEmpty())
 
@@ -366,19 +618,20 @@ class CanastraTest {
     /**
      * Sem morto e sem canastra, baixar tudo seria bater sem ter direito. O motor recusa — e
      * recusa também deixar **uma** carta, porque a vez ainda termina em descarte e esse
-     * descarte zeraria a mão do mesmo jeito.
+     * descarte zeraria a mão do mesmo jeito. Sequência, não trinca: a trinca já teria seu
+     * próprio portão antes de chegar aqui.
      */
     @Test
     fun `sem canastra e sem morto nao da para esvaziar a mao`() {
-        val rei = carta(Rank.KING, Suit.CLUBS)
+        val sequencia = listOf(carta(Rank.FOUR, Suit.CLUBS), carta(Rank.FIVE, Suit.CLUBS), carta(Rank.SIX, Suit.CLUBS))
         val state = novo(seats = 4).copy(
             phase = CanastraPhase.PLAY,
-            hands = listOf(List(3) { rei }, emptyList(), emptyList(), emptyList()),
+            hands = listOf(sequencia, emptyList(), emptyList(), emptyList()),
             melds = List(2) { emptyList() },
             mortos = emptyList(),
             tookMorto = listOf(false, false),
         )
-        val lance = CanastraMove.Meld(List(3) { rei })
+        val lance = CanastraMove.Meld(sequencia)
 
         assertTrue(
             CanastraGame.applyMove(state, lance) is MoveResult.Illegal,
@@ -387,7 +640,7 @@ class CanastraTest {
         assertTrue(lance !in CanastraGame.legalMoves(state), "e nem devia ser oferecido")
 
         // Com uma canastra na mesa o mesmo lance passa: aí é bater de verdade.
-        val comCanastra = state.copy(melds = listOf(listOf(Meld(List(7) { rei })), emptyList()))
+        val comCanastra = state.copy(melds = listOf(listOf(Meld(List(7) { carta(Rank.KING, Suit.HEARTS) })), emptyList()))
         assertTrue(
             CanastraGame.applyMove(comCanastra, lance) is MoveResult.Ok,
             "com canastra, bater é permitido",
@@ -443,6 +696,38 @@ class CanastraTest {
         )
     }
 
+    /**
+     * A mesma mão pode marcar a batida duas vezes: uma ao pegar o morto, outra ao bater de
+     * vez depois. É por isso que o bônus é contado por evento, e não por mão.
+     */
+    @Test
+    fun `pegar o morto e depois bater na mesma mao marca a batida duas vezes`() {
+        val sequencia = listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FIVE, Suit.HEARTS), carta(Rank.SIX, Suit.HEARTS))
+        val filler = List(13) { carta(Rank.KING, Suit.DIAMONDS) }
+        val inicial = novo(seats = 2).copy(
+            phase = CanastraPhase.PLAY,
+            hands = listOf(sequencia, emptyList()),
+            mortos = listOf(filler),
+            tookMorto = listOf(false, false),
+        )
+        val depoisDoMorto = CanastraGame.applyOrThrow(inicial, CanastraMove.Meld(sequencia))
+        assertEquals(1, depoisDoMorto.batidas[0], "primeira batida: pegou o morto")
+
+        // Simula ter jogado o resto da mão até sobrar uma carta, com canastra já na mesa —
+        // o que importa aqui é só a segunda batida, não como se chegou até ela.
+        val quaseLa = depoisDoMorto.copy(
+            hands = listOf(listOf(carta(Rank.SEVEN, Suit.CLUBS)), emptyList()),
+            melds = listOf(listOf(Meld(List(7) { carta(Rank.QUEEN, Suit.SPADES) })), emptyList()),
+            // Perto do alvo, para a mão fechar sem redistribuir — e dar para inspecionar o
+            // resultado em vez de já estar olhando a mão seguinte.
+            scores = listOf(CANASTRA_TARGET - 1, 0),
+        )
+        val final = CanastraGame.applyOrThrow(quaseLa, CanastraMove.Discard(carta(Rank.SEVEN, Suit.CLUBS)))
+
+        assertEquals(2, final.batidas[0], "segunda batida: bateu de vez")
+        assertTrue(final.scores[0] >= CANASTRA_TARGET, "a partida devia ter fechado")
+    }
+
     // -------- a vez --------
 
     @Test
@@ -482,7 +767,7 @@ class CanastraTest {
 
     @Test
     fun `uma partida inteira termina sem travar`() {
-        for (seats in listOf(2, 4)) {
+        for (seats in listOf(2, 3, 4)) {
             var state = CanastraGame.initialState(MatchConfig(seed = 2026, seats = seats))
             var guard = 0
             while (!CanastraGame.outcome(state).isOver && guard++ < 20_000) {
