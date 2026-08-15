@@ -99,7 +99,9 @@ fun SetupScreen(
     var difficulty by remember { mutableStateOf(defaultDifficulty) }
     var showingRules by remember { mutableStateOf(false) }
 
-    val mesasPossiveis = entry.rules.supportedSeats.toList()
+    // As mesas que o jogo aceita, e não a faixa entre a menor e a maior: o truco é de dois ou
+    // de quatro, e oferecer três aqui seria oferecer uma partida que o motor recusa depois.
+    val mesasPossiveis = entry.rules.seatOptions
 
     /**
      * Jogo de uma pessoa só — hoje, a paciência.

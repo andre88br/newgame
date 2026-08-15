@@ -15,6 +15,7 @@ import io.github.andre88br.newgame.core.games.hearts.HeartsState
 import io.github.andre88br.newgame.core.games.klondike.KlondikeState
 import io.github.andre88br.newgame.core.games.ludo.LudoState
 import io.github.andre88br.newgame.core.games.pife.PifeState
+import io.github.andre88br.newgame.core.games.truco.TrucoState
 
 /**
  * A tela dos jogos que não se jogam tocando em casas de uma grade.
@@ -58,6 +59,9 @@ fun MoveSurface(
 
         gameId == GameId.KLONDIKE && state is KlondikeState ->
             KlondikeSurface(state, viewer, names, enabled, hinted, modifier, onMove)
+
+        gameId == GameId.TRUCO && state is TrucoState ->
+            TrucoSurface(state, viewer, names, enabled, hinted, modifier, onMove)
 
         // Jogo sem tela: dizer isso é melhor do que mostrar uma área em branco.
         else -> Text(stringResource(R.string.board_no_surface, gameId.name))

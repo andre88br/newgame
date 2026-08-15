@@ -3,8 +3,8 @@
 App Android com vários jogos de tabuleiro, jogáveis contra o aparelho ou entre duas
 pessoas no mesmo celular.
 
-> **Status: Fase 5 concluída — o projeto está completo.** Dez jogos: Jogo da Velha, Damas,
-> Reversi, Xadrez, Dominó, Ludo, Copas, Canastra, Pife e Paciência. Contra o celular,
+> **Status: Fase 5 concluída — o projeto está completo.** Onze jogos: Jogo da Velha, Damas,
+> Reversi, Xadrez, Dominó, Ludo, Copas, Canastra, Pife, Paciência e Truco. Contra o celular,
 > passa-e-joga ou sozinho, com desfazer, dica, som,
 > leitor de tela, português e inglês, e a partida sobrevive a fechar o app.
 > Para instalar sem montar ambiente, veja [baixar o APK do GitHub](#sem-instalar-nada-baixar-o-apk-do-github).
@@ -98,9 +98,10 @@ ludo, que se joga pelos peões.
 | Dominó | dominó de bater, mão oculta, abre a maior carroça, compra e passe automáticos, jogo fechado decidido na contagem de pontos |
 | Ludo | dado rolado pelo motor, saída só com 6, lance extra no 6, captura, casas seguras, chegada exata |
 | Copas | passe de três cartas com rodízio (esquerda, direita, frente, sem passe), abertura obrigatória no 2 de paus, servir o naipe, copas trancada até sair, sem ponto na primeira vaza, correr todas, partida até 100 |
-| Canastra | brasileira, de dois (individual) ou quatro (em duplas), dois baralhos e quatro curingas, canastra limpa e suja, morto, **três vermelho** (100 parados na mesa, contra sem canastra, reposição automática) e **três preto** (tranca o lixo, só baixa ao bater), partida até 3000 |
+| Canastra | brasileira, de dois a quatro (a quatro em duplas), dois baralhos e quatro curingas, treze cartas, morto único e só até três jogadores, canastra limpa é canastra sem **dois** (o coringa não suja), **três vermelho** (100 parados na mesa, contra sem canastra, reposição automática) e **três preto** (tranca o lixo, só baixa ao bater), bater exige canastra, partida até 3000 |
 | Pife | dois baralhos com um curinga cada, nove cartas, compra do monte ou do lixo, bate quem fecha três grupos de três (trinca ou sequência), ás só por cima, monte remontado com o lixo e empate se ninguém fechar |
 | Paciência | klondike de uma pessoa só: sete colunas, quatro casas do ás ao rei, compra de uma em uma com o descarte voltando ao monte, coluna vazia só para rei, sequência que anda junto, carta que desvira sozinha e volta da casa para a coluna |
+| Truco | **mineiro**: manilhas fixas (4♣ zap, 7♥ copas, A♠ espadilha, 7♦ ourito), baralho de 40, três cartas, melhor de três rodadas com as regras de empate (manda quem fez a primeira; três empates não dão ponto a ninguém), truco/6/9/12 com aceitar, correr e aumentar, de dois ou de quatro em duplas, partida até 12 |
 
 ### A IA
 

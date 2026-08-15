@@ -12,6 +12,7 @@
     <string name="game_canastra">Canastra</string>
     <string name="game_pife">Pife</string>
     <string name="game_klondike">Paciência</string>
+    <string name="game_truco">Truco</string>
     <string name="game_ludo">Ludo</string>
 
     <!-- Início -->
@@ -209,6 +210,7 @@
     <string name="rules_pife">Pife de dois a quatro jogadores. Dois baralhos com um curinga cada, nove cartas para cada um, o resto vira monte e uma carta abre o lixo.\n\nA vez tem dois tempos: comprar uma carta (do monte ou a de cima do lixo) e jogar uma fora. É o descarte que passa a vez.\n\nGanha quem tiver as nove cartas fechadas em três grupos de três. Grupo é trinca (três do mesmo valor) ou sequência (três seguidas do mesmo naipe). O curinga entra em qualquer um dos dois, tapando o buraco — mas grupo só de curinga não vale.\n\nO ás é carta alta: Q-K-A fecha sequência, A-2-3 não.\n\nA conferência é feita depois do descarte, sobre as nove que ficaram: com dez na mão, fechar três grupos e sobrar uma é a mesma coisa que jogar fora a que sobra.\n\nO que o adversário descarta é informação: a carta de cima do lixo fica à vista, e ele também pode pegar a sua. Quando o monte acaba, o lixo volta embaralhado, menos a carta de cima. Se ninguém fechar depois de o baralho passar três vezes, a mão termina empatada.</string>
 
     <string name="rules_klondike">Paciência (klondike), de uma pessoa só. Vinte e oito cartas em sete colunas — a primeira com uma, a última com sete —, o resto no monte, e quatro casas para encher.\n\nO objetivo é levar as 52 cartas para as casas, uma casa por naipe, do ás ao rei.\n\nNas colunas as cartas descem: cada uma entra sobre uma um ponto maior e de cor trocada. Aqui o ás é a menor de todas — o rei fecha a coluna por cima e o ás por baixo.\n\nColuna vazia só recebe rei. Tocar numa carta do meio de uma coluna pega ela e tudo o que está por cima: a sequência anda junto.\n\nCarta virada para baixo que fica exposta desvira sozinha. É esse o jogo: desvirar carta é a única coisa que abre caminho de verdade.\n\nCompra-se de uma em uma, e o descarte volta ao monte quantas vezes for preciso, sempre na mesma ordem.\n\nDa casa a carta pode voltar para a coluna — às vezes é o único jeito de destravar a mesa.\n\nNão há como perder. Ou as 52 sobem, ou chega o momento em que nada mais se move, e aí o app avisa em vez de deixar você procurando um lance que não existe.</string>
+    <string name="rules_truco">Truco mineiro, de dois ou de quatro (em duplas: quem está à sua frente é seu parceiro). Baralho de 40 cartas — saem o 8, o 9 e o 10 —, três cartas para cada um, e a partida vai a 12 pontos.\n\nORDEM DAS CARTAS, da mais fraca para a mais forte: 4, 5, 6, 7, Q, J, K, A, 2, 3.\n\nMANILHAS: quatro cartas ganham de todas as outras, e no truco mineiro elas são FIXAS — não há carta virada decidindo nada. Da mais forte para a mais fraca: 4♣ (zap), 7♥ (copas), A♠ (espadilha), 7♦ (ourito). Repare que o zap é um quatro: os outros três quatros continuam sendo a carta mais fraca do baralho. Manilha é a carta, não o valor.\n\nA mão se decide em melhor de três rodadas. Ganha a rodada quem jogar a carta mais forte.\n\nEMPATES: rodada empatada não se repete — ela fica empatada, e o desempate vem de quem fez a primeira. Quem faz a primeira e empata a segunda ganha a mão. Quem empata a primeira precisa fazer a segunda. Empatou a terceira, volta a valer quem fez a primeira. E mão com as três rodadas empatadas não é de ninguém: ninguém marca.\n\nO TRUCO: a mão nasce valendo 1. Na sua vez, antes de jogar carta, você pode trucar e propor 3. O outro lado aceita, corre ou pede mais — 6, 9, 12. Quem corre entrega ao adversário o que a mão valia ANTES do pedido: correr de um truco custa 1, de um seis custa 3, de um nove custa 6.\n\nPedir mais aceita o valor anterior de passagem — é por isso que correr do seis já custa três.\n\nQuem trucou e foi aceito passa a palavra: só o outro lado pode aumentar em seguida.</string>
 
     <string name="rules_ludo">Ludo de dois a quatro jogadores, com quatro peões cada. Na mesa de dois, as duas cores saem de cantos opostos.\n\nO dado é rolado pelo app, não por você: quando chega a sua vez, o valor já está na tela e a escolha é qual peão anda.\n\nSó um 6 tira peão do curral. Tirar 6 também dá direito a jogar de novo.\n\nCair na casa de um peão adversário manda ele de volta para o curral — menos nas casas marcadas, que são seguras.\n\nA chegada é exata: faltando duas casas, um dado 5 não serve e o peão fica onde está. Vence quem levar os quatro peões à chegada.</string>
 
@@ -298,6 +300,10 @@
     <string name="reason_klondike_foundation_order">A casa sobe do ás ao rei, no mesmo naipe</string>
     <string name="reason_klondike_tableau_order">Na coluna a carta desce uma e troca de cor</string>
     <string name="reason_klondike_empty_pile_king_only">Coluna vazia só recebe rei</string>
+    <string name="reason_truco_answer_first">Responda ao truco antes de jogar carta</string>
+    <string name="reason_truco_nothing_to_answer">Não há truco na mesa para responder</string>
+    <string name="reason_truco_not_your_call">Quem trucou foi o seu lado: espere o outro aumentar</string>
+    <string name="reason_truco_at_the_top">Doze é o máximo: não há como aumentar</string>
 
     <!-- Canastra: tela -->
     <string name="canastra_you">Você</string>
@@ -340,4 +346,26 @@
     <string name="klondike_wait">Aguarde</string>
     <string name="klondike_to_foundation">Mandar para a casa</string>
     <string name="board_stuck">A mesa empacou</string>
+
+    <!-- Truco -->
+    <string name="truco_score_line">Seu lado %1$d × %2$d outro lado</string>
+    <string name="truco_stake">Valendo %1$d</string>
+    <string name="truco_you">Você</string>
+    <string name="truco_table_empty">Ninguém jogou ainda nesta rodada</string>
+    <string name="truco_wait">Vez do adversário</string>
+    <string name="truco_play_prompt">Toque numa carta para jogar</string>
+    <string name="truco_manilhas">Manilhas: 4♣ zap · 7♥ copas · A♠ espadilha · 7♦ ourito</string>
+    <string name="truco_round_open">Rodada %1$d, ainda por jogar</string>
+    <string name="truco_round_won">Rodada %1$d, ganha por você</string>
+    <string name="truco_round_lost">Rodada %1$d, ganha pelo adversário</string>
+    <string name="truco_round_tied">Rodada %1$d, empatada</string>
+    <string name="truco_they_asked">O outro lado pediu %1$d</string>
+    <string name="truco_you_asked">Você pediu %1$d</string>
+    <string name="truco_run_cost">Correr entrega %1$d ao adversário</string>
+    <string name="truco_accept">Aceitar</string>
+    <string name="truco_run">Correr</string>
+    <string name="truco_call_three">Truco!</string>
+    <string name="truco_call_six">Seis!</string>
+    <string name="truco_call_nine">Nove!</string>
+    <string name="truco_call_twelve">Doze!</string>
 </resources>

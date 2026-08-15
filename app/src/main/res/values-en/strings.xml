@@ -17,6 +17,7 @@
     <string name="game_canastra">Canastra</string>
     <string name="game_pife">Pife</string>
     <string name="game_klondike">Solitaire</string>
+    <string name="game_truco">Truco</string>
     <string name="game_ludo">Ludo</string>
 
     <!-- Home -->
@@ -211,6 +212,7 @@
     <string name="rules_pife">Pife for two to four players. Two decks with one joker each, nine cards apiece, the rest becomes the stock and one card opens the discard pile.\n\nA turn has two beats: draw a card (from the stock or the top of the discard pile) and throw one away. The discard is what ends your turn.\n\nYou win by holding nine cards that close into three groups of three. A group is either three of the same rank or three in sequence in the same suit. A joker fits into either one, filling the gap — but a group of nothing but jokers does not count.\n\nThe ace is high, and only high: Q-K-A closes a run, A-2-3 does not.\n\nThe check happens after the discard, on the nine cards left: with ten in hand, closing three groups and having one over is the same thing as throwing that one away.\n\nWhat your opponent discards is information: the top of the pile is face up, and they can take yours too. When the stock runs out the discard pile is shuffled back in, minus the top card. If nobody closes after the deck has gone round three times, the hand is a draw.</string>
 
     <string name="rules_klondike">Solitaire (Klondike), for one player. Twenty-eight cards in seven columns — one in the first, seven in the last —, the rest in the stock, and four foundations to fill.\n\nThe goal is to move all 52 cards to the foundations, one per suit, from ace to king.\n\nIn the columns cards run down: each one goes onto a card one rank higher and of the opposite colour. Here the ace is the lowest card of all — the king closes a column at the top and the ace at the bottom.\n\nAn empty column only takes a king. Tapping a card in the middle of a column picks it up along with everything above it: the run travels together.\n\nA face-down card that becomes exposed turns itself over. That is the game: turning cards over is the only thing that really opens it up.\n\nYou draw one card at a time, and the pile goes back to the stock as many times as you need, always in the same order.\n\nA card can come back down from a foundation — sometimes it is the only way to unstick the table.\n\nYou cannot lose. Either all 52 go up, or a moment comes when nothing else can move, and the app says so instead of leaving you hunting for a move that is not there.</string>
+    <string name="rules_truco">Truco mineiro, for two or four players (in partnerships: the player across from you is your partner). A 40-card deck — the 8, 9 and 10 come out —, three cards each, and the match runs to 12 points.\n\nCARD ORDER, weakest to strongest: 4, 5, 6, 7, Q, J, K, A, 2, 3.\n\nMANILHAS: four cards beat every other card, and in truco mineiro they are FIXED — no turned-up card decides anything. Strongest to weakest: 4♣ (zap), 7♥ (copas), A♠ (espadilha), 7♦ (ourito). Note that the zap is a four: the other three fours are still the weakest card in the deck. A manilha is the card, not the rank.\n\nThe hand is decided in the best of three rounds. The strongest card played wins the round.\n\nTIES: a tied round is not replayed — it stays tied, and the tiebreak comes from whoever won the first round. Win the first and tie the second, and you take the hand. Tie the first, and you must win the second. Tie the third, and the first round decides again. And a hand with all three rounds tied belongs to nobody: no one scores.\n\nTHE CALL: the hand starts worth 1. On your turn, before playing a card, you may call truco and propose 3. The other side accepts, runs, or asks for more — 6, 9, 12. Whoever runs hands the opponent what the hand was worth BEFORE the call: running from a truco costs 1, from a six costs 3, from a nine costs 6.\n\nAsking for more accepts the previous value along the way — that is why running from a six already costs three.\n\nWhoever called and was accepted passes the word along: only the other side may raise next.</string>
 
     <string name="rules_ludo">Ludo for two to four players, four tokens each. On a table of two the colours start from opposite corners.\n\nThe app rolls the die, not you: when your turn comes the value is already on screen, and the choice is which token moves.\n\nOnly a 6 brings a token out of the yard. Rolling a 6 also earns another turn.\n\nLanding on an opponent token sends it back to the yard — except on the marked squares, which are safe.\n\nComing home is exact: two squares short, a 5 is no good and the token stays put. You win by bringing all four tokens home.</string>
 
@@ -300,6 +302,10 @@
     <string name="reason_klondike_foundation_order">A foundation runs ace to king, all one suit</string>
     <string name="reason_klondike_tableau_order">In a column a card goes one lower and changes colour</string>
     <string name="reason_klondike_empty_pile_king_only">An empty column only takes a king</string>
+    <string name="reason_truco_answer_first">Answer the truco before playing a card</string>
+    <string name="reason_truco_nothing_to_answer">There is no truco on the table to answer</string>
+    <string name="reason_truco_not_your_call">Your side made the call: wait for the other side to raise</string>
+    <string name="reason_truco_at_the_top">Twelve is the ceiling: there is no raise left</string>
 
     <!-- Canastra: screen -->
     <string name="canastra_you">You</string>
@@ -342,4 +348,26 @@
     <string name="klondike_wait">Hold on</string>
     <string name="klondike_to_foundation">Send to the foundation</string>
     <string name="board_stuck">No moves left</string>
+
+    <!-- Truco -->
+    <string name="truco_score_line">Your side %1$d × %2$d other side</string>
+    <string name="truco_stake">Worth %1$d</string>
+    <string name="truco_you">You</string>
+    <string name="truco_table_empty">Nobody has played this round yet</string>
+    <string name="truco_wait">Opponent\'s turn</string>
+    <string name="truco_play_prompt">Tap a card to play it</string>
+    <string name="truco_manilhas">Manilhas: 4♣ zap · 7♥ copas · A♠ espadilha · 7♦ ourito</string>
+    <string name="truco_round_open">Round %1$d, not played yet</string>
+    <string name="truco_round_won">Round %1$d, won by you</string>
+    <string name="truco_round_lost">Round %1$d, won by the opponent</string>
+    <string name="truco_round_tied">Round %1$d, tied</string>
+    <string name="truco_they_asked">The other side asked for %1$d</string>
+    <string name="truco_you_asked">You asked for %1$d</string>
+    <string name="truco_run_cost">Running hands the opponent %1$d</string>
+    <string name="truco_accept">Accept</string>
+    <string name="truco_run">Run</string>
+    <string name="truco_call_three">Truco!</string>
+    <string name="truco_call_six">Six!</string>
+    <string name="truco_call_nine">Nine!</string>
+    <string name="truco_call_twelve">Twelve!</string>
 </resources>
