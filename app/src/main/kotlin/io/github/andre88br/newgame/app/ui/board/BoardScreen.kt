@@ -297,7 +297,7 @@ private fun BoardUiState.seatLabel(gameId: GameId, seat: Seat): String? {
  * com cartas — então nesses os lados são jogador 1, 2, 3 e 4.
  */
 private fun coloredPieces(gameId: GameId): Boolean = when (gameId) {
-    GameId.DOMINOES, GameId.LUDO, GameId.HEARTS, GameId.CANASTRA -> false
+    GameId.DOMINOES, GameId.LUDO, GameId.HEARTS, GameId.CANASTRA, GameId.PIFE -> false
     else -> true
 }
 

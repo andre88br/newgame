@@ -10,6 +10,7 @@
     <string name="game_dominoes">Dominó</string>
     <string name="game_hearts">Copas</string>
     <string name="game_canastra">Canastra</string>
+    <string name="game_pife">Pife</string>
     <string name="game_ludo">Ludo</string>
 
     <!-- Início -->
@@ -203,6 +204,8 @@
 
     <string name="rules_hearts">Copas, de quatro jogadores, com as 52 cartas. Ganhar vaza aqui é ruim: cada copas vale 1 ponto e a dama de espadas vale 13. A partida acaba quando alguém chega a 100, e vence quem tiver MENOS pontos.\n\nAntes de cada mão, cada um passa três cartas: para a esquerda, para a direita, para quem está à frente, e a quarta mão sem passe — depois o rodízio recomeça.\n\nAbre a mão quem tem o 2 de paus, e abre com ele. É obrigatório servir o naipe pedido; sem ele, vale qualquer carta. Na primeira vaza ninguém descarta ponto.\n\nCopas só pode ser puxada depois de já ter saído em alguma vaza — ou quando é a única coisa que resta na mão.\n\nLeva a vaza a carta mais alta do naipe pedido, e com ela os pontos que estiverem na mesa.\n\nCorrer todas: quem fizer os 26 pontos de uma mão não leva nenhum, e os outros três levam 26 cada.</string>
 
+    <string name="rules_pife">Pife de dois a quatro jogadores. Dois baralhos com um curinga cada, nove cartas para cada um, o resto vira monte e uma carta abre o lixo.\n\nA vez tem dois tempos: comprar uma carta (do monte ou a de cima do lixo) e jogar uma fora. É o descarte que passa a vez.\n\nGanha quem tiver as nove cartas fechadas em três grupos de três. Grupo é trinca (três do mesmo valor) ou sequência (três seguidas do mesmo naipe). O curinga entra em qualquer um dos dois, tapando o buraco — mas grupo só de curinga não vale.\n\nO ás é carta alta: Q-K-A fecha sequência, A-2-3 não.\n\nA conferência é feita depois do descarte, sobre as nove que ficaram: com dez na mão, fechar três grupos e sobrar uma é a mesma coisa que jogar fora a que sobra.\n\nO que o adversário descarta é informação: a carta de cima do lixo fica à vista, e ele também pode pegar a sua. Quando o monte acaba, o lixo volta embaralhado, menos a carta de cima. Se ninguém fechar depois de o baralho passar três vezes, a mão termina empatada.</string>
+
     <string name="rules_ludo">Ludo de dois a quatro jogadores, com quatro peões cada. Na mesa de dois, as duas cores saem de cantos opostos.\n\nO dado é rolado pelo app, não por você: quando chega a sua vez, o valor já está na tela e a escolha é qual peão anda.\n\nSó um 6 tira peão do curral. Tirar 6 também dá direito a jogar de novo.\n\nCair na casa de um peão adversário manda ele de volta para o curral — menos nas casas marcadas, que são seguras.\n\nA chegada é exata: faltando duas casas, um dado 5 não serve e o peão fica onde está. Vence quem levar os quatro peões à chegada.</string>
 
     <!-- Mesa de mais de dois -->
@@ -241,6 +244,8 @@
 
     <!-- Copas -->
     <string name="reason_card_not_in_hand">Você não tem essa carta</string>
+    <string name="reason_card_already_drew">Você já comprou nesta vez</string>
+    <string name="reason_card_nothing_to_draw">Não há de onde comprar</string>
     <string name="reason_hearts_must_follow_suit">É preciso servir o naipe pedido</string>
     <string name="reason_hearts_not_broken">Copas ainda não saiu: não dá para puxar copas</string>
     <string name="reason_hearts_must_lead_two">Quem tem o 2 de paus abre a mão com ele</string>
@@ -276,14 +281,13 @@
 
     <!-- Canastra -->
     <string name="reason_canastra_must_draw_first">Compre antes de baixar ou descartar</string>
-    <string name="reason_canastra_already_drew">Você já comprou nesta vez</string>
-    <string name="reason_canastra_stock_empty">Não há de onde comprar</string>
     <string name="reason_canastra_pile_blocked">O lixo está trancado por um três preto</string>
     <string name="reason_canastra_invalid_meld">Um jogo precisa de três cartas do mesmo valor, com no máximo três curingas e ao menos duas cartas naturais</string>
     <string name="reason_canastra_does_not_fit">Essa carta não encaixa nesse jogo</string>
     <string name="reason_canastra_no_such_meld">Esse jogo não existe na mesa</string>
     <string name="reason_canastra_red_three_not_playable">O três vermelho vale ponto parado na mesa: não se joga nem se descarta</string>
     <string name="reason_canastra_black_three_only_out">O três preto só é baixado na hora de bater</string>
+    <string name="reason_pife_must_draw_first">Compre uma carta antes de descartar</string>
 
     <!-- Canastra: tela -->
     <string name="canastra_you">Você</string>
@@ -306,4 +310,15 @@
     <string name="canastra_take_discard">Pegar o lixo (%1$d)</string>
     <string name="canastra_meld">Baixar (%1$d)</string>
     <string name="canastra_discard">Descartar</string>
+
+    <!-- Pife: tela -->
+    <string name="pife_groups">Grupos fechados: %1$d de %2$d</string>
+    <string name="pife_stock">Monte: %1$d</string>
+    <string name="pife_pile">Lixo: %1$d</string>
+    <string name="pife_draw_prompt">Compre do monte ou pegue a carta do lixo</string>
+    <string name="pife_discard_prompt">Toque numa carta para escolher e depois descarte</string>
+    <string name="pife_wait">Vez do adversário</string>
+    <string name="pife_draw_stock">Comprar</string>
+    <string name="pife_take_discard">Pegar do lixo</string>
+    <string name="pife_discard">Descartar</string>
 </resources>

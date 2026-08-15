@@ -13,6 +13,7 @@ import io.github.andre88br.newgame.core.games.canastra.CanastraState
 import io.github.andre88br.newgame.core.games.dominoes.DominoesState
 import io.github.andre88br.newgame.core.games.hearts.HeartsState
 import io.github.andre88br.newgame.core.games.ludo.LudoState
+import io.github.andre88br.newgame.core.games.pife.PifeState
 
 /**
  * A tela dos jogos que não se jogam tocando em casas de uma grade.
@@ -50,6 +51,9 @@ fun MoveSurface(
 
         gameId == GameId.CANASTRA && state is CanastraState ->
             CanastraSurface(state, viewer, names, enabled, hinted, modifier, onMove)
+
+        gameId == GameId.PIFE && state is PifeState ->
+            PifeSurface(state, viewer, names, enabled, hinted, modifier, onMove)
 
         // Jogo sem tela: dizer isso é melhor do que mostrar uma área em branco.
         else -> Text(stringResource(R.string.board_no_surface, gameId.name))

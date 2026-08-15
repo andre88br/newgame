@@ -15,6 +15,7 @@
     <string name="game_dominoes">Dominoes</string>
     <string name="game_hearts">Hearts</string>
     <string name="game_canastra">Canastra</string>
+    <string name="game_pife">Pife</string>
     <string name="game_ludo">Ludo</string>
 
     <!-- Home -->
@@ -205,6 +206,8 @@
 
     <string name="rules_hearts">Hearts, four players, full 52-card deck. Winning tricks is bad here: every heart is worth 1 point and the queen of spades is worth 13. The match ends when somebody reaches 100, and whoever has the FEWEST points wins.\n\nBefore each hand everyone passes three cards: to the left, to the right, across, and then a fourth hand with no passing — after which the rotation starts over.\n\nWhoever holds the 2 of clubs leads, and leads with it. You must follow the suit that was led; without it, anything goes. No penalty cards on the first trick.\n\nHearts may only be led once they have already appeared in a trick — or when they are all you have left.\n\nThe highest card of the suit led takes the trick, along with any points on the table.\n\nShooting the moon: take all 26 points in a hand and you score none, while the other three score 26 each.</string>
 
+    <string name="rules_pife">Pife for two to four players. Two decks with one joker each, nine cards apiece, the rest becomes the stock and one card opens the discard pile.\n\nA turn has two beats: draw a card (from the stock or the top of the discard pile) and throw one away. The discard is what ends your turn.\n\nYou win by holding nine cards that close into three groups of three. A group is either three of the same rank or three in sequence in the same suit. A joker fits into either one, filling the gap — but a group of nothing but jokers does not count.\n\nThe ace is high, and only high: Q-K-A closes a run, A-2-3 does not.\n\nThe check happens after the discard, on the nine cards left: with ten in hand, closing three groups and having one over is the same thing as throwing that one away.\n\nWhat your opponent discards is information: the top of the pile is face up, and they can take yours too. When the stock runs out the discard pile is shuffled back in, minus the top card. If nobody closes after the deck has gone round three times, the hand is a draw.</string>
+
     <string name="rules_ludo">Ludo for two to four players, four tokens each. On a table of two the colours start from opposite corners.\n\nThe app rolls the die, not you: when your turn comes the value is already on screen, and the choice is which token moves.\n\nOnly a 6 brings a token out of the yard. Rolling a 6 also earns another turn.\n\nLanding on an opponent token sends it back to the yard — except on the marked squares, which are safe.\n\nComing home is exact: two squares short, a 5 is no good and the token stays put. You win by bringing all four tokens home.</string>
 
     <!-- Tables of more than two -->
@@ -243,6 +246,8 @@
 
     <!-- Copas -->
     <string name="reason_card_not_in_hand">You do not hold that card</string>
+    <string name="reason_card_already_drew">You have already drawn this turn</string>
+    <string name="reason_card_nothing_to_draw">There is nowhere to draw from</string>
     <string name="reason_hearts_must_follow_suit">You must follow the suit that was led</string>
     <string name="reason_hearts_not_broken">Hearts have not been broken yet</string>
     <string name="reason_hearts_must_lead_two">Whoever holds the 2 of clubs leads with it</string>
@@ -278,14 +283,13 @@
 
     <!-- Canastra -->
     <string name="reason_canastra_must_draw_first">Draw before melding or discarding</string>
-    <string name="reason_canastra_already_drew">You have already drawn this turn</string>
-    <string name="reason_canastra_stock_empty">There is nowhere to draw from</string>
     <string name="reason_canastra_pile_blocked">The pile is blocked by a black three</string>
     <string name="reason_canastra_invalid_meld">A meld needs three cards of the same rank, with at most three wildcards and at least two natural cards</string>
     <string name="reason_canastra_does_not_fit">That card does not fit that meld</string>
     <string name="reason_canastra_no_such_meld">That meld is not on the table</string>
     <string name="reason_canastra_red_three_not_playable">A red three scores sitting on the table: it is never played or discarded</string>
     <string name="reason_canastra_black_three_only_out">A black three is only melded when going out</string>
+    <string name="reason_pife_must_draw_first">Draw a card before discarding</string>
 
     <!-- Canastra: screen -->
     <string name="canastra_you">You</string>
@@ -308,4 +312,15 @@
     <string name="canastra_take_discard">Take the pile (%1$d)</string>
     <string name="canastra_meld">Meld (%1$d)</string>
     <string name="canastra_discard">Discard</string>
+
+    <!-- Pife: screen -->
+    <string name="pife_groups">Groups closed: %1$d of %2$d</string>
+    <string name="pife_stock">Stock: %1$d</string>
+    <string name="pife_pile">Pile: %1$d</string>
+    <string name="pife_draw_prompt">Draw from the stock or take the pile card</string>
+    <string name="pife_discard_prompt">Tap a card to choose it, then discard</string>
+    <string name="pife_wait">Opponent\'s turn</string>
+    <string name="pife_draw_stock">Draw</string>
+    <string name="pife_take_discard">Take the pile card</string>
+    <string name="pife_discard">Discard</string>
 </resources>

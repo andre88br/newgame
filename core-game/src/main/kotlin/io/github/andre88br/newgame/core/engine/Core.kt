@@ -14,6 +14,7 @@ enum class GameId {
     LUDO,
     HEARTS,
     CANASTRA,
+    PIFE,
 }
 
 /**

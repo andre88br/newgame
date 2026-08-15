@@ -385,16 +385,16 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         when (move) {
             CanastraMove.DrawStock -> {
                 if (state.phase != CanastraPhase.DRAW) {
-                    return MoveResult.Illegal(ReasonKey.CANASTRA_ALREADY_DREW)
+                    return MoveResult.Illegal(ReasonKey.CARD_ALREADY_DREW)
                 }
-                if (state.stock.isEmpty()) return MoveResult.Illegal(ReasonKey.CANASTRA_STOCK_EMPTY)
+                if (state.stock.isEmpty()) return MoveResult.Illegal(ReasonKey.CARD_NOTHING_TO_DRAW)
             }
 
             CanastraMove.TakeDiscard -> {
                 if (state.phase != CanastraPhase.DRAW) {
-                    return MoveResult.Illegal(ReasonKey.CANASTRA_ALREADY_DREW)
+                    return MoveResult.Illegal(ReasonKey.CARD_ALREADY_DREW)
                 }
-                if (state.discard.isEmpty()) return MoveResult.Illegal(ReasonKey.CANASTRA_STOCK_EMPTY)
+                if (state.discard.isEmpty()) return MoveResult.Illegal(ReasonKey.CARD_NOTHING_TO_DRAW)
                 if (state.discardBlocked) return MoveResult.Illegal(ReasonKey.CANASTRA_PILE_BLOCKED)
             }
 

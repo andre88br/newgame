@@ -3,8 +3,9 @@
 App Android com vários jogos de tabuleiro, jogáveis contra o aparelho ou entre duas
 pessoas no mesmo celular.
 
-> **Status: Fase 5 concluída — o projeto está completo.** Seis jogos: Jogo da Velha, Damas,
-> Reversi, Xadrez, Dominó e Ludo. Contra o celular ou passa-e-joga, com desfazer, dica, som,
+> **Status: Fase 5 concluída — o projeto está completo.** Nove jogos: Jogo da Velha, Damas,
+> Reversi, Xadrez, Dominó, Ludo, Copas, Canastra e Pife. Contra o celular ou passa-e-joga,
+> com desfazer, dica, som,
 > leitor de tela, português e inglês, e a partida sobrevive a fechar o app.
 > Para instalar sem montar ambiente, veja [baixar o APK do GitHub](#sem-instalar-nada-baixar-o-apk-do-github).
 
@@ -96,6 +97,9 @@ ludo, que se joga pelos peões.
 | Xadrez | roque (com as três condições), en passant, promoção com escolha da peça, xeque-mate, afogamento, regra dos 50 lances, material insuficiente, repetição tripla |
 | Dominó | dominó de bater, mão oculta, abre a maior carroça, compra e passe automáticos, jogo fechado decidido na contagem de pontos |
 | Ludo | dado rolado pelo motor, saída só com 6, lance extra no 6, captura, casas seguras, chegada exata |
+| Copas | passe de três cartas com rodízio (esquerda, direita, frente, sem passe), abertura obrigatória no 2 de paus, servir o naipe, copas trancada até sair, sem ponto na primeira vaza, correr todas, partida até 100 |
+| Canastra | brasileira, de dois (individual) ou quatro (em duplas), dois baralhos e quatro curingas, canastra limpa e suja, morto, **três vermelho** (100 parados na mesa, contra sem canastra, reposição automática) e **três preto** (tranca o lixo, só baixa ao bater), partida até 3000 |
+| Pife | dois baralhos com um curinga cada, nove cartas, compra do monte ou do lixo, bate quem fecha três grupos de três (trinca ou sequência), ás só por cima, monte remontado com o lixo e empate se ninguém fechar |
 
 ### A IA
 

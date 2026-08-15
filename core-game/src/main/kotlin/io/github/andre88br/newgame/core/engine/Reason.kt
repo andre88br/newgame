@@ -114,6 +114,8 @@ enum class ReasonKey(
     // -------- jogos de carta --------
 
     CARD_NOT_IN_HAND("Você não tem essa carta"),
+    CARD_ALREADY_DREW("Você já comprou nesta vez"),
+    CARD_NOTHING_TO_DRAW("Não há de onde comprar"),
 
     // -------- copas --------
 
@@ -125,14 +127,16 @@ enum class ReasonKey(
     // -------- canastra --------
 
     CANASTRA_MUST_DRAW_FIRST("Compre antes de baixar ou descartar"),
-    CANASTRA_ALREADY_DREW("Você já comprou nesta vez"),
-    CANASTRA_STOCK_EMPTY("Não há de onde comprar"),
     CANASTRA_PILE_BLOCKED("O lixo está trancado por um três preto"),
     CANASTRA_INVALID_MELD("Um jogo precisa de três cartas do mesmo valor, com no máximo três curingas e ao menos duas cartas naturais"),
     CANASTRA_DOES_NOT_FIT("Essa carta não encaixa nesse jogo"),
     CANASTRA_NO_SUCH_MELD("Esse jogo não existe na mesa"),
     CANASTRA_RED_THREE_NOT_PLAYABLE("O três vermelho vale ponto parado na mesa: não se joga nem se descarta"),
     CANASTRA_BLACK_THREE_ONLY_OUT("O três preto só é baixado na hora de bater"),
+
+    // -------- pife --------
+
+    PIFE_MUST_DRAW_FIRST("Compre uma carta antes de descartar"),
     ;
 
     /** `reason_game_over`, e assim por diante. */

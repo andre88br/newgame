@@ -15,6 +15,8 @@ import io.github.andre88br.newgame.core.games.dominoes.DominoesGame
 import io.github.andre88br.newgame.core.games.hearts.HEARTS_SEATS
 import io.github.andre88br.newgame.core.games.hearts.HeartsAi
 import io.github.andre88br.newgame.core.games.hearts.HeartsGame
+import io.github.andre88br.newgame.core.games.pife.PifeAi
+import io.github.andre88br.newgame.core.games.pife.PifeGame
 import io.github.andre88br.newgame.core.games.ludo.LudoAi
 import io.github.andre88br.newgame.core.games.ludo.LudoGame
 import io.github.andre88br.newgame.core.games.reversi.ReversiAi
@@ -114,6 +116,14 @@ object GameCatalog {
             // A vez da canastra tem três tempos, e a máquina joga vários lances seguidos
             // antes de passar a vez: um compasso longo em cada um viraria espera demais.
             aiPaceMillis = 350L,
+        ),
+        GameEntry(
+            rules = PifeGame.asAny(),
+            ai = PifeAi.asAnyAi(),
+            interactor = null,
+            nameKey = "game_pife",
+            // Comprar e descartar são dois lances por vez: metade do compasso dos outros.
+            aiPaceMillis = 500L,
         ),
     )
 

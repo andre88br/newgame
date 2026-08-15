@@ -37,16 +37,19 @@ class MultiSeatTest {
     @Test
     fun `mesa grande e mesa que se escolhe nao sao a mesma coisa`() {
         val grandes = jogosComMesaGrande().map { it.id }.toSet()
-        assertEquals(setOf(GameId.DOMINOES, GameId.LUDO, GameId.HEARTS, GameId.CANASTRA), grandes)
+        assertEquals(
+            setOf(GameId.DOMINOES, GameId.LUDO, GameId.HEARTS, GameId.CANASTRA, GameId.PIFE),
+            grandes,
+        )
 
         val escolhem = GameCatalog.available
             .filter { it.rules.supportedSeats.first != it.rules.supportedSeats.last }
             .map { it.id }
             .toSet()
         assertEquals(
-            setOf(GameId.DOMINOES, GameId.LUDO, GameId.CANASTRA),
+            setOf(GameId.DOMINOES, GameId.LUDO, GameId.CANASTRA, GameId.PIFE),
             escolhem,
-            "copas é de quatro e só; os outros três deixam escolher o tamanho da mesa",
+            "copas é de quatro e só; os outros deixam escolher o tamanho da mesa",
         )
 
         for (entry in GameCatalog.available) {
