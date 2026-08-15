@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -263,6 +265,9 @@ private fun TableInfo(state: CanastraState, palette: BoardPalette) {
         // Em duplas não há morto, e "Mortos: 0" seria contar uma coisa que a mesa nunca teve.
         if (mortosFor(state.seats) > 0) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (state.mortos.isNotEmpty()) {
+                    MortoStack(palette = palette)
+                }
                 Text(
                     text = stringResource(
                         if (state.mortos.isEmpty()) {
@@ -274,6 +279,33 @@ private fun TableInfo(state: CanastraState, palette: BoardPalette) {
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
+        }
+    }
+}
+
+/** Tamanho de cada carta do montinho do morto — menor que a mão, porque aqui só interessa que ele existe. */
+private val MORTO_CARD_WIDTH = 26.dp
+private val MORTO_CARD_HEIGHT = 38.dp
+
+/** Quanto uma carta do montinho desloca da anterior, por trás e para baixo. */
+private val MORTO_STACK_STEP = 3.dp
+
+/** O morto como um pequeno montinho de cartas viradas, empilhadas com leve deslocamento. */
+@Composable
+private fun MortoStack(palette: BoardPalette) {
+    Box(
+        modifier = Modifier.size(
+            width = MORTO_CARD_WIDTH + MORTO_STACK_STEP * 2,
+            height = MORTO_CARD_HEIGHT + MORTO_STACK_STEP * 2,
+        ),
+    ) {
+        for (i in 0 until 3) {
+            FaceDownCard(
+                palette = palette,
+                width = MORTO_CARD_WIDTH,
+                height = MORTO_CARD_HEIGHT,
+                modifier = Modifier.offset(x = MORTO_STACK_STEP * i, y = MORTO_STACK_STEP * i),
+            )
         }
     }
 }
