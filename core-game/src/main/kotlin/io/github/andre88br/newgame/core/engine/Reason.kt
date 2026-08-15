@@ -111,13 +111,28 @@ enum class ReasonKey(
     LUDO_EXACT_FINISH("A chegada é exata: esse peão precisa de %1\$s", arity = 1),
     LUDO_SQUARE_OCCUPIED("Já há um peão seu nessa casa"),
 
+    // -------- jogos de carta --------
+
+    CARD_NOT_IN_HAND("Você não tem essa carta"),
+
     // -------- copas --------
 
-    HEARTS_NOT_IN_HAND("Você não tem essa carta"),
     HEARTS_MUST_FOLLOW_SUIT("É preciso servir o naipe pedido"),
     HEARTS_NOT_BROKEN("Copas ainda não saiu: não dá para puxar copas"),
     HEARTS_MUST_LEAD_TWO("Quem tem o 2 de paus abre a mão com ele"),
     HEARTS_NO_POINTS_FIRST_TRICK("Na primeira vaza não se descarta ponto"),
+
+    // -------- canastra --------
+
+    CANASTRA_MUST_DRAW_FIRST("Compre antes de baixar ou descartar"),
+    CANASTRA_ALREADY_DREW("Você já comprou nesta vez"),
+    CANASTRA_STOCK_EMPTY("Não há de onde comprar"),
+    CANASTRA_PILE_BLOCKED("O lixo está trancado por um três preto"),
+    CANASTRA_INVALID_MELD("Um jogo precisa de três cartas do mesmo valor, com no máximo três curingas e ao menos duas cartas naturais"),
+    CANASTRA_DOES_NOT_FIT("Essa carta não encaixa nesse jogo"),
+    CANASTRA_NO_SUCH_MELD("Esse jogo não existe na mesa"),
+    CANASTRA_RED_THREE_NOT_PLAYABLE("O três vermelho vale ponto parado na mesa: não se joga nem se descarta"),
+    CANASTRA_BLACK_THREE_ONLY_OUT("O três preto só é baixado na hora de bater"),
     ;
 
     /** `reason_game_over`, e assim por diante. */

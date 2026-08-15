@@ -18,5 +18,5 @@ fun painterFor(gameId: GameId): BoardPainter? = when (gameId) {
     GameId.CHECKERS -> CheckersPainter
     GameId.REVERSI -> ReversiPainter
     GameId.CHESS -> ChessPainter
-    GameId.DOMINOES, GameId.LUDO, GameId.HEARTS -> null
+    GameId.DOMINOES, GameId.LUDO, GameId.HEARTS, GameId.CANASTRA -> null
 }

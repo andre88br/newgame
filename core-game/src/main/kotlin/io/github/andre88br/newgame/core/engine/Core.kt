@@ -13,6 +13,7 @@ enum class GameId {
     DOMINOES,
     LUDO,
     HEARTS,
+    CANASTRA,
 }
 
 /**

@@ -102,30 +102,29 @@ fun HeartsSurface(
             }
         }
 
-        Row(
+        // A mão em leque, uma carta por cima da outra. Treze cartas lado a lado não caberiam
+        // na largura de um celular, e uma mão que só se vê rolando não dá para avaliar.
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            for (carta in mao) {
-                CardFace(
-                    card = carta,
-                    palette = palette,
-                    hinted = carta == sugerida,
-                    // Fora da vez nada fica apagado — não está sendo pedido nada a você. Na
-                    // sua vez, apaga o que a regra não deixa: no passe tudo serve, nas vazas
-                    // só as cartas que servem o naipe (ou o que valer no momento).
-                    playable = !minhaVez ||
-                        state.phase == HeartsPhase.PASSING ||
-                        carta in jogaveis,
-                    onClick = if (enabled) {
-                        { onMove(HeartsMove(carta)) }
-                    } else {
-                        null
-                    },
-                )
-            }
+            CardFan(
+                cards = mao,
+                palette = palette,
+                hinted = sugerida,
+                // Fora da vez nada fica apagado — não está sendo pedido nada a você. Na sua
+                // vez, apaga o que a regra não deixa: no passe tudo serve, nas vazas só as
+                // cartas que servem o naipe (ou o que valer no momento).
+                isPlayable = { carta ->
+                    !minhaVez || state.phase == HeartsPhase.PASSING || carta in jogaveis
+                },
+                onClick = if (enabled) {
+                    { carta -> onMove(HeartsMove(carta)) }
+                } else {
+                    null
+                },
+            )
         }
     }
 }

@@ -267,7 +267,7 @@ object HeartsGame : BoardGame<HeartsState, HeartsMove> {
     override fun applyMove(state: HeartsState, move: HeartsMove): MoveResult<HeartsState> {
         if (outcome(state).isOver) return MoveResult.Illegal(ReasonKey.GAME_OVER)
         val mao = state.hand(state.turn)
-        if (move.card !in mao) return MoveResult.Illegal(ReasonKey.HEARTS_NOT_IN_HAND)
+        if (move.card !in mao) return MoveResult.Illegal(ReasonKey.CARD_NOT_IN_HAND)
 
         if (state.phase == HeartsPhase.PLAYING && move.card !in playableCards(state, mao)) {
             val pedido = state.leadSuit

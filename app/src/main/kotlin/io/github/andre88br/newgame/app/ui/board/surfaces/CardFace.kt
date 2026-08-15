@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -34,6 +35,19 @@ val CARD_WIDTH = 46.dp
 val CARD_HEIGHT = 66.dp
 
 /**
+ * Quanto de cada carta aparece quando a mão está em leque.
+ *
+ * É o suficiente para o canto — valor e naipe — e mais nada, que é exatamente o que se vê
+ * numa mão segurada de verdade. Treze cartas assim ocupam pouco mais de um terço da largura
+ * que ocupariam lado a lado, e é o que faz uma mão de copas caber na tela inteira sem
+ * rolagem: quem joga precisa ver a mão toda de uma vez para decidir.
+ */
+val CARD_FAN_STEP = 18.dp
+
+/** Quanto a carta destacada sobe acima do leque, como quem puxa uma carta para fora. */
+private val CARD_FAN_LIFT = 10.dp
+
+/**
  * Vermelho e preto de baralho, fixos e não vindos da paleta.
  *
  * A carta é sempre creme, no tema claro e no escuro — carta de baralho é branca, e um
@@ -42,6 +56,63 @@ val CARD_HEIGHT = 66.dp
  */
 private val SUIT_RED = Color(0xFFC62828)
 private val SUIT_BLACK = Color(0xFF1B1B1B)
+
+/**
+ * Uma mão em leque: cada carta por cima da anterior, mostrando só o canto das de baixo.
+ *
+ * É como se segura uma mão de cartas, e não é só enfeite: lado a lado, treze cartas não
+ * cabem na largura de um celular e precisariam de rolagem — e uma mão que só se vê aos
+ * pedaços não dá para avaliar. Em leque a mão inteira aparece de uma vez.
+ *
+ * A ordem de desenho é a ordem da lista: a última carta fica por cima. Como cada uma começa
+ * [CARD_FAN_STEP] à direita da anterior, a faixa visível de cada carta não é coberta por
+ * ninguém — e o toque cai na carta certa sem precisar de conta nenhuma.
+ */
+@Composable
+fun CardFan(
+    cards: List<Card>,
+    palette: BoardPalette,
+    modifier: Modifier = Modifier,
+    /** A carta sugerida pela dica, que sai do leque para ser vista. */
+    hinted: Card? = null,
+    /** Quais cartas a regra deixa jogar agora; as outras aparecem apagadas. */
+    isPlayable: (Card) -> Boolean = { true },
+    onClick: ((Card) -> Unit)? = null,
+) {
+    if (cards.isEmpty()) return
+
+    Layout(
+        modifier = modifier,
+        content = {
+            for (carta in cards) {
+                CardFace(
+                    card = carta,
+                    palette = palette,
+                    hinted = carta == hinted,
+                    playable = isPlayable(carta),
+                    onClick = onClick?.let { acao -> { acao(carta) } },
+                )
+            }
+        },
+    ) { measurables, constraints ->
+        val soltos = constraints.copy(minWidth = 0, minHeight = 0)
+        val postas = measurables.map { it.measure(soltos) }
+        val passo = CARD_FAN_STEP.roundToPx()
+        val alto = CARD_FAN_LIFT.roundToPx()
+
+        val largura = passo * (postas.size - 1) + postas.last().width
+        val altura = postas.maxOf { it.height } + alto
+
+        layout(largura, altura) {
+            postas.forEachIndexed { index, posta ->
+                // A destacada encosta no topo; as outras descem, e é essa diferença que a
+                // faz parecer puxada para fora da mão.
+                val puxada = cards[index] == hinted
+                posta.placeRelative(x = passo * index, y = if (puxada) 0 else alto)
+            }
+        }
+    }
+}
 
 /**
  * Uma carta virada para cima.
