@@ -187,6 +187,8 @@ private val ROUND_MARK = 22.dp
 @Composable
 private fun RoundMarkers(state: TrucoState, viewer: Seat, palette: BoardPalette) {
     val meu = state.teamOf(viewer)
+    // Três marcas porque são três cartas: cada carta na mão é uma rodada, e as duas contas
+    // são a mesma. Por isso o tamanho da mão serve aqui sem virar um número solto na tela.
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for (rodada in 0 until TRUCO_HAND_SIZE) {
             val resultado = state.rounds.getOrNull(rodada)
