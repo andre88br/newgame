@@ -38,19 +38,25 @@ class MultiSeatTest {
     fun `mesa grande e mesa que se escolhe nao sao a mesma coisa`() {
         val grandes = jogosComMesaGrande().map { it.id }.toSet()
         assertEquals(
-            setOf(GameId.DOMINOES, GameId.LUDO, GameId.HEARTS, GameId.CANASTRA, GameId.PIFE),
+            setOf(
+                GameId.DOMINOES, GameId.LUDO, GameId.HEARTS, GameId.CANASTRA, GameId.PIFE,
+                GameId.TRUCO,
+            ),
             grandes,
         )
 
         val escolhem = GameCatalog.available
-            .filter { it.rules.supportedSeats.first != it.rules.supportedSeats.last }
+            .filter { it.rules.seatOptions.size > 1 }
             .map { it.id }
             .toSet()
         assertEquals(
-            setOf(GameId.DOMINOES, GameId.LUDO, GameId.CANASTRA, GameId.PIFE),
+            setOf(GameId.DOMINOES, GameId.LUDO, GameId.CANASTRA, GameId.PIFE, GameId.TRUCO),
             escolhem,
             "copas é de quatro e só; os outros deixam escolher o tamanho da mesa",
         )
+
+        // O truco escolhe entre dois e quatro, e nada no meio: três não divide em duplas.
+        assertEquals(listOf(2, 4), GameCatalog.rules(GameId.TRUCO).seatOptions)
 
         for (entry in GameCatalog.available) {
             val faixa = entry.rules.supportedSeats
@@ -59,13 +65,19 @@ class MultiSeatTest {
                     faixa.last in MatchConfig.MIN_SEATS..MatchConfig.MAX_SEATS,
                 "${entry.id} declara mesa fora do que a configuração aceita: $faixa",
             )
+            assertTrue(
+                entry.rules.seatOptions.isNotEmpty() && entry.rules.seatOptions.all { it in faixa },
+                "${entry.id} oferece mesa fora da própria faixa: ${entry.rules.seatOptions}",
+            )
         }
     }
 
     @Test
     fun `a mesa pedida e a mesa montada`() {
         for (entry in jogosComMesaGrande()) {
-            for (seats in entry.rules.supportedSeats) {
+            // Pelas mesas que o jogo oferece, e não pela faixa: o truco declara 2..4 mas só
+            // aceita duas ou quatro, e pedir três a ele é erro, não configuração.
+            for (seats in entry.rules.seatOptions) {
                 val state = entry.rules.initialState(MatchConfig(seed = 5, seats = seats))
                 assertEquals(
                     seats,

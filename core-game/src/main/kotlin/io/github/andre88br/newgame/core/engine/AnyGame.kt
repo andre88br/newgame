@@ -20,6 +20,9 @@ interface AnyGame {
     /** Veja [BoardGame.supportedSeats]. */
     val supportedSeats: IntRange
 
+    /** Veja [BoardGame.seatOptions]. */
+    val seatOptions: List<Int>
+
     /** Veja [BoardGame.seatsIn]. */
     fun seatsIn(state: GameState): Int
 
@@ -70,6 +73,7 @@ private class TypedFacade<S : GameState, M : Move>(
 
     override val id: GameId get() = game.id
     override val supportedSeats: IntRange get() = game.supportedSeats
+    override val seatOptions: List<Int> get() = game.seatOptions
 
     override fun seatsIn(state: GameState): Int = game.seatsIn(state.typed())
     override val hasHiddenInformation: Boolean get() = game.hasHiddenInformation

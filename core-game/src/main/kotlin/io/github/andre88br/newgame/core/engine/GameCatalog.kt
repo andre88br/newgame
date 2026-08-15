@@ -27,6 +27,8 @@ import io.github.andre88br.newgame.core.games.reversi.ReversiInteractor
 import io.github.andre88br.newgame.core.games.tictactoe.TicTacToeAi
 import io.github.andre88br.newgame.core.games.tictactoe.TicTacToeGame
 import io.github.andre88br.newgame.core.games.tictactoe.TicTacToeInteractor
+import io.github.andre88br.newgame.core.games.truco.TrucoAi
+import io.github.andre88br.newgame.core.games.truco.TrucoGame
 import io.github.andre88br.newgame.core.session.BoardInteractor
 
 /** Um jogo pronto para a interface: as regras, o adversário do aparelho e como se chama. */
@@ -135,6 +137,15 @@ object GameCatalog {
             interactor = null,
             nameKey = "game_klondike",
             players = 1,
+        ),
+        GameEntry(
+            rules = TrucoGame.asAny(),
+            ai = TrucoAi.asAnyAi(),
+            interactor = null,
+            nameKey = "game_truco",
+            // Trucar, responder e jogar carta são lances curtos e seguidos: o compasso longo
+            // dos outros jogos deixaria a resposta a um truco parecendo travamento.
+            aiPaceMillis = 450L,
         ),
     )
 

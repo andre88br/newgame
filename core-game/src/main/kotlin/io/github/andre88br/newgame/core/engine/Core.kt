@@ -16,6 +16,7 @@ enum class GameId {
     CANASTRA,
     PIFE,
     KLONDIKE,
+    TRUCO,
 }
 
 /**
@@ -179,6 +180,15 @@ interface BoardGame<S : GameState, M : Move> {
      * configuração lê isto para decidir se oferece a escolha.
      */
     val supportedSeats: IntRange get() = 2..2
+
+    /**
+     * As mesas que o jogo aceita de fato, quando elas não formam uma faixa contínua.
+     *
+     * Existe por causa do truco: ele é de dois ou de quatro, e nunca de três, porque três
+     * não divide em duplas. [supportedSeats] sozinho diria `2..4` e a tela ofereceria uma
+     * mesa que o jogo recusaria depois — a pior ordem de descobrir isso.
+     */
+    val seatOptions: List<Int> get() = supportedSeats.toList()
 
     /**
      * Quantas cadeiras esta partida tem.

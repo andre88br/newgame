@@ -145,6 +145,13 @@ enum class ReasonKey(
     KLONDIKE_FOUNDATION_ORDER("A casa sobe do ás ao rei, no mesmo naipe"),
     KLONDIKE_TABLEAU_ORDER("Na coluna a carta desce uma e troca de cor"),
     KLONDIKE_EMPTY_PILE_KING_ONLY("Coluna vazia só recebe rei"),
+
+    // -------- truco --------
+
+    TRUCO_ANSWER_FIRST("Responda ao truco antes de jogar carta"),
+    TRUCO_NOTHING_TO_ANSWER("Não há truco na mesa para responder"),
+    TRUCO_NOT_YOUR_CALL("Quem trucou foi o seu lado: espere o outro aumentar"),
+    TRUCO_AT_THE_TOP("Doze é o máximo: não há como aumentar"),
     ;
 
     /** `reason_game_over`, e assim por diante. */
