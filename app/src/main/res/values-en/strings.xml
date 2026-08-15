@@ -303,7 +303,7 @@
     <string name="canastra_dirty">dirty canasta (%1$d)</string>
     <string name="canastra_draw_prompt">Draw from the stock or take the pile</string>
     <string name="canastra_play_prompt">Tap cards to choose them, then meld or discard</string>
-    <string name="canastra_wait">Opponent's turn</string>
+    <string name="canastra_wait">Opponent\'s turn</string>
     <string name="canastra_draw_stock">Draw</string>
     <string name="canastra_take_discard">Take the pile (%1$d)</string>
     <string name="canastra_meld">Meld (%1$d)</string>

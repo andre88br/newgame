@@ -79,6 +79,32 @@ def marcadores(texto: str) -> set[str]:
     return set(MARCADOR.findall(texto))
 
 
+# Apóstrofo que não vem precedido de barra invertida.
+APOSTROFO_SOLTO = re.compile(r"(?<!\\)'")
+
+
+def escapes_faltando(caminho: Path) -> list[str]:
+    """Apóstrofos sem escape, que derrubam a compilação de recursos do Android.
+
+    O `aapt` recusa `<string>Opponent's turn</string>` com uma mensagem que não diz qual
+    texto está errado — só que o arquivo inteiro não compilou. É um erro fácil de cometer
+    escrevendo inglês e caro de achar depois, porque só aparece na etapa do APK, que é a
+    mais lenta do fluxo. Aqui ele aparece em segundos, e dizendo o nome da chave.
+
+    O XML é lido como texto, e não pela árvore: para o analisador de XML o apóstrofo é um
+    caractere comum, e o problema só existe uma camada acima, no formato do Android.
+    """
+    if not caminho.exists():
+        return []
+    bruto = caminho.read_text(encoding="utf-8")
+    achados = []
+    for item in re.finditer(r'<string name="([^"]+)">(.*?)</string>', bruto, re.S):
+        nome, valor = item.group(1), item.group(2)
+        if APOSTROFO_SOLTO.search(valor):
+            achados.append(f"{caminho.name}: {nome} tem apóstrofo sem escape (use \\')")
+    return achados
+
+
 def escapar_xml(texto: str) -> str:
     """Aspas simples e & precisam de escape em strings.xml."""
     return (
@@ -136,6 +162,10 @@ def main() -> int:
         regras = "rules_" + chave.removeprefix("game_")
         if regras not in pt:
             problemas.append(f"{regras}: {chave} está no catálogo e não tem regras escritas")
+
+    # O que o Android exige do formato, e o analisador de XML deixa passar.
+    problemas.extend(escapes_faltando(PT))
+    problemas.extend(escapes_faltando(EN))
 
     if problemas:
         print(f"textos com problema ({len(problemas)}):\n", file=sys.stderr)
