@@ -269,10 +269,12 @@ fun asMeld(cards: List<Card>): Meld? {
 /**
  * O jogo depois de acrescentar [card], ou `null` se ela não encaixa.
  *
- * Numa sequência a carta natural só entra numa ponta — uma abaixo do começo, ou uma acima do
- * fim —, e as duas nunca coincidem porque o jogo tem no mínimo três cartas. Um curinga só
- * entra se o jogo ainda não tem nenhum, na mesma ponta que ganharia uma natural do mesmo
- * jeito. Numa trinca, qualquer carta do valor entra, e o curinga só se ainda não houver um.
+ * Numa sequência, o curinga não tem posição fixa — [wildRepresents] e [Meld.sequenceSpan] já
+ * a calculam a partir da lista de cartas, nunca a guardam à parte —, então acrescentar uma
+ * carta é recalcular o arranjo canônico do jogo inteiro (ver [extendSequence]), e não só
+ * checar as duas pontas atuais: uma carta que abre um buraco mais perto do que a ponta onde
+ * o curinga está pode empurrá-lo para lá. Numa trinca, qualquer carta do valor entra, e o
+ * curinga só se ainda não houver um.
  */
 fun extendMeld(meld: Meld, card: Card): Meld? {
     if (isRedThree(card) || isBlackThree(card)) return null
@@ -288,26 +290,13 @@ private fun extendSet(meld: Meld, card: Card): Meld? = when {
     else -> null
 }
 
-private fun extendSequence(meld: Meld, card: Card): Meld? {
-    val naipe = meld.naturals.first().suit
-    val span = meld.sequenceSpan()
-
-    if (isWild(card)) {
-        if (meld.wilds.size >= CANASTRA_MAX_WILDS) return null
-        return when {
-            span.last + 1 < CANASTRA_SEQUENCE_RANKS.size -> Meld(meld.cards + card)
-            span.first - 1 >= 0 -> Meld(listOf(card) + meld.cards)
-            else -> null
-        }
-    }
-
-    if (card.suit != naipe) return null
-    return when (sequenceOrder(card.rank)) {
-        span.last + 1 -> Meld(meld.cards + card)
-        span.first - 1 -> Meld(listOf(card) + meld.cards)
-        else -> null
-    }
-}
+/**
+ * "Jogo mais uma carta" é só "que arranjo canônico existe para este conjunto de cartas" —
+ * exatamente o que [asSequence] já calcula para formar um jogo novo, curinga incluso. Não há
+ * heurística nova aqui: reaproveitar [asSequence] é o que permite ao curinga se reposicionar
+ * (de uma ponta para um buraco mais perto, por exemplo) em vez de ficar preso onde entrou.
+ */
+private fun extendSequence(meld: Meld, card: Card): Meld? = asSequence(meld.cards + card)?.let { Meld(it) }
 
 /**
  * A carta que o curinga deste jogo está representando, ou `null` se o jogo não tem curinga —

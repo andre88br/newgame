@@ -480,6 +480,43 @@ class CanastraTest {
         assertNull(extendMeld(meio, carta(Rank.EIGHT, Suit.SPADES)), "naipe errado não encaixa")
     }
 
+    /**
+     * O curinga não tem posição fixa: se a carta nova abre um buraco mais perto do que a
+     * ponta onde ele está, ele desce para lá — em vez de a carta ser recusada porque "não é
+     * a ponta atual". É o bug relatado: `7 8 9 10♦ + curinga(valete)`, jogar um `5♦` devia
+     * dar `5♦ + curinga(seis) + 7 8 9 10♦`, e não "essa carta não encaixa".
+     */
+    @Test
+    fun `uma carta que abre buraco mais perto reposiciona o curinga, em vez de ser recusada`() {
+        val naipe = Suit.DIAMONDS
+        val curinga = carta(Rank.TWO, Suit.SPADES)
+        val jogo = Meld(
+            listOf(
+                carta(Rank.SEVEN, naipe), carta(Rank.EIGHT, naipe),
+                carta(Rank.NINE, naipe), carta(Rank.TEN, naipe), curinga,
+            ),
+        )
+        assertEquals(carta(Rank.JACK, naipe), wildRepresents(jogo), "o curinga começa fazendo de valete")
+
+        val cinco = carta(Rank.FIVE, naipe)
+        val depois = extendMeld(jogo, cinco)
+
+        assertEquals(6, depois?.cards?.size, "o jogo cresceu de cinco para seis")
+        assertEquals(1, depois?.wilds?.size, "continua um curinga só")
+        assertEquals(
+            carta(Rank.SIX, naipe),
+            depois?.let { wildRepresents(it) },
+            "o curinga desceu de valete para seis, tapando o buraco que o cinco abriu",
+        )
+        assertTrue(cinco in (depois?.cards ?: emptyList()), "o cinco entrou no jogo")
+        assertTrue(
+            listOf(Rank.SEVEN, Rank.EIGHT, Rank.NINE, Rank.TEN).all { rank ->
+                carta(rank, naipe) in (depois?.cards ?: emptyList())
+            },
+            "as cartas que já estavam no jogo continuam lá",
+        )
+    }
+
     /** Um lance só pode crescer as duas pontas de uma vez: uma carta abre espaço para a outra. */
     @Test
     fun `um lance pode estender as duas pontas ao mesmo tempo`() {
