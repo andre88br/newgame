@@ -369,6 +369,8 @@ data class CanastraState(
     val rng: Rng = Rng(0),
     /** A dupla que bateu, ou `-1` enquanto a mão corre. */
     val wentOut: Int = -1,
+    /** Quem é o primeiro a jogar nesta rodada. O próximo a dar as cartas rotaciona. */
+    val startingSeat: Seat = Seat.FIRST,
 ) : GameState {
 
     /** Em quatro, as duplas são as cadeiras opostas; em dois, cada um é a sua dupla. */
@@ -502,7 +504,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
     }
 
     /** Reparte uma mão: treze para cada um, o morto (se houver) e uma carta virada no lixo. */
-    private fun dealHand(seats: Int, scores: List<Int>, rng: Rng): CanastraState {
+    private fun dealHand(seats: Int, scores: List<Int>, rng: Rng, startingSeat: Seat = Seat.FIRST): CanastraState {
         val teams = if (seats == 4) 2 else seats
         val embaralhado = rng.shuffle(deckOf(CANASTRA_DECKS, CANASTRA_JOKERS_PER_DECK))
         val cartas = embaralhado.value.toMutableList()
@@ -547,11 +549,12 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             batidas = List(teams) { 0 },
             firstMeldDone = List(teams) { false },
             openingProgress = List(teams) { 0 },
-            turn = Seat.FIRST,
+            turn = startingSeat,
             phase = CanastraPhase.DRAW,
             scores = scores,
             seats = seats,
             rng = embaralhado.rng,
+            startingSeat = startingSeat,
         )
     }
 
@@ -1253,7 +1256,9 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val somados = List(state.teams) { state.scores.getOrElse(it) { 0 } + ganhos[it] }
         if (somados.any { it >= CANASTRA_TARGET }) return state.copy(scores = somados)
 
-        return dealHand(state.seats, somados, state.rng).copy(ply = state.ply)
+        // Rotaciona o jogador que começa a próxima mão
+        val proximoComecar = state.startingSeat.next(state.seats)
+        return dealHand(state.seats, somados, state.rng, startingSeat = proximoComecar).copy(ply = state.ply)
     }
 
     /** O resultado de tirar os três vermelhos de um punhado de cartas. */
@@ -1340,7 +1345,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
      * A mão dos outros vira, e o monte e os mortos também.
      *
      * Os jogos na mesa ficam abertos — eles são públicos, e esconder o que já foi baixado
-     * seria esconder do jogador o próprio tabuleiro. O que some é o que ninguém pode ver.
+     * seria esconder do jogador o próprio tabuleiro. O que সীমe é o que ninguém pode ver.
      */
     override fun redactFor(state: CanastraState, viewer: Seat): CanastraState = state.copy(
         hands = state.hands.mapIndexed { index, mao ->
