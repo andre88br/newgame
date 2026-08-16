@@ -73,17 +73,31 @@ object CanastraEvaluator : Evaluator<CanastraState> {
 
         if (state.tookMorto.getOrElse(team) { false }) total += MORTO_WEIGHT
 
-        // Carta na mão é dívida: no fim da mão ela é descontada. O curinga é a exceção — ele
-        // pesa menos do que o valor de carta sugere, porque guardá-lo é estratégia, não
-        // acúmulo (ver WILD_IN_HAND_PENALTY).
-        val naMao = (0 until state.seats)
+        // Calcula o valor bruto de todas as cartas na mão
+        val valorBrutoNaMao = (0 until state.seats)
             .filter { state.teamOf(Seat(it)) == team }
             .sumOf { seat ->
                 state.hand(Seat(seat)).sumOf { carta ->
                     if (isWild(carta)) WILD_IN_HAND_PENALTY else cardValue(carta)
                 }
             }
-        return total - naMao
+
+        // VERIFICAÇÃO ESTRATÉGICA DOS 150 PONTOS
+        val precisaAberturaAlta = state.scores.getOrElse(team) { 0 } >= CANASTRA_OPENING_THRESHOLD && 
+                                  !state.firstMeldDone.getOrElse(team) { false }
+
+        val penalidade = if (precisaAberturaAlta) {
+            // Se a IA precisa abrir com 150, as cartas na mão não são "dívida", são "poupança".
+            // Nós só começamos a descontar pontos do avaliador se a mão dela passar de 150.
+            // Isso tira o "medo" da IA de segurar cartas altas (como Ases de 20 pontos).
+            maxOf(0, valorBrutoNaMao - CANASTRA_OPENING_MIN_VALUE)
+        } else {
+            // Se ela já abriu o jogo (ou tem menos de 1500 pontos na partida), a regra normal volta:
+            // Toda carta na mão é dívida e precisa ser baixada ou descartada.
+            valorBrutoNaMao
+        }
+
+        return total - penalidade
     }
 }
 
