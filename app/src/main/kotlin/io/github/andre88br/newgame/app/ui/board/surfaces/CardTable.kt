@@ -90,13 +90,23 @@ fun CardTable(
         }
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (esquerda != null) {
-                OpponentHand(count = handSize(esquerda), name = seatLabel(esquerda.index, viewer, names), palette = palette)
+                OpponentHand(
+                    count = handSize(esquerda),
+                    name = seatLabel(esquerda.index, viewer, names),
+                    palette = palette,
+                    vertical = true,
+                )
                 Spacer(modifier = Modifier.width(6.dp))
             }
             Box(modifier = Modifier.weight(1f)) { center() }
             if (direita != null) {
                 Spacer(modifier = Modifier.width(6.dp))
-                OpponentHand(count = handSize(direita), name = seatLabel(direita.index, viewer, names), palette = palette)
+                OpponentHand(
+                    count = handSize(direita),
+                    name = seatLabel(direita.index, viewer, names),
+                    palette = palette,
+                    vertical = true,
+                )
             }
         }
     }
@@ -110,10 +120,21 @@ fun CardTable(
  * contagem, no mesmo espírito do que o dominó já faz com a mão do outro lado.
  */
 @Composable
-private fun OpponentHand(count: Int, name: String, palette: BoardPalette, modifier: Modifier = Modifier) {
+private fun OpponentHand(
+    count: Int,
+    name: String,
+    palette: BoardPalette,
+    vertical: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
     val descricao = stringResource(R.string.a11y_opponent_hand, name, count)
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
-        OpponentFan(count = count, palette = palette, modifier = Modifier.semantics { contentDescription = descricao })
+        OpponentFan(
+            count = count,
+            palette = palette,
+            vertical = vertical,
+            modifier = Modifier.semantics { contentDescription = descricao },
+        )
         Text(
             text = name,
             style = MaterialTheme.typography.labelSmall,
@@ -126,9 +147,14 @@ private fun OpponentHand(count: Int, name: String, palette: BoardPalette, modifi
 /**
  * O leque de costas de carta do adversário, no mesmo molde de [CardFan]: passo fixo, cada
  * carta por cima da anterior. Aqui não há o que tocar nem o que destacar — é só a contagem.
+ *
+ * [vertical] é para quem senta à esquerda ou à direita: numa mesa de verdade essas duas
+ * cadeiras estão viradas para o centro, de lado para quem olha, então o leque delas cresce
+ * para baixo, não para o lado — e cada carta gira noventa graus junto (por isso [FaceDownCard]
+ * recebe largura e altura trocadas: é a mesma carta, deitada).
  */
 @Composable
-private fun OpponentFan(count: Int, palette: BoardPalette, modifier: Modifier = Modifier) {
+private fun OpponentFan(count: Int, palette: BoardPalette, vertical: Boolean = false, modifier: Modifier = Modifier) {
     if (count == 0) return
 
     Layout(
@@ -137,8 +163,8 @@ private fun OpponentFan(count: Int, palette: BoardPalette, modifier: Modifier = 
             repeat(count) {
                 FaceDownCard(
                     palette = palette,
-                    width = OPPONENT_CARD_WIDTH,
-                    height = OPPONENT_CARD_HEIGHT,
+                    width = if (vertical) OPPONENT_CARD_HEIGHT else OPPONENT_CARD_WIDTH,
+                    height = if (vertical) OPPONENT_CARD_WIDTH else OPPONENT_CARD_HEIGHT,
                     modifier = Modifier.clearAndSetSemantics { },
                 )
             }
@@ -148,11 +174,18 @@ private fun OpponentFan(count: Int, palette: BoardPalette, modifier: Modifier = 
         val postas = measurables.map { it.measure(soltos) }
         val passo = OPPONENT_FAN_STEP.roundToPx()
 
-        val largura = passo * (postas.size - 1) + postas.last().width
-        val altura = postas.maxOf { it.height }
-
-        layout(largura, altura) {
-            postas.forEachIndexed { index, posta -> posta.placeRelative(x = passo * index, y = 0) }
+        if (vertical) {
+            val largura = postas.maxOf { it.width }
+            val altura = passo * (postas.size - 1) + postas.last().height
+            layout(largura, altura) {
+                postas.forEachIndexed { index, posta -> posta.placeRelative(x = 0, y = passo * index) }
+            }
+        } else {
+            val largura = passo * (postas.size - 1) + postas.last().width
+            val altura = postas.maxOf { it.height }
+            layout(largura, altura) {
+                postas.forEachIndexed { index, posta -> posta.placeRelative(x = passo * index, y = 0) }
+            }
         }
     }
 }

@@ -580,7 +580,7 @@ class CanastraTest {
     }
 
     @Test
-    fun `sem ponta livre o curinga trocado volta para a mao, e o jogo nao muda de tamanho`() {
+    fun `sem ponta livre de verdade o curinga trocado ainda assim fica no jogo, depois do as`() {
         val naipe = Suit.SPADES
         // Do quatro ao rei, mais o curinga fazendo de ás: a sequência já ocupa a escala inteira.
         val completa = CANASTRA_SEQUENCE_RANKS.dropLast(1).map { carta(it, naipe) } + carta(Rank.JOKER, Suit.HEARTS)
@@ -597,14 +597,12 @@ class CanastraTest {
         val depois = CanastraGame.applyOrThrow(state, CanastraMove.SwapWild(0, as_))
         val jogoDepois = depois.meldsOf(Seat.FIRST).first()
 
-        assertEquals(completa.size, jogoDepois.cards.size, "as duas pontas já estavam ocupadas: o jogo não cresce")
-        assertEquals(0, jogoDepois.wilds.size, "o curinga saiu do jogo")
-        assertEquals(antes, depois.handSize(Seat.FIRST), "a mão não muda de tamanho: o ás saiu, o curinga entrou")
+        assertEquals(completa.size + 1, jogoDepois.cards.size, "o jogo cresce mesmo sem ponta livre de verdade")
+        assertEquals(1, jogoDepois.wilds.size, "o curinga continua no jogo, só encostado no fim")
+        assertNull(wildRepresents(jogoDepois), "depois do ás não há carta nenhuma para o curinga representar")
+        assertEquals(antes - 1, depois.handSize(Seat.FIRST), "a mão perde o ás e o curinga não volta")
         assertTrue(as_ !in depois.hand(Seat.FIRST), "o ás trocado saiu da mão")
-        assertTrue(
-            depois.hand(Seat.FIRST).any { isWild(it) },
-            "o curinga que não tinha para onde ir voltou para a mão",
-        )
+        assertTrue(depois.hand(Seat.FIRST).none { isWild(it) }, "o curinga não volta para a mão")
     }
 
     // -------- pegar o lixo obriga baixar --------

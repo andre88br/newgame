@@ -297,11 +297,14 @@ class MultiSeatTest {
                 },
             )
 
-            // A canastra é a mais longa da mesa: pegar o lixo exige que a carta do topo
-            // forme jogo, então a máquina compra do monte com mais frequência do que antes
-            // de a regra existir, e a partida gasta mais lances para chegar aos 3000.
+            // A canastra é a mais longa da mesa, e de longe: pegar o lixo exige que a carta
+            // do topo forme jogo, trocar o curinga nunca falha (ele sempre fica no jogo, até
+            // "encostado" depois do ás quando não representa carta nenhuma) — a máquina EASY
+            // não enxerga isso de propósito, só topa com jogos possíveis com mais frequência
+            // do que antes dessas regras existirem, e a partida gasta bem mais lances para
+            // chegar aos 3000 (esta semente precisa de pouco menos de 16 mil).
             var guard = 0
-            while (!session.isOver && guard++ < 2_000) {
+            while (!session.isOver && guard++ < 20_000) {
                 if (session.awaitingAi) {
                     assertTrue(session.playAiTurn() != null, "${entry.id}: a máquina não jogou")
                 } else {
