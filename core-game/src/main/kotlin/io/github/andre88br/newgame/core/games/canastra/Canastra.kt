@@ -203,8 +203,9 @@ data class CanastraState(
     val wentOut: Int = -1,
     val startingSeat: Seat = Seat.FIRST,
     val lastScores: List<RoundScore> = emptyList(),
-    /** Indica se o jogador passou a vez por falta de cartas no monte (encerra a mão). */
     val passedEnd: Boolean = false,
+    /** A carta que foi recém-comprada do monte, para ser destacada na tela. */
+    val drawnCard: Card? = null,
 ) : GameState {
 
     fun teamOf(seat: Seat): Int = if (seats == 4) seat.index % 2 else seat.index
@@ -292,7 +293,6 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             }
         }
 
-        // Lixo agora começa sempre vazio por padrão (regras puras)
         return CanastraState(
             hands = maos.map { it.toList() },
             melds = List(teams) { emptyList() },
@@ -311,7 +311,8 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             rng = embaralhado.rng,
             startingSeat = startingSeat,
             lastScores = lastScores,
-            passedEnd = false
+            passedEnd = false,
+            drawnCard = null // Limpa o destaque da carta na nova rodada
         )
     }
 
@@ -649,6 +650,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val vermelhos = state.redThrees.toMutableList()
         val time = state.teamOf(state.turn)
 
+        var drawn: Card? = null
         while (monte.isNotEmpty()) {
             val carta = monte.first()
             monte = monte.drop(1)
@@ -657,6 +659,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 continue
             }
             mao += carta
+            drawn = carta
             break
         }
 
@@ -667,6 +670,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             phase = CanastraPhase.PLAY,
             ply = state.ply + 1,
             openingProgress = zerarProgresso(state, time),
+            drawnCard = drawn, // Salva a carta recém-comprada para destacar na tela
         )
     }
 
@@ -694,6 +698,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             ply = state.ply + 1,
             owedCard = devida,
             openingProgress = zerarProgresso(state, time),
+            drawnCard = null, // Ao pegar lixo, garantimos que a marcação de carta comprada zera
         )
     }
 
@@ -716,6 +721,9 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
 
         val abertura = updateOpening(state, time, move.cards.sumOf { cardValue(it) })
         val devida = if (state.owedCard != null && state.owedCard in move.cards) null else state.owedCard
+        
+        // Se a carta comprada for baixada na mesa, tiramos o destaque visual dela
+        val novaComprada = if (state.drawnCard != null && state.drawnCard in move.cards) null else state.drawnCard
 
         return settle(
             semMao(
@@ -725,6 +733,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                     firstMeldDone = abertura.firstMeldDone,
                     openingProgress = abertura.openingProgress,
                     owedCard = devida,
+                    drawnCard = novaComprada,
                     ply = state.ply + 1,
                 ),
             ),
@@ -772,6 +781,8 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         mesa[time] = jogos.toList()
 
         val devida = if (state.owedCard == move.card) null else state.owedCard
+        // Se a carta trocada for a recém comprada, tiramos o destaque visual
+        val novaComprada = if (state.drawnCard == move.card) null else state.drawnCard
         val abertura = updateOpening(state, time, cardValue(move.card))
 
         return settle(
@@ -782,6 +793,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                     firstMeldDone = abertura.firstMeldDone,
                     openingProgress = abertura.openingProgress,
                     owedCard = devida,
+                    drawnCard = novaComprada,
                     ply = state.ply + 1,
                 ),
             ),
@@ -803,7 +815,11 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         
         val proximoTurno = Seat((state.turn.index + state.seats - 1) % state.seats)
         return settle(
-            depois.copy(turn = proximoTurno, phase = CanastraPhase.DRAW),
+            depois.copy(
+                turn = proximoTurno, 
+                phase = CanastraPhase.DRAW,
+                drawnCard = null // Zera a carta destacada ao passar a vez
+            ),
         )
     }
 
@@ -833,7 +849,6 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
     }
 
     private fun settle(state: CanastraState): CanastraState {
-        // Agora verifica se a flag `passedEnd` está verdadeira
         val travou = state.passedEnd || (state.phase == CanastraPhase.DRAW &&
             state.stock.isEmpty() &&
             (state.discard.isEmpty() || state.discardBlocked || !canTakeDiscard(state)))
