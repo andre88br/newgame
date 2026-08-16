@@ -182,7 +182,8 @@ fun CanastraSurface(
             CardFan(
                 cards = mao,
                 palette = palette,
-                isRaised = { index, carta -> index in escolhidas || carta == state.owedCard },
+                // DESTAQUE DA CARTA: O leque levanta as cartas escolhidas, a carta obrigatória e a carta recém comprada.
+                isRaised = { index, carta -> index in escolhidas || carta == state.owedCard || carta == state.drawnCard },
                 onClick = if (enabled && minhaVez && state.phase == CanastraPhase.PLAY) {
                     { index, _ ->
                         escolhidas = if (index in escolhidas) escolhidas - index else escolhidas + index
