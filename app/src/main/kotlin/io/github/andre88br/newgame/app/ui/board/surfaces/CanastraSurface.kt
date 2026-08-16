@@ -14,10 +14,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.andre88br.newgame.app.R
 import io.github.andre88br.newgame.app.ui.theme.BoardPalette
@@ -76,9 +80,55 @@ fun CanastraSurface(
     // `remember(state)` zera a escolha sozinho.
     var escolhidas by remember(state) { mutableStateOf(emptySet<Int>()) }
 
+    // Controle para exibir o modal de pontuação apenas uma vez por rodada.
+    // O remember atrelado ao state.scores garante que o popup reapareça caso os pontos gerais mudem.
+    var roundScoreDismissed by remember(state.scores) { mutableStateOf(false) }
+
     val meuTime = state.teamOf(viewer)
     val minhaVez = state.turn == viewer
     val cartasEscolhidas = escolhidas.sorted().mapNotNull { mao.getOrNull(it) }
+
+    // POP-UP DE FIM DE RODADA
+    if (state.lastScores.isNotEmpty() && !roundScoreDismissed) {
+        AlertDialog(
+            onDismissRequest = { roundScoreDismissed = true },
+            confirmButton = {
+                TextButton(onClick = { roundScoreDismissed = true }) {
+                    Text("Continuar")
+                }
+            },
+            title = { Text("Fim da Rodada") },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
+                    for (time in 0 until state.teams) {
+                        val detalhes = state.lastScores.getOrNull(time)
+                        if (detalhes != null) {
+                            Column {
+                                Text(
+                                    text = teamLabel(state, time, viewer, names),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (time == meuTime) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text("Jogos na Mesa: +${detalhes.pontosMesa}")
+                                Text("Cartas na Mão: -${detalhes.penalidadeMao}", color = MaterialTheme.colorScheme.error)
+                                if (detalhes.vermelhos > 0) Text("Três Vermelhos: +${detalhes.vermelhos}")
+                                if (detalhes.batida > 0) Text("Bônus de Batida/Morto: +${detalhes.batida}")
+                                Text(
+                                    text = "Saldo da Rodada: ${if (detalhes.totalRodada > 0) "+" else ""}${detalhes.totalRodada}",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            if (time < state.teams - 1) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        }
+                    }
+                }
+            }
+        )
+    }
 
     Column(
         modifier = modifier
