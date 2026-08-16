@@ -431,8 +431,9 @@ sealed interface CanastraMove : Move {
     }
 
     /**
-     * Troca o curinga do jogo [into] pela carta natural exata que ele representa — o curinga
-     * se desloca para uma ponta livre da própria sequência, que cresce em uma carta.
+     * Troca o curinga do jogo [into] pela carta natural exata que ele representa. Com ponta
+     * livre, ele desce para lá e o jogo cresce em uma carta; sem ponta livre (o jogo já
+     * ocupa a escala inteira), ele volta para a mão.
      */
     @Serializable
     data class SwapWild(val into: Int, val card: Card) : CanastraMove {
@@ -459,8 +460,8 @@ sealed interface CanastraMove : Move {
  * antes disso, só a sequência serve para abrir jogo.
  *
  * Com a carta natural exata na mão, dá para **trocar o curinga** de uma sequência já baixada:
- * ele não volta para a mão, desloca-se para uma ponta livre do próprio jogo, que cresce em
- * uma carta.
+ * com ponta livre, ele desloca-se para lá e o jogo cresce em uma carta; sem ponta livre (a
+ * sequência já ocupa a escala inteira, do quatro ao ás), ele volta para a mão de quem trocou.
  *
  * **O morto é um só, e nem sempre existe**: mesa de duas ou três pessoas tem um morto na
  * mesa, que é de quem chegar primeiro; mesa de duplas não tem morto nenhum. Ver [mortosFor].
@@ -609,7 +610,14 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 is CanastraMove.Meld ->
                     encurrala(state, mao.size, move.cards.size, teraCanastra(state, move)) ||
                         (move.into == null && !meetsOpeningRequirement(state, move.cards, move.into))
-                is CanastraMove.SwapWild -> encurrala(state, mao.size, 1, teraCanastraSwap(state, move))
+                // Só encurrala quando o curinga cresce o jogo (a mão perde uma carta de
+                // verdade). Sem ponta livre ele volta para a mão — a mão nem muda de
+                // tamanho, então não há como essa troca prender ninguém.
+                is CanastraMove.SwapWild -> {
+                    val jogo = state.meldsOf(state.turn).getOrNull(move.into)
+                    jogo != null && hasFreeEnd(jogo) &&
+                        encurrala(state, mao.size, 1, teraCanastraSwap(state, move))
+                }
                 else -> false
             }
         }
@@ -874,8 +882,11 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 val esperada = wildRepresents(jogo)
                     ?: return MoveResult.Illegal(ReasonKey.CANASTRA_NO_WILD_TO_SWAP)
                 if (move.card != esperada) return MoveResult.Illegal(ReasonKey.CANASTRA_DOES_NOT_FIT)
-                if (!hasFreeEnd(jogo)) return MoveResult.Illegal(ReasonKey.CANASTRA_WILD_CANNOT_SWAP)
-                if (encurrala(state, mao.size, 1, teraCanastraSwap(state, move))) {
+                // Com ponta livre, o curinga cresce o jogo e a mão perde uma carta de
+                // verdade — só aí faz sentido perguntar se isso encurrala quem joga. Sem
+                // ponta livre, o curinga volta para a mão (ver applySwapWild): a carta
+                // trocada sai, o curinga entra, a mão não muda de tamanho.
+                if (hasFreeEnd(jogo) && encurrala(state, mao.size, 1, teraCanastraSwap(state, move))) {
                     return MoveResult.Illegal(ReasonKey.CANASTRA_NEEDS_CANASTRA_TO_GO_OUT)
                 }
             }
@@ -1017,8 +1028,13 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
     }
 
     /**
-     * Encaixa a carta natural no lugar do curinga; ele desce para uma ponta livre da própria
-     * sequência, que cresce de N para N+1 cartas.
+     * Encaixa a carta natural no lugar do curinga.
+     *
+     * Com ponta livre, o curinga desce para lá e a sequência cresce de N para N+1 cartas —
+     * é o caso comum. Sem ponta livre (a sequência já ocupa a escala inteira, do quatro ao
+     * ás), não há como o jogo crescer: o curinga sai do jogo e volta para a mão de quem
+     * trocou, livre para descartar, guardar ou entrar em outro jogo depois — o jogo continua
+     * do mesmo tamanho, só muda de dono aquela posição.
      */
     private fun applySwapWild(state: CanastraState, move: CanastraMove.SwapWild): CanastraState {
         val mao = state.hand(state.turn).toMutableList()
@@ -1031,13 +1047,18 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val curinga = antigo.cards[indiceCuringa]
         val semCuringa = antigo.cards.toMutableList().also { it[indiceCuringa] = move.card }
 
-        val span = antigo.sequenceSpan()
-        val novo = if (span.last + 1 < CANASTRA_SEQUENCE_RANKS.size) {
-            semCuringa + curinga
+        if (hasFreeEnd(antigo)) {
+            val span = antigo.sequenceSpan()
+            val novo = if (span.last + 1 < CANASTRA_SEQUENCE_RANKS.size) {
+                semCuringa + curinga
+            } else {
+                listOf(curinga) + semCuringa
+            }
+            jogos[move.into] = Meld(novo)
         } else {
-            listOf(curinga) + semCuringa
+            jogos[move.into] = Meld(semCuringa)
+            mao += curinga
         }
-        jogos[move.into] = Meld(novo)
 
         val mesa = state.melds.toMutableList()
         mesa[time] = jogos.toList()
