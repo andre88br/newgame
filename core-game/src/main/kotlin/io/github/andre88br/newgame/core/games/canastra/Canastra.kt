@@ -128,6 +128,8 @@ fun asSequence(cards: List<Card>): List<Card>? {
             when {
                 maior + 1 < CANASTRA_SEQUENCE_RANKS.size -> ordenadas + (maior + 1)
                 menor - 1 >= 0 -> ordenadas + (menor - 1)
+                // Correção: Se a escala está inteira ocupada (11 posições), encosta o curinga no final
+                vao == CANASTRA_SEQUENCE_RANKS.size -> ordenadas + (maior + 1)
                 else -> return null
             }
         }
@@ -204,8 +206,9 @@ data class CanastraState(
     val startingSeat: Seat = Seat.FIRST,
     val lastScores: List<RoundScore> = emptyList(),
     val passedEnd: Boolean = false,
-    /** A carta que foi recém-comprada do monte, para ser destacada na tela. */
     val drawnCard: Card? = null,
+    /** Correção Lixo: Guarda as cartas do resto do lixo até que as condições sejam satisfeitas. */
+    val pendingDiscard: List<Card> = emptyList(),
 ) : GameState {
 
     fun teamOf(seat: Seat): Int = if (seats == 4) seat.index % 2 else seat.index
@@ -312,7 +315,8 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             startingSeat = startingSeat,
             lastScores = lastScores,
             passedEnd = false,
-            drawnCard = null // Limpa o destaque da carta na nova rodada
+            drawnCard = null,
+            pendingDiscard = emptyList(),
         )
     }
 
@@ -500,9 +504,14 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             }
         }
 
+    /**
+     * Correção Lixo: A verificação se pode pegar o lixo avalia APENAS a mão do jogador + a carta do topo.
+     * Ignorando completamente o resto da pilha, cumprindo perfeitamente a regra de não contar 
+     * com o lixo oculto para bater os 150 pontos.
+     */
     private fun canTakeDiscard(state: CanastraState): Boolean {
         val topo = state.discardTop ?: return false
-        val maoDepois = state.hand(state.turn) + state.discard.filterNot { isRedThree(it) }
+        val maoDepois = state.hand(state.turn) + topo
         return canPlayCard(state, maoDepois, topo)
     }
 
@@ -670,7 +679,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             phase = CanastraPhase.PLAY,
             ply = state.ply + 1,
             openingProgress = zerarProgresso(state, time),
-            drawnCard = drawn, // Salva a carta recém-comprada para destacar na tela
+            drawnCard = drawn,
         )
     }
 
@@ -681,25 +690,51 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         }.toList()
 
     private fun takeDiscard(state: CanastraState): CanastraState {
-        val devida = state.discardTop
+        val devida = state.discardTop!!
         val mao = state.hand(state.turn).toMutableList()
         val vermelhos = state.redThrees.toMutableList()
         val time = state.teamOf(state.turn)
 
-        for (carta in state.discard) {
-            if (isRedThree(carta)) vermelhos[time] = vermelhos[time] + 1 else mao += carta
-        }
+        // Apenas a carta do topo vai pra mão!
+        mao += devida
+        
+        // O resto fica no limbo
+        val restoDoLixo = state.discard.dropLast(1)
 
         return state.copy(
             hands = trocarMao(state, mao),
-            discard = emptyList(),
+            discard = emptyList(), // O lixo na mesa some visualmente
+            pendingDiscard = restoDoLixo, // O resto vai pro Limbo
             redThrees = vermelhos,
             phase = CanastraPhase.PLAY,
             ply = state.ply + 1,
             owedCard = devida,
             openingProgress = zerarProgresso(state, time),
-            drawnCard = null, // Ao pegar lixo, garantimos que a marcação de carta comprada zera
+            drawnCard = null,
         )
+    }
+
+    /** Helper que injeta as cartas do limbo caso o jogador tenha satisfeito os requisitos no turno */
+    private fun checkPendingDiscard(
+        state: CanastraState,
+        team: Int,
+        mao: MutableList<Card>,
+        vermelhos: MutableList<Int>,
+        abertura: Abertura,
+        devida: Card?
+    ): List<Card> {
+        var finalPending = state.pendingDiscard
+        val abaixoDoLimiar = state.scores.getOrElse(team) { 0 } < CANASTRA_OPENING_THRESHOLD
+        val isOpeningDoneNow = abertura.firstMeldDone.getOrElse(team) { false } || abaixoDoLimiar
+
+        // Se a obrigação da carta topo foi cumprida e os 150 pontos foram atingidos
+        if (devida == null && finalPending.isNotEmpty() && isOpeningDoneNow) {
+            for (carta in finalPending) {
+                if (isRedThree(carta)) vermelhos[team] = vermelhos[team] + 1 else mao.add(carta)
+            }
+            finalPending = emptyList() // Limbo esvaziado, tudo foi pra mão
+        }
+        return finalPending
     }
 
     private fun applyMeld(state: CanastraState, move: CanastraMove.Meld): CanastraState {
@@ -722,7 +757,8 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val abertura = updateOpening(state, time, move.cards.sumOf { cardValue(it) })
         val devida = if (state.owedCard != null && state.owedCard in move.cards) null else state.owedCard
         
-        // Se a carta comprada for baixada na mesa, tiramos o destaque visual dela
+        val vermelhos = state.redThrees.toMutableList()
+        val finalPending = checkPendingDiscard(state, time, mao, vermelhos, abertura, devida)
         val novaComprada = if (state.drawnCard != null && state.drawnCard in move.cards) null else state.drawnCard
 
         return settle(
@@ -734,6 +770,8 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                     openingProgress = abertura.openingProgress,
                     owedCard = devida,
                     drawnCard = novaComprada,
+                    pendingDiscard = finalPending,
+                    redThrees = vermelhos.toList(),
                     ply = state.ply + 1,
                 ),
             ),
@@ -775,15 +813,20 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val indiceCuringa = antigo.cards.indexOfFirst { isWild(it) }
         val curinga = antigo.cards[indiceCuringa]
         val semCuringa = antigo.cards.toMutableList().also { it[indiceCuringa] = move.card }
-        jogos[move.into] = Meld(semCuringa + curinga)
+        
+        // Correção Curinga: Reconstrói a sequência em ordem canônica após a troca
+        val novaSequencia = asSequence(semCuringa + curinga)!!
+        jogos[move.into] = Meld(novaSequencia)
 
         val mesa = state.melds.toMutableList()
         mesa[time] = jogos.toList()
 
         val devida = if (state.owedCard == move.card) null else state.owedCard
-        // Se a carta trocada for a recém comprada, tiramos o destaque visual
-        val novaComprada = if (state.drawnCard == move.card) null else state.drawnCard
         val abertura = updateOpening(state, time, cardValue(move.card))
+        
+        val vermelhos = state.redThrees.toMutableList()
+        val finalPending = checkPendingDiscard(state, time, mao, vermelhos, abertura, devida)
+        val novaComprada = if (state.drawnCard == move.card) null else state.drawnCard
 
         return settle(
             semMao(
@@ -794,6 +837,8 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                     openingProgress = abertura.openingProgress,
                     owedCard = devida,
                     drawnCard = novaComprada,
+                    pendingDiscard = finalPending,
+                    redThrees = vermelhos.toList(),
                     ply = state.ply + 1,
                 ),
             ),
@@ -818,7 +863,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             depois.copy(
                 turn = proximoTurno, 
                 phase = CanastraPhase.DRAW,
-                drawnCard = null // Zera a carta destacada ao passar a vez
+                drawnCard = null
             ),
         )
     }
