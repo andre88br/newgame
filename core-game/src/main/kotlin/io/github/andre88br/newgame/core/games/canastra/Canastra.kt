@@ -584,12 +584,13 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 }
             }
         }
-        // O mínimo de abertura pode vir da soma de mais de um jogo nesta vez: enquanto a
-        // dupla ainda não bateu o mínimo e ainda há como continuar baixando, descartar não é
-        // lance — senão bastaria baixar um jogo pequeno e descartar, e o mínimo nunca contaria
-        // mais de um jogo. Só quando não sobra jogo nenhum para completar é que o descarte
-        // volta a valer, para a vez nunca ficar sem lance nenhum.
-        if (openingIncomplete(state, state.teamOf(state.turn)) && jogos.isNotEmpty()) return jogos
+
+        // Se já começou a abrir o jogo nesta rodada e ainda não bateu os 150 pontos,
+        // o jogador ou a IA SÓ pode continuar baixando cartas. O descarte fica totalmente bloqueado.
+        if (openingIncomplete(state, state.teamOf(state.turn))) {
+            return jogos
+        }
+        
         return jogos + discardMoves(state, mao)
     }
 
@@ -707,19 +708,44 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
     }
 
     /**
+     * Calcula o valor máximo que a mão consegue formar em jogos novos usando busca (DFS),
+     * parando assim que atingir a pontuação que [faltam] para otimizar o desempenho.
+     */
+    private fun maxOpeningScore(state: CanastraState, hand: List<Card>, faltam: Int): Int {
+        val candidates = newMeldCandidates(state, hand)
+        if (candidates.isEmpty()) return 0
+        var max = 0
+        for (cand in candidates) {
+            val nextHand = hand.toMutableList()
+            var canForm = true
+            for (c in cand.cards) {
+                if (!nextHand.remove(c)) {
+                    canForm = false
+                    break
+                }
+            }
+            if (canForm) {
+                val score = cand.cards.sumOf { cardValue(it) }
+                // FAST RETURN: Se este jogo sozinho já cumpre o restante da meta, não precisa continuar calculando.
+                if (score >= faltam) return score
+                
+                // Soma este jogo com as possibilidades do restante da mão
+                val total = score + maxOpeningScore(state, nextHand, faltam - score)
+                
+                // FAST RETURN: Se a soma cumpriu a meta, sai da busca imediatamente
+                if (total >= faltam) return total
+                if (total > max) max = total
+            }
+        }
+        return max
+    }
+
+    /**
      * O primeiro jogo da mão, quando a dupla já soma [CANASTRA_OPENING_THRESHOLD] pontos ou
      * mais, precisa valer ao menos [CANASTRA_OPENING_MIN_VALUE] — senão bastaria baixar
      * qualquer trinquinho para não arriscar nada. Extensão de jogo já na mesa ([into] não
      * nulo) nunca é "o primeiro jogo", e troca de curinga também não passa por aqui: as duas
      * só existem depois que já há pelo menos um jogo baixado.
-     *
-     * O mínimo não precisa vir de um jogo só: se [cards] não fecha sozinho (somado ao que a
-     * dupla já baixou nesta vez, em [CanastraState.openingProgress]), o lance ainda vale
-     * quando o resto da mão tem, no total, jogo suficiente para completar o mínimo depois —
-     * [legalMoves] e [applyMove] cuidam de travar o descarte até que isso realmente aconteça.
-     * A soma de [newMeldCandidates] é um teto otimista, não uma prova exata (candidatos podem
-     * repetir carta entre si), mas é o bastante para recusar de cara uma mão que claramente não
-     * tem como chegar lá — o mesmo espírito de "não é exaustivo, mas é o que aparece pronto".
      *
      * Usa [CanastraState.scores] como estava **no começo desta mão** — só muda de valor
      * quando a mão fecha —, que é exatamente "a partir da mão seguinte à que completou 1500".
@@ -732,9 +758,11 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val jaBaixado = state.openingProgress.getOrElse(time) { 0 }
         if (jaBaixado + cards.sumOf { cardValue(it) } >= CANASTRA_OPENING_MIN_VALUE) return true
         
-        // O teto máximo possível é a soma simples de todas as cartas que o jogador ainda tem na mão.
-        val teto = jaBaixado + mao.sumOf { cardValue(it) }
-        return teto >= CANASTRA_OPENING_MIN_VALUE
+        // CÁLCULO EXATO: Verificação simulada garantindo que a mão inteira atinge 150
+        // pontos REAIS, sem chutar, sem contar a mesma carta duas vezes.
+        val faltam = CANASTRA_OPENING_MIN_VALUE - jaBaixado
+        val maxPossivel = jaBaixado + maxOpeningScore(state, mao, faltam)
+        return maxPossivel >= CANASTRA_OPENING_MIN_VALUE
     }
 
     /**
