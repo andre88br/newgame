@@ -114,10 +114,17 @@ val CanastraOrdering: MoveOrdering<CanastraState, CanastraMove> =
         } else {
             moves.sortedByDescending { move ->
                 when (move) {
-                    is CanastraMove.Meld -> 1_000 + move.cards.sumOf { cardValue(it) }
-                    // Trocar o curinga libera ele para outro jogo e não gasta carta de mais:
-                    // quase sempre vale a pena, tanto quanto baixar.
-                    is CanastraMove.SwapWild -> 1_000 + cardValue(move.card)
+                    is CanastraMove.Meld -> {
+                        if (move.into != null) {
+                            // 🌟 PRIORIDADE 1: Completar jogo que já está na mesa
+                            2_000 + move.cards.sumOf { cardValue(it) }
+                        } else {
+                            // 🌟 PRIORIDADE 2: Jogo novo (separado por naipe)
+                            1_000 + move.cards.sumOf { cardValue(it) }
+                        }
+                    }
+                    // Trocar o curinga libera ele para outro jogo e estende o jogo atual. Prioridade máxima.
+                    is CanastraMove.SwapWild -> 2_500 + cardValue(move.card)
                     CanastraMove.TakeDiscard -> 900
                     CanastraMove.DrawStock -> 800
                     // Descartar: quanto mais barata a carta, melhor.
