@@ -636,12 +636,12 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             when (move) {
                 is CanastraMove.Meld ->
                     encurrala(state, mao.size, move.cards.size, teraCanastra(state, move)) ||
-                        (move.into == null && !meetsOpeningRequirement(state, mao, move.cards, move.into))
-                // Trocar o curinga sempre cresce o jogo em uma carta — a mão perde uma
-                // carta de verdade —, então sempre vale perguntar se isso encurrala.
+                        !isOpeningPathPreserved(state, mao, move) // <-- TRAVA ATIVA AQUI
+                
                 is CanastraMove.SwapWild -> {
                     val jogo = state.meldsOf(state.turn).getOrNull(move.into)
-                    jogo != null && encurrala(state, mao.size, 1, teraCanastraSwap(state, move))
+                    (jogo != null && encurrala(state, mao.size, 1, teraCanastraSwap(state, move))) ||
+                        !isOpeningPathPreserved(state, mao, move) // <-- TRAVA ATIVA AQUI TAMBÉM
                 }
                 else -> false
             }
@@ -729,13 +729,9 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             }
             if (canForm) {
                 val score = cand.cards.sumOf { cardValue(it) }
-                // FAST RETURN: Se este jogo sozinho já cumpre o restante da meta, não precisa continuar calculando.
                 if (score >= faltam) return score
                 
-                // Soma este jogo com as possibilidades do restante da mão
                 val total = score + maxOpeningScore(state, nextHand, faltam - score)
-                
-                // FAST RETURN: Se a soma cumpriu a meta, sai da busca imediatamente
                 if (total >= faltam) return total
                 if (total > max) max = total
             }
@@ -744,28 +740,48 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
     }
 
     /**
-     * O primeiro jogo da mão, quando a dupla já soma [CANASTRA_OPENING_THRESHOLD] pontos ou
-     * mais, precisa valer ao menos [CANASTRA_OPENING_MIN_VALUE] — senão bastaria baixar
-     * qualquer trinquinho para não arriscar nada. Extensão de jogo já na mesa ([into] não
-     * nulo) nunca é "o primeiro jogo", e troca de curinga também não passa por aqui: as duas
-     * só existem depois que já há pelo menos um jogo baixado.
-     *
-     * Usa [CanastraState.scores] como estava **no começo desta mão** — só muda de valor
-     * quando a mão fecha —, que é exatamente "a partir da mão seguinte à que completou 1500".
+     * NOVA REGRA PROTETORA: Esta função simula o lance antes dele acontecer.
+     * Ela subtrai as cartas que a IA quer jogar e verifica se o RESTO da mão
+     * AINDA consegue bater a meta dos 150 pontos. Se não conseguir, a jogada é abortada,
+     * impedindo que a IA "canibalize" a própria mão e fique presa sem poder descartar.
      */
-    private fun meetsOpeningRequirement(state: CanastraState, mao: List<Card>, cards: List<Card>, into: Int?): Boolean {
-        if (into != null) return true
-        val time = state.teamOf(state.turn)
-        if (state.firstMeldDone.getOrElse(time) { false }) return true
-        if (state.scores.getOrElse(time) { 0 } < CANASTRA_OPENING_THRESHOLD) return true
-        val jaBaixado = state.openingProgress.getOrElse(time) { 0 }
-        if (jaBaixado + cards.sumOf { cardValue(it) } >= CANASTRA_OPENING_MIN_VALUE) return true
+    private fun isOpeningPathPreserved(state: CanastraState, mao: List<Card>, move: CanastraMove): Boolean {
+        val team = state.teamOf(state.turn)
         
-        // CÁLCULO EXATO: Verificação simulada garantindo que a mão inteira atinge 150
-        // pontos REAIS, sem chutar, sem contar a mesma carta duas vezes.
-        val faltam = CANASTRA_OPENING_MIN_VALUE - jaBaixado
-        val maxPossivel = jaBaixado + maxOpeningScore(state, mao, faltam)
-        return maxPossivel >= CANASTRA_OPENING_MIN_VALUE
+        // Se já abriu na mão ou se a equipe ainda não bateu 1500 pontos no campeonato, não precisa travar nada.
+        if (!openingIncomplete(state, team) && (state.scores.getOrElse(team) { 0 } >= CANASTRA_OPENING_THRESHOLD) == false) return true
+        if (state.firstMeldDone.getOrElse(team) { false }) return true
+        if (state.scores.getOrElse(team) { 0 } < CANASTRA_OPENING_THRESHOLD) return true
+        
+        val pontosAdicionais = when (move) {
+            is CanastraMove.Meld -> move.cards.sumOf { cardValue(it) }
+            is CanastraMove.SwapWild -> cardValue(move.card)
+            else -> 0
+        }
+        
+        val jaBaixado = state.openingProgress.getOrElse(team) { 0 }
+        
+        // Se este movimento SOZINHO (somado ao que já está na mesa) já fecha os 150 pontos, libere imediatamente.
+        if (jaBaixado + pontosAdicionais >= CANASTRA_OPENING_MIN_VALUE) return true
+        
+        val faltam = CANASTRA_OPENING_MIN_VALUE - (jaBaixado + pontosAdicionais)
+        
+        // Separa as cartas que estão sendo baixadas neste lance
+        val removedCards = when (move) {
+            is CanastraMove.Meld -> move.cards
+            is CanastraMove.SwapWild -> listOf(move.card)
+            else -> emptyList()
+        }
+        
+        // Tira as cartas do cálculo virtual
+        val remainingHand = mao.toMutableList()
+        for (c in removedCards) {
+            remainingHand.remove(c)
+        }
+        
+        // Avalia de forma conservadora se as cartas que SOBRARAM na mão conseguem fechar o buraco
+        val maxPossivel = maxOpeningScore(state, remainingHand, faltam)
+        return maxPossivel >= faltam
     }
 
     /**
@@ -917,6 +933,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 if (move.cards.any { isBlackThree(it) }) {
                     return MoveResult.Illegal(ReasonKey.CANASTRA_BLACK_THREE_NEVER_MELDS)
                 }
+                
                 if (move.into != null) {
                     var atual = state.meldsOf(state.turn).getOrNull(move.into)
                         ?: return MoveResult.Illegal(ReasonKey.CANASTRA_NO_SUCH_MELD)
@@ -928,10 +945,13 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                     if (jogo.kind == MeldKind.SET && !state.hasCanastra(state.teamOf(state.turn))) {
                         return MoveResult.Illegal(ReasonKey.CANASTRA_TRINCA_NEEDS_CANASTRA)
                     }
-                    if (!meetsOpeningRequirement(state, mao, move.cards, move.into)) {
-                        return MoveResult.Illegal(ReasonKey.CANASTRA_OPENING_MELD_TOO_LOW)
-                    }
                 }
+                
+                // Impede jogadas burras de 150 pontos a força
+                if (!isOpeningPathPreserved(state, mao, move)) {
+                    return MoveResult.Illegal(ReasonKey.CANASTRA_OPENING_MELD_TOO_LOW)
+                }
+                
                 if (encurrala(state, mao.size, move.cards.size, teraCanastra(state, move))) {
                     return MoveResult.Illegal(ReasonKey.CANASTRA_NEEDS_CANASTRA_TO_GO_OUT)
                 }
@@ -947,9 +967,12 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 val esperada = wildRepresents(jogo)
                     ?: return MoveResult.Illegal(ReasonKey.CANASTRA_NO_WILD_TO_SWAP)
                 if (move.card != esperada) return MoveResult.Illegal(ReasonKey.CANASTRA_DOES_NOT_FIT)
-                // A troca sempre cresce o jogo em uma carta — a mão perde a carta de
-                // verdade que entrou no lugar do curinga —, então sempre vale perguntar
-                // se isso encurrala quem joga.
+                
+                // Impede trocas de curinga que prejudiquem a chegada nos 150 pontos
+                if (!isOpeningPathPreserved(state, mao, move)) {
+                    return MoveResult.Illegal(ReasonKey.CANASTRA_OPENING_MELD_TOO_LOW)
+                }
+                
                 if (encurrala(state, mao.size, 1, teraCanastraSwap(state, move))) {
                     return MoveResult.Illegal(ReasonKey.CANASTRA_NEEDS_CANASTRA_TO_GO_OUT)
                 }
@@ -1345,7 +1368,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
      * A mão dos outros vira, e o monte e os mortos também.
      *
      * Os jogos na mesa ficam abertos — eles são públicos, e esconder o que já foi baixado
-     * seria esconder do jogador o próprio tabuleiro. O que সীমe é o que ninguém pode ver.
+     * seria esconder do jogador o próprio tabuleiro. O que some é o que ninguém pode ver.
      */
     override fun redactFor(state: CanastraState, viewer: Seat): CanastraState = state.copy(
         hands = state.hands.mapIndexed { index, mao ->
