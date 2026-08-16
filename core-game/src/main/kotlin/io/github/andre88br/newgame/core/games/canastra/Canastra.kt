@@ -319,6 +319,16 @@ enum class CanastraPhase {
     PLAY,
 }
 
+/** Detalhamento dos pontos de uma rodada para mostrar na tela. */
+@Serializable
+data class RoundScore(
+    val pontosMesa: Int,
+    val penalidadeMao: Int,
+    val vermelhos: Int,
+    val batida: Int,
+    val totalRodada: Int
+)
+
 @Serializable
 data class CanastraState(
     /** A mão de cada cadeira. Some para quem não é dono — veja [CanastraGame.redactFor]. */
@@ -370,6 +380,8 @@ data class CanastraState(
     val wentOut: Int = -1,
     /** Quem é o primeiro a jogar nesta rodada. O próximo a dar as cartas rotaciona. */
     val startingSeat: Seat = Seat.FIRST,
+    /** Guarda o detalhamento dos pontos da ÚLTIMA rodada jogada. */
+    val lastScores: List<RoundScore> = emptyList(),
 ) : GameState {
 
     /** Em quatro, as duplas são as cadeiras opostas; em dois, cada um é a sua dupla. */
@@ -503,7 +515,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
     }
 
     /** Reparte uma mão: treze para cada um, o morto (se houver) e uma carta virada no lixo. */
-    private fun dealHand(seats: Int, scores: List<Int>, rng: Rng, startingSeat: Seat = Seat.FIRST): CanastraState {
+    private fun dealHand(seats: Int, scores: List<Int>, rng: Rng, startingSeat: Seat = Seat.FIRST, lastScores: List<RoundScore> = emptyList()): CanastraState {
         val teams = if (seats == 4) 2 else seats
         val embaralhado = rng.shuffle(deckOf(CANASTRA_DECKS, CANASTRA_JOKERS_PER_DECK))
         val cartas = embaralhado.value.toMutableList()
@@ -554,6 +566,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             seats = seats,
             rng = embaralhado.rng,
             startingSeat = startingSeat,
+            lastScores = lastScores, // <-- O placar detalhado é salvo aqui
         )
     }
 
@@ -1277,13 +1290,16 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             (state.discard.isEmpty() || state.discardBlocked || !canTakeDiscard(state))
         if (state.wentOut < 0 && !travou) return state
 
-        val ganhos = scoreHand(state)
-        val somados = List(state.teams) { state.scores.getOrElse(it) { 0 } + ganhos[it] }
-        if (somados.any { it >= CANASTRA_TARGET }) return state.copy(scores = somados)
+        // Recebe o detalhamento de todos os times
+        val ganhosDetalhes = scoreHand(state)
+        // Calcula o novo placar geral usando o 'totalRodada'
+        val somados = List(state.teams) { time -> state.scores.getOrElse(time) { 0 } + ganhosDetalhes[time].totalRodada }
+        
+        if (somados.any { it >= CANASTRA_TARGET }) return state.copy(scores = somados, lastScores = ganhosDetalhes)
 
         // Rotaciona o jogador que começa a próxima mão no sentido anti-horário
         val proximoComecar = Seat((state.startingSeat.index + state.seats - 1) % state.seats)
-        return dealHand(state.seats, somados, state.rng, startingSeat = proximoComecar).copy(ply = state.ply)
+        return dealHand(state.seats, somados, state.rng, startingSeat = proximoComecar, lastScores = ganhosDetalhes).copy(ply = state.ply)
     }
 
     /** O resultado de tirar os três vermelhos de um punhado de cartas. */
@@ -1340,7 +1356,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
      * dupla tem canastra, e cada vez que a dupla ficou sem cartas soma cinquenta — seja
      * pegando o morto, seja batendo de vez.
      */
-    fun scoreHand(state: CanastraState): List<Int> = List(state.teams) { time ->
+    fun scoreHand(state: CanastraState): List<RoundScore> = List(state.teams) { time ->
         val naMesa = state.melds.getOrElse(time) { emptyList() }.sumOf { it.score }
         val naMao = (0 until state.seats)
             .filter { state.teamOf(Seat(it)) == time }
@@ -1351,7 +1367,13 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
 
         val bateu = CANASTRA_GOING_OUT_BONUS * state.batidas.getOrElse(time) { 0 }
 
-        naMesa - naMao + vermelhos + bateu
+        RoundScore(
+            pontosMesa = naMesa,
+            penalidadeMao = naMao,
+            vermelhos = vermelhos,
+            batida = bateu,
+            totalRodada = naMesa - naMao + vermelhos + bateu
+        )
     }
 
     override fun outcome(state: CanastraState): Outcome {
