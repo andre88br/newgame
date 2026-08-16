@@ -341,6 +341,16 @@ data class CanastraState(
     /** A dupla já baixou o primeiro jogo desta mão? Reseta a cada mão nova. */
     val firstMeldDone: List<Boolean> = emptyList(),
     /**
+     * Quanto a dupla já baixou **nesta vez**, enquanto o primeiro jogo da mão ainda não fechou
+     * o mínimo de [CANASTRA_OPENING_MIN_VALUE].
+     *
+     * O mínimo não precisa vir de um jogo só: baixar duas trincas de 80 na mesma vez soma 160,
+     * e abre do mesmo jeito que uma sequência de 150 sozinha. Este contador é o que soma os
+     * jogos (e as cartas que estendem um jogo já baixado nesta vez) até bater o mínimo — e
+     * zera a cada vez nova, porque a régua é "nesta vez", não "na mão inteira".
+     */
+    val openingProgress: List<Int> = emptyList(),
+    /**
      * A carta do lixo que se acabou de pegar, ainda sem entrar em jogo nenhum.
      *
      * Enquanto não for `null`, o único lance permitido é baixar (ou trocar curinga com)
@@ -536,6 +546,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             tookMorto = List(teams) { false },
             batidas = List(teams) { 0 },
             firstMeldDone = List(teams) { false },
+            openingProgress = List(teams) { 0 },
             turn = Seat.FIRST,
             phase = CanastraPhase.DRAW,
             scores = scores,
@@ -573,7 +584,25 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 }
             }
         }
+        // O mínimo de abertura pode vir da soma de mais de um jogo nesta vez: enquanto a
+        // dupla ainda não bateu o mínimo e ainda há como continuar baixando, descartar não é
+        // lance — senão bastaria baixar um jogo pequeno e descartar, e o mínimo nunca contaria
+        // mais de um jogo. Só quando não sobra jogo nenhum para completar é que o descarte
+        // volta a valer, para a vez nunca ficar sem lance nenhum.
+        if (openingIncomplete(state, state.teamOf(state.turn)) && jogos.isNotEmpty()) return jogos
         return jogos + discardMoves(state, mao)
+    }
+
+    /**
+     * A dupla já começou o primeiro jogo da mão nesta vez, mas ainda não bateu o mínimo de
+     * [CANASTRA_OPENING_MIN_VALUE]? Enquanto isso for verdade, a vez não pode fechar em
+     * descarte — ver [legalMoves] e [applyMove].
+     */
+    private fun openingIncomplete(state: CanastraState, team: Int): Boolean {
+        if (state.firstMeldDone.getOrElse(team) { false }) return false
+        if (state.scores.getOrElse(team) { 0 } < CANASTRA_OPENING_THRESHOLD) return false
+        val progresso = state.openingProgress.getOrElse(team) { 0 }
+        return progresso in 1 until CANASTRA_OPENING_MIN_VALUE
     }
 
     /**
@@ -603,7 +632,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             when (move) {
                 is CanastraMove.Meld ->
                     encurrala(state, mao.size, move.cards.size, teraCanastra(state, move)) ||
-                        (move.into == null && !meetsOpeningRequirement(state, move.cards, move.into))
+                        (move.into == null && !meetsOpeningRequirement(state, mao, move.cards, move.into))
                 // Trocar o curinga sempre cresce o jogo em uma carta — a mão perde uma
                 // carta de verdade —, então sempre vale perguntar se isso encurrala.
                 is CanastraMove.SwapWild -> {
@@ -684,15 +713,26 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
      * nulo) nunca é "o primeiro jogo", e troca de curinga também não passa por aqui: as duas
      * só existem depois que já há pelo menos um jogo baixado.
      *
+     * O mínimo não precisa vir de um jogo só: se [cards] não fecha sozinho (somado ao que a
+     * dupla já baixou nesta vez, em [CanastraState.openingProgress]), o lance ainda vale
+     * quando o resto da mão tem, no total, jogo suficiente para completar o mínimo depois —
+     * [legalMoves] e [applyMove] cuidam de travar o descarte até que isso realmente aconteça.
+     * A soma de [newMeldCandidates] é um teto otimista, não uma prova exata (candidatos podem
+     * repetir carta entre si), mas é o bastante para recusar de cara uma mão que claramente não
+     * tem como chegar lá — o mesmo espírito de "não é exaustivo, mas é o que aparece pronto".
+     *
      * Usa [CanastraState.scores] como estava **no começo desta mão** — só muda de valor
      * quando a mão fecha —, que é exatamente "a partir da mão seguinte à que completou 1500".
      */
-    private fun meetsOpeningRequirement(state: CanastraState, cards: List<Card>, into: Int?): Boolean {
+    private fun meetsOpeningRequirement(state: CanastraState, mao: List<Card>, cards: List<Card>, into: Int?): Boolean {
         if (into != null) return true
         val time = state.teamOf(state.turn)
         if (state.firstMeldDone.getOrElse(time) { false }) return true
         if (state.scores.getOrElse(time) { 0 } < CANASTRA_OPENING_THRESHOLD) return true
-        return cards.sumOf { cardValue(it) } >= CANASTRA_OPENING_MIN_VALUE
+        val jaBaixado = state.openingProgress.getOrElse(time) { 0 }
+        if (jaBaixado + cards.sumOf { cardValue(it) } >= CANASTRA_OPENING_MIN_VALUE) return true
+        val teto = jaBaixado + newMeldCandidates(state, mao).sumOf { it.cards.sumOf { carta -> cardValue(carta) } }
+        return teto >= CANASTRA_OPENING_MIN_VALUE
     }
 
     /**
@@ -855,7 +895,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                     if (jogo.kind == MeldKind.SET && !state.hasCanastra(state.teamOf(state.turn))) {
                         return MoveResult.Illegal(ReasonKey.CANASTRA_TRINCA_NEEDS_CANASTRA)
                     }
-                    if (!meetsOpeningRequirement(state, move.cards, move.into)) {
+                    if (!meetsOpeningRequirement(state, mao, move.cards, move.into)) {
                         return MoveResult.Illegal(ReasonKey.CANASTRA_OPENING_MELD_TOO_LOW)
                     }
                 }
@@ -889,6 +929,9 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 if (move.card !in mao) return MoveResult.Illegal(ReasonKey.CARD_NOT_IN_HAND)
                 if (isRedThree(move.card)) {
                     return MoveResult.Illegal(ReasonKey.CANASTRA_RED_THREE_NOT_PLAYABLE)
+                }
+                if (openingIncomplete(state, state.teamOf(state.turn)) && meldMoves(state, mao).isNotEmpty()) {
+                    return MoveResult.Illegal(ReasonKey.CANASTRA_OPENING_MELD_INCOMPLETE)
                 }
             }
         }
@@ -942,8 +985,16 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             redThrees = vermelhos,
             phase = CanastraPhase.PLAY,
             ply = state.ply + 1,
+            openingProgress = zerarProgresso(state, time),
         )
     }
+
+    /** O que já se baixou nesta vez não vale para a próxima: zera ao começar a vez de [team]. */
+    private fun zerarProgresso(state: CanastraState, team: Int): List<Int> =
+        state.openingProgress.toMutableList().also {
+            while (it.size <= team) it.add(0)
+            it[team] = 0
+        }.toList()
 
     /**
      * Pega o lixo inteiro. Três vermelho que estiver ali também vai para a mesa.
@@ -969,6 +1020,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             phase = CanastraPhase.PLAY,
             ply = state.ply + 1,
             owedCard = devida,
+            openingProgress = zerarProgresso(state, time),
         )
     }
 
@@ -992,13 +1044,9 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val mesa = state.melds.toMutableList()
         mesa[time] = jogos.toList()
 
-        // Jogo novo (não extensão) é sempre "o primeiro jogo", se ainda não havia nenhum —
-        // extensão e troca de curinga só existem depois que já há pelo menos um.
-        val primeiroJogo = if (move.into == null) {
-            state.firstMeldDone.toMutableList().also { it[time] = true }.toList()
-        } else {
-            state.firstMeldDone
-        }
+        // O que este lance soma ao mínimo de abertura da vez — ver [updateOpening].
+        val abertura = updateOpening(state, time, move.cards.sumOf { cardValue(it) })
+
         // A carta devida (regra do lixo que obriga a baixar) só se quita se estiver entre as
         // que este lance baixou.
         val devida = if (state.owedCard != null && state.owedCard in move.cards) null else state.owedCard
@@ -1010,12 +1058,49 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 state.copy(
                     hands = trocarMao(state, mao),
                     melds = mesa.toList(),
-                    firstMeldDone = primeiroJogo,
+                    firstMeldDone = abertura.firstMeldDone,
+                    openingProgress = abertura.openingProgress,
                     owedCard = devida,
                     ply = state.ply + 1,
                 ),
             ),
         )
+    }
+
+    /** O que [updateOpening] devolve: os dois campos que o mínimo de abertura mantém. */
+    private data class Abertura(val firstMeldDone: List<Boolean>, val openingProgress: List<Int>)
+
+    /**
+     * Soma [pontos] ao que a dupla já baixou nesta vez, e fecha o primeiro jogo da mão se isso
+     * bater o mínimo — ou na hora, para quem ainda não passou de [CANASTRA_OPENING_THRESHOLD].
+     *
+     * O mínimo pode vir de mais de um jogo: uma trinca de 80 e outra de 90, baixadas na mesma
+     * vez, somam 170 e abrem do mesmo jeito que uma sequência de 150 sozinha — é por isso que
+     * cada lance de baixar (ou de trocar curinga) soma aqui, em vez de cada um checar sozinho
+     * se bate o mínimo. Depois que a dupla já tem o primeiro jogo feito, não há mais nada para
+     * somar: o retorno é o estado como já estava.
+     */
+    private fun updateOpening(state: CanastraState, team: Int, pontos: Int): Abertura {
+        if (state.firstMeldDone.getOrElse(team) { false }) {
+            return Abertura(state.firstMeldDone, state.openingProgress)
+        }
+        val abaixoDoLimiar = state.scores.getOrElse(team) { 0 } < CANASTRA_OPENING_THRESHOLD
+        val novoProgresso = state.openingProgress.getOrElse(team) { 0 } + pontos
+        val completou = abaixoDoLimiar || novoProgresso >= CANASTRA_OPENING_MIN_VALUE
+
+        val firstMeldDone = if (completou) {
+            state.firstMeldDone.toMutableList().also {
+                while (it.size <= team) it.add(false)
+                it[team] = true
+            }.toList()
+        } else {
+            state.firstMeldDone
+        }
+        val openingProgress = state.openingProgress.toMutableList().also {
+            while (it.size <= team) it.add(0)
+            it[team] = novoProgresso
+        }.toList()
+        return Abertura(firstMeldDone, openingProgress)
     }
 
     /**
@@ -1044,12 +1129,15 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         mesa[time] = jogos.toList()
 
         val devida = if (state.owedCard == move.card) null else state.owedCard
+        val abertura = updateOpening(state, time, cardValue(move.card))
 
         return settle(
             semMao(
                 state.copy(
                     hands = trocarMao(state, mao),
                     melds = mesa.toList(),
+                    firstMeldDone = abertura.firstMeldDone,
+                    openingProgress = abertura.openingProgress,
                     owedCard = devida,
                     ply = state.ply + 1,
                 ),

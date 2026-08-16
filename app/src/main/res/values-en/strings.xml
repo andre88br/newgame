@@ -306,6 +306,7 @@
     <string name="reason_canastra_pile_needs_meld">You can only take the pile if the top card forms some meld</string>
     <string name="reason_canastra_owed_card_first">Play the card you picked up from the pile before anything else</string>
     <string name="reason_canastra_opening_meld_too_low">At 1500 points or more, the hand\'s first meld needs to be worth at least 150</string>
+    <string name="reason_canastra_opening_meld_incomplete">Add up more melds until you reach 150 before discarding</string>
     <string name="reason_pife_must_draw_first">Draw a card before discarding</string>
 
     <string name="reason_klondike_stock_not_empty">There are still cards in the stock to draw</string>

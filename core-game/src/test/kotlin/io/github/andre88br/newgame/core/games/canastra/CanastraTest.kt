@@ -705,12 +705,14 @@ class CanastraTest {
     }
 
     @Test
-    fun `com 1500 pontos, o primeiro jogo da mao abaixo de 150 e recusado e nem e oferecido`() {
+    fun `com 1500 pontos, um jogo sozinho abaixo de 150 e recusado quando nao ha mais nada para somar`() {
         val baixo = listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FIVE, Suit.HEARTS), carta(Rank.SIX, Suit.HEARTS))
         assertTrue(
             baixo.sumOf { cardValue(it) } < CANASTRA_OPENING_MIN_VALUE,
             "o jogo de teste precisa valer menos que o mínimo, senão o teste não prova nada",
         )
+        // O resto da mão é só reis do mesmo naipe: sem canastra ainda, não formam trinca, e não
+        // fecham outra sequência — não há como somar mais nada a este jogo nesta vez.
         val state = novo(seats = 4).copy(
             phase = CanastraPhase.PLAY,
             hands = listOf(baixo + List(10) { carta(Rank.KING, Suit.CLUBS) }, emptyList(), emptyList(), emptyList()),
@@ -718,10 +720,62 @@ class CanastraTest {
         )
         assertTrue(
             CanastraMove.Meld(baixo) !in CanastraGame.legalMoves(state),
-            "jogo abaixo do mínimo nem aparece como lance oferecido",
+            "jogo abaixo do mínimo nem aparece como lance oferecido quando não há como completar",
         )
         val resultado = CanastraGame.applyMove(state, CanastraMove.Meld(baixo))
         assertTrue(resultado is MoveResult.Illegal, "jogo abaixo do mínimo de abertura devia ser recusado")
+    }
+
+    @Test
+    fun `o minimo de abertura pode somar mais de um jogo na mesma vez`() {
+        // Três corridas de seis cartas (oito ao rei, dez pontos cada carta), uma por naipe:
+        // sessenta pontos cada, curtas demais para virar canastra sozinhas. Cada uma sozinha
+        // fica abaixo do mínimo de 150, duas juntas também (120), só as três juntas (180)
+        // fecham — é a soma da vez, e não um jogo isolado, que decide.
+        fun seisAltas(suit: Suit) = listOf(Rank.EIGHT, Rank.NINE, Rank.TEN, Rank.JACK, Rank.QUEEN, Rank.KING)
+            .map { carta(it, suit) }
+        val primeira = seisAltas(Suit.CLUBS)
+        val segunda = seisAltas(Suit.DIAMONDS)
+        val terceira = seisAltas(Suit.SPADES)
+        // Sobra na mão para nenhum lance de baixar esvaziá-la: sem canastra nenhuma formada
+        // por corridas de seis cartas, esvaziar a mão bateria sem poder, o que travaria a
+        // conta com "encurrala" antes mesmo de chegar na regra que este teste quer provar.
+        val sobra = listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FIVE, Suit.HEARTS))
+        assertTrue(
+            primeira.sumOf { cardValue(it) } < CANASTRA_OPENING_MIN_VALUE,
+            "cada corrida sozinha precisa ficar abaixo do mínimo, senão o teste não prova nada",
+        )
+        assertTrue(
+            primeira.sumOf { cardValue(it) } + segunda.sumOf { cardValue(it) } < CANASTRA_OPENING_MIN_VALUE,
+            "duas corridas juntas ainda precisam ficar abaixo do mínimo, senão o teste não prova a soma de três",
+        )
+
+        var state = novo(seats = 4).copy(
+            phase = CanastraPhase.PLAY,
+            hands = listOf(primeira + segunda + terceira + sobra, emptyList(), emptyList(), emptyList()),
+            scores = listOf(CANASTRA_OPENING_THRESHOLD, 0),
+        )
+
+        // Sozinha, a primeira corrida não fecha o mínimo: a dupla ainda não tem o primeiro jogo.
+        state = CanastraGame.applyOrThrow(state, CanastraMove.Meld(primeira))
+        assertTrue(!state.firstMeldDone[state.teamOf(Seat.FIRST)], "uma corrida de 60 sozinha não fecha o mínimo de 150")
+        // E descartar ainda não é lance: falta somar mais, e ainda há como.
+        assertTrue(
+            CanastraGame.legalMoves(state).none { it is CanastraMove.Discard },
+            "com a abertura incompleta e mais jogo possível, descarte não deveria ser oferecido",
+        )
+
+        // A segunda corrida soma 120 no total: ainda não fecha.
+        state = CanastraGame.applyOrThrow(state, CanastraMove.Meld(segunda))
+        assertTrue(!state.firstMeldDone[state.teamOf(Seat.FIRST)], "60 + 60 ainda não fecha o mínimo de 150")
+
+        // A terceira corrida soma 180 no total: agora fecha.
+        state = CanastraGame.applyOrThrow(state, CanastraMove.Meld(terceira))
+        assertTrue(state.firstMeldDone[state.teamOf(Seat.FIRST)], "60 + 60 + 60 fecha o mínimo de 150")
+        assertTrue(
+            CanastraGame.legalMoves(state).any { it is CanastraMove.Discard },
+            "com a abertura completa, descarte volta a ser lance",
+        )
     }
 
     @Test

@@ -304,6 +304,7 @@
     <string name="reason_canastra_pile_needs_meld">Só dá para pegar o lixo se a carta de cima formar algum jogo</string>
     <string name="reason_canastra_owed_card_first">Baixe a carta que você pegou do lixo antes de qualquer outra coisa</string>
     <string name="reason_canastra_opening_meld_too_low">Com 1500 pontos ou mais, o primeiro jogo da mão precisa valer ao menos 150</string>
+    <string name="reason_canastra_opening_meld_incomplete">Some o valor de mais jogos até bater 150 antes de descartar</string>
     <string name="reason_pife_must_draw_first">Compre uma carta antes de descartar</string>
 
     <string name="reason_klondike_stock_not_empty">Ainda há carta no monte para comprar</string>

@@ -139,6 +139,7 @@ enum class ReasonKey(
     CANASTRA_PILE_NEEDS_MELD("Só dá para pegar o lixo se a carta de cima formar algum jogo"),
     CANASTRA_OWED_CARD_FIRST("Baixe a carta que você pegou do lixo antes de qualquer outra coisa"),
     CANASTRA_OPENING_MELD_TOO_LOW("Com 1500 pontos ou mais, o primeiro jogo da mão precisa valer ao menos 150"),
+    CANASTRA_OPENING_MELD_INCOMPLETE("Some o valor de mais jogos até bater 150 antes de descartar"),
 
     // -------- pife --------
 
