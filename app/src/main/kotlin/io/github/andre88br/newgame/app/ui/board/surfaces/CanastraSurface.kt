@@ -22,6 +22,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +37,8 @@ import io.github.andre88br.newgame.app.R
 import io.github.andre88br.newgame.app.ui.theme.BoardPalette
 import io.github.andre88br.newgame.app.ui.theme.LocalBoardPalette
 import io.github.andre88br.newgame.core.cards.Card
+import io.github.andre88br.newgame.core.cards.Rank
+import io.github.andre88br.newgame.core.cards.Suit
 import io.github.andre88br.newgame.core.cards.sortedForHand
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.Seat
@@ -58,14 +61,46 @@ fun CanastraSurface(
     onMove: (Move) -> Unit,
 ) {
     val palette = LocalBoardPalette.current
-    val mao = remember(state, viewer) { state.hand(viewer).sortedForHand() }
+    
+    // SISTEMA DE MEMÓRIA DE MÃO MANUAL
+    val currentHand = state.hand(viewer)
+    var customOrder by remember { mutableStateOf<List<Card>>(emptyList()) }
     var escolhidas by remember(state) { mutableStateOf(emptySet<Int>()) }
+
+    // Reconcilia de forma inteligente a mão atual do motor com a ordem customizada que o jogador fez
+    val displayHand = remember(currentHand, customOrder) {
+        if (customOrder.isEmpty() && currentHand.isNotEmpty()) {
+            currentHand.sortedForHand()
+        } else {
+            val newOrder = customOrder.toMutableList()
+            val handCounts = currentHand.groupingBy { it }.eachCount().toMutableMap()
+            val finalOrder = mutableListOf<Card>()
+            
+            for (card in newOrder) {
+                val remaining = handCounts[card] ?: 0
+                if (remaining > 0) {
+                    finalOrder.add(card)
+                    handCounts[card] = remaining - 1
+                }
+            }
+            
+            val extras = mutableListOf<Card>()
+            for ((card, count) in handCounts) {
+                repeat(count) { extras.add(card) }
+            }
+            finalOrder + extras.sortedForHand()
+        }
+    }
+
+    LaunchedEffect(displayHand) {
+        if (customOrder != displayHand) customOrder = displayHand
+    }
 
     var roundScoreDismissed by remember(state.scores) { mutableStateOf(false) }
 
     val meuTime = state.teamOf(viewer)
     val minhaVez = state.turn == viewer
-    val cartasEscolhidas = escolhidas.sorted().mapNotNull { mao.getOrNull(it) }
+    val cartasEscolhidas = escolhidas.sorted().mapNotNull { displayHand.getOrNull(it) }
 
     if (state.lastScores.isNotEmpty() && !roundScoreDismissed) {
         AlertDialog(
@@ -114,7 +149,7 @@ fun CanastraSurface(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Scoreboard(state = state, viewer = viewer, names = names)
+        Scoreboard(state = state, viewer = viewer, names = names, palette = palette)
 
         CardTable(
             seats = state.seats,
@@ -159,19 +194,61 @@ fun CanastraSurface(
         Text(
             text = when {
                 !minhaVez -> stringResource(R.string.canastra_wait)
+                state.pendingReplacements > 0 -> "Você tirou um 3 Vermelho! Compre uma carta de reposição."
                 state.owedCard != null -> stringResource(R.string.canastra_owed_card_prompt, cardName(state.owedCard!!))
                 state.phase == CanastraPhase.DRAW -> stringResource(R.string.canastra_draw_prompt)
                 else -> stringResource(R.string.canastra_play_prompt)
             },
             style = MaterialTheme.typography.bodyMedium,
-            color = if (state.owedCard != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (state.owedCard != null || state.pendingReplacements > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         Actions(
             state = state,
             enabled = enabled && minhaVez,
             escolhidas = cartasEscolhidas,
+            temCartasSelecionadas = escolhidas.isNotEmpty(),
             onMove = onMove,
+            onMoveLeft = {
+                if (escolhidas.isNotEmpty()) {
+                    val list = displayHand.toMutableList()
+                    val newEscolhidas = mutableSetOf<Int>()
+                    val sortedSelected = escolhidas.sorted()
+                    for (i in sortedSelected) {
+                        // Se não estiver na beirada e a carta da esquerda não estiver movendo junto
+                        if (i > 0 && (i - 1) !in newEscolhidas) {
+                            val temp = list[i]
+                            list[i] = list[i - 1]
+                            list[i - 1] = temp
+                            newEscolhidas.add(i - 1)
+                        } else {
+                            newEscolhidas.add(i) // Bateu no canto ou num bloco, não move
+                        }
+                    }
+                    customOrder = list
+                    escolhidas = newEscolhidas
+                }
+            },
+            onMoveRight = {
+                if (escolhidas.isNotEmpty()) {
+                    val list = displayHand.toMutableList()
+                    val newEscolhidas = mutableSetOf<Int>()
+                    val sortedSelected = escolhidas.sortedDescending()
+                    for (i in sortedSelected) {
+                        // Se não estiver na beirada e a carta da direita não estiver movendo junto
+                        if (i < list.size - 1 && (i + 1) !in newEscolhidas) {
+                            val temp = list[i]
+                            list[i] = list[i + 1]
+                            list[i + 1] = temp
+                            newEscolhidas.add(i + 1)
+                        } else {
+                            newEscolhidas.add(i) // Bateu no canto ou num bloco, não move
+                        }
+                    }
+                    customOrder = list
+                    escolhidas = newEscolhidas
+                }
+            }
         )
 
         Box(
@@ -180,9 +257,8 @@ fun CanastraSurface(
                 .horizontalScroll(rememberScrollState()),
         ) {
             CardFan(
-                cards = mao,
+                cards = displayHand,
                 palette = palette,
-                // DESTAQUE DA CARTA: O leque levanta as cartas escolhidas, a carta obrigatória e a carta recém comprada.
                 isRaised = { index, carta -> index in escolhidas || carta == state.owedCard || carta == state.drawnCard },
                 onClick = if (enabled && minhaVez && state.phase == CanastraPhase.PLAY) {
                     { index, _ ->
@@ -197,7 +273,7 @@ fun CanastraSurface(
 }
 
 @Composable
-private fun Scoreboard(state: CanastraState, viewer: Seat, names: List<String>) {
+private fun Scoreboard(state: CanastraState, viewer: Seat, names: List<String>, palette: BoardPalette) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(3.dp),
@@ -205,17 +281,31 @@ private fun Scoreboard(state: CanastraState, viewer: Seat, names: List<String>) 
         for (time in 0 until state.teams) {
             val meu = time == state.teamOf(viewer)
             val canastras = state.melds.getOrElse(time) { emptyList() }.count { it.isCanastra }
-            Text(
-                text = stringResource(
-                    R.string.canastra_team_line,
-                    teamLabel(state, time, viewer, names),
-                    state.scores.getOrElse(time) { 0 },
-                    canastras,
-                    state.redThrees.getOrElse(time) { 0 },
-                ),
-                style = MaterialTheme.typography.labelMedium,
-                color = if (meu) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = "${teamLabel(state, time, viewer, names)}: ${state.scores.getOrElse(time) { 0 }} pts | $canastras canastras",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (meu) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                
+                val red3Count = state.redThrees.getOrElse(time) { 0 }
+                if (red3Count > 0) {
+                    Row(horizontalArrangement = Arrangement.spacedBy((-10).dp)) {
+                        repeat(red3Count) {
+                            Box(modifier = Modifier.size(width = 16.dp, height = 24.dp)) {
+                                CardFace(
+                                    card = Card(Rank.THREE, Suit.DIAMONDS),
+                                    palette = palette
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -381,12 +471,26 @@ private fun Actions(
     state: CanastraState,
     enabled: Boolean,
     escolhidas: List<Card>,
+    temCartasSelecionadas: Boolean,
     onMove: (Move) -> Unit,
+    onMoveLeft: () -> Unit,
+    onMoveRight: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        if (state.pendingReplacements > 0) {
+            Button(
+                onClick = { onMove(CanastraMove.DrawStock) },
+                enabled = enabled && state.stock.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Comprar Reposição (3 Vermelho)")
+            }
+            return@Row
+        }
+
         if (state.phase == CanastraPhase.DRAW) {
             if (state.stock.isNotEmpty()) {
                 Button(
@@ -416,6 +520,24 @@ private fun Actions(
             return@Row
         }
 
+        // Mover as cartas escolhidas para a Esquerda ou Direita
+        if (temCartasSelecionadas) {
+            OutlinedButton(
+                onClick = onMoveLeft,
+                enabled = enabled,
+                modifier = Modifier.weight(0.6f)
+            ) {
+                Text("◀")
+            }
+            OutlinedButton(
+                onClick = onMoveRight,
+                enabled = enabled,
+                modifier = Modifier.weight(0.6f)
+            ) {
+                Text("▶")
+            }
+        }
+
         Button(
             onClick = { onMove(CanastraMove.Meld(escolhidas)) },
             enabled = enabled && CanastraGame.canMeld(state, escolhidas),
@@ -423,6 +545,7 @@ private fun Actions(
         ) {
             Text(stringResource(R.string.canastra_meld, escolhidas.size))
         }
+        
         OutlinedButton(
             onClick = { escolhidas.singleOrNull()?.let { onMove(CanastraMove.Discard(it)) } },
             enabled = enabled && escolhidas.size == 1,
