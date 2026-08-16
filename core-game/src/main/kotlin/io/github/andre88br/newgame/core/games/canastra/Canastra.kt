@@ -731,7 +731,9 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         if (state.scores.getOrElse(time) { 0 } < CANASTRA_OPENING_THRESHOLD) return true
         val jaBaixado = state.openingProgress.getOrElse(time) { 0 }
         if (jaBaixado + cards.sumOf { cardValue(it) } >= CANASTRA_OPENING_MIN_VALUE) return true
-        val teto = jaBaixado + newMeldCandidates(state, mao).sumOf { it.cards.sumOf { carta -> cardValue(carta) } }
+        
+        // O teto máximo possível é a soma simples de todas as cartas que o jogador ainda tem na mão.
+        val teto = jaBaixado + mao.sumOf { cardValue(it) }
         return teto >= CANASTRA_OPENING_MIN_VALUE
     }
 
@@ -930,7 +932,8 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 if (isRedThree(move.card)) {
                     return MoveResult.Illegal(ReasonKey.CANASTRA_RED_THREE_NOT_PLAYABLE)
                 }
-                if (openingIncomplete(state, state.teamOf(state.turn)) && meldMoves(state, mao).isNotEmpty()) {
+                // Se a abertura está incompleta, é absolutamente proibido descartar. Sem exceções.
+                if (openingIncomplete(state, state.teamOf(state.turn))) {
                     return MoveResult.Illegal(ReasonKey.CANASTRA_OPENING_MELD_INCOMPLETE)
                 }
             }
