@@ -14,7 +14,6 @@ import io.github.andre88br.newgame.core.engine.Outcome
 import io.github.andre88br.newgame.core.engine.ReasonKey
 import io.github.andre88br.newgame.core.engine.Rng
 import io.github.andre88br.newgame.core.engine.Seat
-import io.github.andre88br.newgame.core.engine.next
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.serializer
@@ -1215,8 +1214,11 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             ),
         )
         if (depois.wentOut >= 0) return settle(depois)
+        
+        // Passa o turno no sentido anti-horário
+        val proximoTurno = Seat((state.turn.index + state.seats - 1) % state.seats)
         return settle(
-            depois.copy(turn = state.turn.next(state.seats), phase = CanastraPhase.DRAW),
+            depois.copy(turn = proximoTurno, phase = CanastraPhase.DRAW),
         )
     }
 
@@ -1279,8 +1281,8 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val somados = List(state.teams) { state.scores.getOrElse(it) { 0 } + ganhos[it] }
         if (somados.any { it >= CANASTRA_TARGET }) return state.copy(scores = somados)
 
-        // Rotaciona o jogador que começa a próxima mão
-        val proximoComecar = state.startingSeat.next(state.seats)
+        // Rotaciona o jogador que começa a próxima mão no sentido anti-horário
+        val proximoComecar = Seat((state.startingSeat.index + state.seats - 1) % state.seats)
         return dealHand(state.seats, somados, state.rng, startingSeat = proximoComecar).copy(ply = state.ply)
     }
 
