@@ -177,12 +177,7 @@ fun CanastraSurface(
                 state = state,
                 enabled = enabled && minhaVez,
                 escolhidas = cartasEscolhidas,
-                temCartasSelecionadas = escolhidas.isNotEmpty(),
-                onMove = onMove,
-                onResetOrder = {
-                    customOrder = emptyList()
-                    escolhidas = emptySet()
-                }
+                onMove = onMove
             )
 
             Box(
@@ -566,7 +561,6 @@ private fun MeldRow(
     hasSelectedCards: Boolean,
     onMeldClick: ((Int) -> Unit)?,
 ) {
-    // Memória interna da fileira para saber quais Canastras foram expandidas pelo jogador
     var expandedMelds by remember { mutableStateOf<Set<Int>>(emptySet()) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -602,17 +596,14 @@ private fun MeldRow(
                             shape = RoundedCornerShape(8.dp),
                         )
                         .clickable {
-                            // Lógica de Expansão vs Jogada
                             if (hasSelectedCards && onMeldClick != null) {
-                                onMeldClick(index) // O jogador selecionou uma carta, vai jogar ela!
+                                onMeldClick(index) 
                             } else if (jogo.isCanastra) {
-                                // O jogador não selecionou nada, apenas tocou para Expandir/Fechar
                                 expandedMelds = if (isExpanded) expandedMelds - index else expandedMelds + index
                             }
                         }
                         .padding(2.dp),
                 ) {
-                    // Desenha a visualização de acordo com o estado do clique
                     if (jogo.isCanastra && !isExpanded) {
                         CompactCanastra(jogo = jogo, palette = palette)
                     } else {
@@ -642,9 +633,7 @@ private fun Actions(
     state: CanastraState,
     enabled: Boolean,
     escolhidas: List<Card>,
-    temCartasSelecionadas: Boolean,
-    onMove: (Move) -> Unit,
-    onResetOrder: () -> Unit
+    onMove: (Move) -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -688,16 +677,6 @@ private fun Actions(
                 Text(stringResource(R.string.canastra_take_discard, state.discard.size))
             }
             return@Row
-        }
-
-        if (!temCartasSelecionadas) {
-            OutlinedButton(
-                onClick = onResetOrder,
-                enabled = enabled,
-                modifier = Modifier.weight(0.8f)
-            ) {
-                Text("✨ Ordenar")
-            }
         }
 
         Button(
