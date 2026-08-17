@@ -62,12 +62,10 @@ fun CanastraSurface(
 ) {
     val palette = LocalBoardPalette.current
     
-    // SISTEMA DE MEMÓRIA DE MÃO MANUAL
     val currentHand = state.hand(viewer)
     var customOrder by remember { mutableStateOf<List<Card>>(emptyList()) }
     var escolhidas by remember(state) { mutableStateOf(emptySet<Int>()) }
 
-    // Reconcilia de forma inteligente a mão atual do motor com a ordem customizada que o jogador fez
     val displayHand = remember(currentHand, customOrder) {
         if (customOrder.isEmpty() && currentHand.isNotEmpty()) {
             currentHand.sortedForHand()
@@ -207,7 +205,12 @@ fun CanastraSurface(
             state = state,
             enabled = enabled && minhaVez,
             escolhidas = cartasEscolhidas,
-            onMove = onMove
+            temCartasSelecionadas = escolhidas.isNotEmpty(),
+            onMove = onMove,
+            onResetOrder = {
+                customOrder = emptyList()
+                escolhidas = emptySet()
+            }
         )
 
         Box(
@@ -227,58 +230,6 @@ fun CanastraSurface(
                     null
                 },
             )
-        }
-
-        // CONTROLES DE ORDENAÇÃO (Abaixo da mão)
-        if (escolhidas.isNotEmpty() && enabled && minhaVez && state.phase == CanastraPhase.PLAY) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                OutlinedButton(
-                    onClick = {
-                        val list = displayHand.toMutableList()
-                        val newEscolhidas = mutableSetOf<Int>()
-                        val sortedSelected = escolhidas.sorted()
-                        for (i in sortedSelected) {
-                            if (i > 0 && (i - 1) !in newEscolhidas) {
-                                val temp = list[i]
-                                list[i] = list[i - 1]
-                                list[i - 1] = temp
-                                newEscolhidas.add(i - 1)
-                            } else {
-                                newEscolhidas.add(i) // Bateu no canto ou num bloco
-                            }
-                        }
-                        customOrder = list
-                        escolhidas = newEscolhidas
-                    }
-                ) {
-                    Text("◀ Esquerda")
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        val list = displayHand.toMutableList()
-                        val newEscolhidas = mutableSetOf<Int>()
-                        val sortedSelected = escolhidas.sortedDescending()
-                        for (i in sortedSelected) {
-                            if (i < list.size - 1 && (i + 1) !in newEscolhidas) {
-                                val temp = list[i]
-                                list[i] = list[i + 1]
-                                list[i + 1] = temp
-                                newEscolhidas.add(i + 1)
-                            } else {
-                                newEscolhidas.add(i) // Bateu no canto ou num bloco
-                            }
-                        }
-                        customOrder = list
-                        escolhidas = newEscolhidas
-                    }
-                ) {
-                    Text("Direita ▶")
-                }
-            }
         }
     }
 }
@@ -482,7 +433,9 @@ private fun Actions(
     state: CanastraState,
     enabled: Boolean,
     escolhidas: List<Card>,
-    onMove: (Move) -> Unit
+    temCartasSelecionadas: Boolean,
+    onMove: (Move) -> Unit,
+    onResetOrder: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -526,6 +479,16 @@ private fun Actions(
                 Text(stringResource(R.string.canastra_take_discard, state.discard.size))
             }
             return@Row
+        }
+
+        if (!temCartasSelecionadas) {
+            OutlinedButton(
+                onClick = onResetOrder,
+                enabled = enabled,
+                modifier = Modifier.weight(0.8f)
+            ) {
+                Text("✨ Ordenar")
+            }
         }
 
         Button(
