@@ -208,7 +208,6 @@ data class CanastraState(
     val drawnCard: Card? = null,
     val pendingDiscard: List<Card> = emptyList(),
     val pendingReplacements: Int = 0,
-    /** MEMÓRIA: Guarda as cartas que os jogadores pegaram do lixo. */
     val knownOpponentCards: Map<Int, List<Card>> = emptyMap(),
 ) : GameState {
 
@@ -630,6 +629,14 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         return MoveResult.Ok(applyKnownLegal(state, move))
     }
 
+    private fun temTodas(mao: List<Card>, cartas: List<Card>): Boolean {
+        val sobra = mao.toMutableList()
+        for (carta in cartas) {
+            if (!sobra.remove(carta)) return false
+        }
+        return true
+    }
+
     override fun applyKnownLegal(state: CanastraState, move: CanastraMove): CanastraState =
         when (move) {
             CanastraMove.DrawStock -> drawFromStock(state)
@@ -957,7 +964,6 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         },
         stock = state.stock.hidden(),
         mortos = state.mortos.map { it.hidden() },
-        // Esconde o histórico de cartas conhecidas, se não todo mundo espia a mão do outro na engine multiplayer
         knownOpponentCards = emptyMap()
     )
 
