@@ -16,9 +16,9 @@ enum class AiPersonality { AGRESSIVO, ACUMULADOR, BALANCEADO }
 
 class CanastraEvaluatorImpl(private val personality: AiPersonality = AiPersonality.BALANCEADO) : Evaluator<CanastraState> {
 
-    private const val CANASTRA_WEIGHT = 250
-    private const val CLEAN_BONUS = 150
-    private const val MORTO_WEIGHT = 120
+    private val CANASTRA_WEIGHT = 250
+    private val CLEAN_BONUS = 150
+    private val MORTO_WEIGHT = 120
 
     override fun evaluate(state: CanastraState, seat: Seat): Int {
         val meu = state.teamOf(seat)
