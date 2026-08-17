@@ -180,6 +180,10 @@ fun CanastraSurface(
                 onMove = onMove
             )
 
+            // CORREÇÃO: Descobre a posição exata (apenas a primeira ocorrência) da carta comprada ou devida
+            val drawnCardIndex = displayHand.indexOf(state.drawnCard)
+            val owedCardIndex = displayHand.indexOf(state.owedCard)
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -188,7 +192,10 @@ fun CanastraSurface(
                 CardFan(
                     cards = displayHand,
                     palette = palette,
-                    isRaised = { index, carta -> index in escolhidas || carta == state.owedCard || carta == state.drawnCard },
+                    isRaised = { index, _ -> 
+                        // Agora levanta somente pelo ÍNDICE da carta, e não por todas que tiverem o mesmo valor
+                        index in escolhidas || index == drawnCardIndex || index == owedCardIndex 
+                    },
                     onClick = if (enabled && minhaVez && state.phase == CanastraPhase.PLAY) {
                         { index, _ ->
                             escolhidas = if (index in escolhidas) escolhidas - index else escolhidas + index
