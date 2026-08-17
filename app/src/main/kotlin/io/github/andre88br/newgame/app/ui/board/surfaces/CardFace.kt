@@ -1,23 +1,32 @@
 package io.github.andre88br.newgame.app.ui.board.surfaces
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -25,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import io.github.andre88br.newgame.app.R
 import io.github.andre88br.newgame.app.ui.theme.BoardPalette
 import io.github.andre88br.newgame.app.ui.theme.DeckColorChoice
@@ -40,11 +50,6 @@ val CARD_HEIGHT = 66.dp
 
 /**
  * Quanto de cada carta aparece quando a mão está em leque.
- *
- * É o suficiente para o canto — valor e naipe — e mais nada, que é exatamente o que se vê
- * numa mão segurada de verdade. Treze cartas assim ocupam pouco mais de um terço da largura
- * que ocupariam lado a lado, e é o que faz uma mão de copas caber na tela inteira sem
- * rolagem: quem joga precisa ver a mão toda de uma vez para decidir.
  */
 val CARD_FAN_STEP = 18.dp
 
@@ -53,96 +58,104 @@ private val CARD_FAN_LIFT = 10.dp
 
 /**
  * Vermelho e preto de baralho, fixos e não vindos da paleta.
- *
- * A carta é sempre creme, no tema claro e no escuro — carta de baralho é branca, e um
- * baralho que trocasse de cor com o tema deixaria de parecer um baralho. Como o fundo não
- * muda, a tinta também não pode mudar.
  */
 private val SUIT_RED = Color(0xFFC62828)
 private val SUIT_BLACK = Color(0xFF1B1B1B)
 
 /**
- * Uma mão em leque: cada carta por cima da anterior, mostrando só o canto das de baixo.
+ * Uma mão em leque com suporte nativo a Drag & Drop e Animações fluidas.
  *
- * É como se segura uma mão de cartas, e não é só enfeite: lado a lado, treze cartas não
- * cabem na largura de um celular e precisariam de rolagem — e uma mão que só se vê aos
- * pedaços não dá para avaliar. Em leque a mão inteira aparece de uma vez.
- *
- * A ordem de desenho é a ordem da lista: a última carta fica por cima. Como cada uma começa
- * [CARD_FAN_STEP] à direita da anterior, a faixa visível de cada carta não é coberta por
- * ninguém — e o toque cai na carta certa sem precisar de conta nenhuma.
+ * Agora usamos um Box animado. Ao receber cartas novas ou ser reordenado,
+ * o leque recalcula as posições de X e Y e desliza cada carta suavemente para o seu lugar.
  */
 @Composable
 fun CardFan(
     cards: List<Card>,
     palette: BoardPalette,
     modifier: Modifier = Modifier,
-    /**
-     * Quais cartas saem do leque, puxadas para fora — a sugerida pela dica, ou as escolhidas
-     * para baixar.
-     *
-     * Vem por **posição**, e não por carta: a canastra joga com dois baralhos, e uma mão
-     * com dois reis de paus iguais teria as duas escolhidas de uma vez se a conta fosse pelo
-     * valor da carta.
-     */
     isRaised: (Int, Card) -> Boolean = { _, _ -> false },
-    /** Quais cartas a regra deixa jogar agora; as outras aparecem apagadas. */
     isPlayable: (Int, Card) -> Boolean = { _, _ -> true },
     onClick: ((Int, Card) -> Unit)? = null,
+    /** NOVO: Callback disparado quando o jogador arrasta e solta uma carta sobre a outra. */
+    onReorder: ((from: Int, to: Int) -> Unit)? = null,
 ) {
     if (cards.isEmpty()) return
 
-    Layout(
-        modifier = modifier,
-        content = {
-            cards.forEachIndexed { index, carta ->
+    val density = LocalDensity.current
+    val stepPx = with(density) { CARD_FAN_STEP.toPx() }
+
+    // O tamanho total do leque é animado para a mão encolher e crescer suavemente.
+    val largura by animateDpAsState(targetValue = CARD_FAN_STEP * (cards.size - 1) + CARD_WIDTH, label = "fan_width")
+    val altura = CARD_HEIGHT + CARD_FAN_LIFT
+
+    Box(modifier = modifier.size(largura, altura)) {
+        cards.forEachIndexed { index, carta ->
+            val puxada = isRaised(index, carta)
+            val targetX = CARD_FAN_STEP * index
+            val targetY = if (puxada) 0.dp else CARD_FAN_LIFT
+
+            // Identificador único para a engine de animação não confundir cartas idênticas do baralho duplo
+            val occurrenceIndex = cards.take(index).count { it == carta }
+
+            key(carta.rank, carta.suit, occurrenceIndex) {
+                // Memória do arrasto físico (Drag)
+                var dragOffsetPx by remember { mutableStateOf(0f) }
+
+                // Animações que fundem o posicionamento da mesa com o dedo do jogador
+                val animX by animateDpAsState(
+                    targetValue = targetX + with(density) { dragOffsetPx.toDp() },
+                    label = "animX"
+                )
+                val animY by animateDpAsState(
+                    targetValue = targetY,
+                    label = "animY"
+                )
+
                 CardFace(
                     card = carta,
                     palette = palette,
-                    selected = isRaised(index, carta),
+                    selected = puxada,
                     playable = isPlayable(index, carta),
                     onClick = onClick?.let { acao -> { acao(index, carta) } },
+                    modifier = Modifier
+                        .offset(x = animX, y = animY)
+                        .zIndex(if (dragOffsetPx != 0f) 1f else 0f) // Joga a carta arrastada para a frente
+                        .then(
+                            if (onReorder != null) {
+                                Modifier.pointerInput(Unit) {
+                                    detectHorizontalDragGestures(
+                                        onDragEnd = { dragOffsetPx = 0f },
+                                        onDragCancel = { dragOffsetPx = 0f },
+                                        onHorizontalDrag = { change, dragAmount ->
+                                            change.consume()
+                                            dragOffsetPx += dragAmount
+                                            
+                                            // Se arrastar além do passo da carta, troca de posição na lista
+                                            if (dragOffsetPx > stepPx && index < cards.size - 1) {
+                                                onReorder(index, index + 1)
+                                                dragOffsetPx -= stepPx
+                                            } else if (dragOffsetPx < -stepPx && index > 0) {
+                                                onReorder(index, index - 1)
+                                                dragOffsetPx += stepPx
+                                            }
+                                        }
+                                    )
+                                }
+                            } else Modifier
+                        )
                 )
-            }
-        },
-    ) { measurables, constraints ->
-        val soltos = constraints.copy(minWidth = 0, minHeight = 0)
-        val postas = measurables.map { it.measure(soltos) }
-        val passo = CARD_FAN_STEP.roundToPx()
-        val alto = CARD_FAN_LIFT.roundToPx()
-
-        val largura = passo * (postas.size - 1) + postas.last().width
-        val altura = postas.maxOf { it.height } + alto
-
-        layout(largura, altura) {
-            postas.forEachIndexed { index, posta ->
-                // A puxada encosta no topo; as outras descem, e é essa diferença que a faz
-                // parecer tirada da mão.
-                val puxada = isRaised(index, cards[index])
-                posta.placeRelative(x = passo * index, y = if (puxada) 0 else alto)
             }
         }
     }
 }
 
-/**
- * Uma carta virada para cima.
- *
- * O desenho é texto, e não figura: valor no canto e naipe grande no meio. É o que um
- * baralho de verdade faz, e é o que continua legível quando a carta mede meio dedo — uma
- * figura de dama desenhada neste tamanho vira borrão, e o que a pessoa precisa ler é
- * "dama de espadas", não o retrato dela.
- */
 @Composable
 fun CardFace(
     card: Card,
     palette: BoardPalette,
     modifier: Modifier = Modifier,
-    /** Escolhida agora — a carta sobe um pouco e ganha contorno. */
     selected: Boolean = false,
-    /** Sugerida pela dica. */
     hinted: Boolean = false,
-    /** Não dá para jogar agora: fica apagada, mas continua tocável para explicar por quê. */
     playable: Boolean = true,
     onClick: (() -> Unit)? = null,
 ) {
@@ -169,8 +182,6 @@ fun CardFace(
                 color = contorno,
                 shape = RoundedCornerShape(6.dp),
             )
-            // Carta que não serve continua respondendo ao toque: quem tocou recebe do motor
-            // o motivo escrito, em vez de um toque que não faz nada.
             .then(if (onClick != null) Modifier.clickable(onClickLabel = nome) { onClick() } else Modifier)
             .alpha(if (playable) 1f else 0.45f)
             .semantics { contentDescription = nome },
@@ -200,16 +211,6 @@ fun CardFace(
     }
 }
 
-/**
- * Costas de carta.
- *
- * Aparece na mão de quem está do outro lado. O que existe ali é literalmente [Card.HIDDEN]:
- * o estado já chegou redigido do motor, e não há valor nenhum guardado atrás deste desenho.
- *
- * [width] e [height] têm o tamanho de uma carta normal como padrão, mas quem desenha a mesa
- * inteira — com os adversários sentados ao redor — passa um tamanho menor: o que importa ali
- * é quantas cartas há, não lê-las, e um baralho de verdade visto de longe também encolhe.
- */
 @Composable
 fun FaceDownCard(
     palette: BoardPalette,
@@ -217,8 +218,6 @@ fun FaceDownCard(
     width: Dp = CARD_WIDTH,
     height: Dp = CARD_HEIGHT,
 ) {
-    // CLÁSSICA segue a paleta do tabuleiro (varia com claro/escuro, como sempre foi); as
-    // outras são cores fixas de baralho, do jeito que um baralho físico realmente é.
     val (fundo, miolo) = when (LocalDeckColor.current) {
         DeckColorChoice.CLASSIC -> palette.secondPiece to palette.secondPieceEdge
         DeckColorChoice.RED -> Palette.DeckRed to Palette.DeckRedEdge
@@ -242,13 +241,6 @@ fun FaceDownCard(
     }
 }
 
-/**
- * O nome falado da carta: "dama de espadas".
- *
- * Existe para o leitor de tela, e é o único jeito de um jogo de cartas ser jogável sem ver a
- * tela. O símbolo do naipe não serve: o TalkBack lê "♠" como "espada preta" ou não lê nada,
- * dependendo do aparelho.
- */
 @Composable
 fun cardName(card: Card): String {
     if (card.isHidden) return stringResource(R.string.a11y_card_hidden)
