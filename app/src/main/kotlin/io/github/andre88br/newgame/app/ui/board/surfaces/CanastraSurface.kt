@@ -1,5 +1,6 @@
 package io.github.andre88br.newgame.app.ui.board.surfaces
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -29,10 +30,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.andre88br.newgame.app.R
 import io.github.andre88br.newgame.app.ui.theme.BoardPalette
 import io.github.andre88br.newgame.app.ui.theme.LocalBoardPalette
@@ -62,12 +66,10 @@ fun CanastraSurface(
 ) {
     val palette = LocalBoardPalette.current
 
-    // SISTEMA DE MEMÓRIA DE MÃO MANUAL
     val currentHand = state.hand(viewer)
     var customOrder by remember { mutableStateOf<List<Card>>(emptyList()) }
     var escolhidas by remember(state) { mutableStateOf(emptySet<Int>()) }
 
-    // Reconcilia de forma inteligente a mão atual do motor com a ordem customizada que o jogador fez
     val displayHand = remember(currentHand, customOrder) {
         if (customOrder.isEmpty() && currentHand.isNotEmpty()) {
             currentHand.sortedForHand()
@@ -207,7 +209,12 @@ fun CanastraSurface(
             state = state,
             enabled = enabled && minhaVez,
             escolhidas = cartasEscolhidas,
-            onMove = onMove
+            temCartasSelecionadas = escolhidas.isNotEmpty(),
+            onMove = onMove,
+            onResetOrder = {
+                customOrder = emptyList()
+                escolhidas = emptySet()
+            }
         )
 
         Box(
@@ -229,7 +236,7 @@ fun CanastraSurface(
             )
         }
 
-        // CONTROLES DE ORDENAÇÃO DA MÃO (Abaixo do Leque)
+        // CONTROLES DE ORDENAÇÃO DA MÃO
         if (enabled && minhaVez && state.phase == CanastraPhase.PLAY) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -427,6 +434,43 @@ private fun MortoStack(palette: BoardPalette) {
     }
 }
 
+/**
+ * Desenha a Canastra Fechada com uma Coroa.
+ */
+@Composable
+private fun CompactCanastra(jogo: Meld, palette: BoardPalette) {
+    val baseCard = jogo.naturals.firstOrNull() ?: jogo.cards.first()
+    val isClean = jogo.isClean
+
+    val badgeColor = if (isClean) palette.crown else palette.hint
+
+    Box(
+        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp), // Espaço para a coroa não cortar
+        contentAlignment = Alignment.Center
+    ) {
+        // Efeito de "Montinho" (Cartas empilhadas para dar volume)
+        CardFace(card = baseCard, palette = palette, modifier = Modifier.offset(x = 6.dp, y = 6.dp))
+        CardFace(card = baseCard, palette = palette, modifier = Modifier.offset(x = 3.dp, y = 3.dp))
+        CardFace(card = baseCard, palette = palette)
+
+        // Emblema / Coroa
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = (-14).dp)
+                .background(Color(0xFF1E1E1E), RoundedCornerShape(percent = 50))
+                .border(1.5.dp, badgeColor, RoundedCornerShape(percent = 50))
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        ) {
+            Text(
+                text = "👑",
+                fontSize = 12.sp,
+                modifier = Modifier.alpha(if (isClean) 1f else 0.4f)
+            )
+        }
+    }
+}
+
 @Composable
 private fun MeldRow(
     title: String,
@@ -459,11 +503,6 @@ private fun MeldRow(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .border(
-                            width = if (jogo.isCanastra) 2.dp else 0.dp,
-                            color = if (jogo.isClean) palette.crown else palette.hint,
-                            shape = RoundedCornerShape(8.dp),
-                        )
                         .then(
                             if (onMeldClick != null) {
                                 Modifier.clickable { onMeldClick(index) }
@@ -473,7 +512,12 @@ private fun MeldRow(
                         )
                         .padding(2.dp),
                 ) {
-                    CardFan(cards = jogo.cards, palette = palette)
+                    // MUDANÇA: Se tiver 7 cartas ou mais, desenha o Montinho. Se não, desenha o Leque.
+                    if (jogo.isCanastra) {
+                        CompactCanastra(jogo = jogo, palette = palette)
+                    } else {
+                        CardFan(cards = jogo.cards, palette = palette)
+                    }
                     Text(
                         text = if (jogo.isCanastra) {
                             stringResource(
@@ -497,7 +541,9 @@ private fun Actions(
     state: CanastraState,
     enabled: Boolean,
     escolhidas: List<Card>,
-    onMove: (Move) -> Unit
+    temCartasSelecionadas: Boolean,
+    onMove: (Move) -> Unit,
+    onResetOrder: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
