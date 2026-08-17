@@ -207,8 +207,9 @@ data class CanastraState(
     val passedEnd: Boolean = false,
     val drawnCard: Card? = null,
     val pendingDiscard: List<Card> = emptyList(),
-    /** Quantidade de Três Vermelhos pendentes que exigem que o jogador compre uma reposição. */
     val pendingReplacements: Int = 0,
+    /** MEMÓRIA: Guarda as cartas que os jogadores pegaram do lixo. */
+    val knownOpponentCards: Map<Int, List<Card>> = emptyMap(),
 ) : GameState {
 
     fun teamOf(seat: Seat): Int = if (seats == 4) seat.index % 2 else seat.index
@@ -276,7 +277,6 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val maos = MutableList(seats) { tirar(CANASTRA_HAND_SIZE).toMutableList() }
         val mortos = List(mortosFor(seats)) { tirar(CANASTRA_HAND_SIZE) }
 
-        // A Mão Inicial (dealHand) faz as reposições automaticamente para agilizar o setup do jogo.
         val vermelhos = MutableList(teams) { 0 }
         for (index in 0 until seats) {
             val time = if (seats == 4) index % 2 else index
@@ -310,7 +310,8 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             passedEnd = false,
             drawnCard = null,
             pendingDiscard = emptyList(),
-            pendingReplacements = 0
+            pendingReplacements = 0,
+            knownOpponentCards = emptyMap()
         )
     }
 
@@ -319,7 +320,6 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val mao = state.hand(state.turn)
         if (mao.any { it.isHidden }) return emptyList()
 
-        // OBRIGAÇÃO DA REPOSIÇÃO: Se tiver reposições pendentes, o único lance legal é comprar.
         if (state.pendingReplacements > 0) {
             return if (state.stock.isNotEmpty()) listOf(CanastraMove.DrawStock) else listOf(CanastraMove.Pass)
         }
@@ -630,14 +630,6 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         return MoveResult.Ok(applyKnownLegal(state, move))
     }
 
-    private fun temTodas(mao: List<Card>, cartas: List<Card>): Boolean {
-        val sobra = mao.toMutableList()
-        for (carta in cartas) {
-            if (!sobra.remove(carta)) return false
-        }
-        return true
-    }
-
     override fun applyKnownLegal(state: CanastraState, move: CanastraMove): CanastraState =
         when (move) {
             CanastraMove.DrawStock -> drawFromStock(state)
@@ -648,10 +640,6 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             is CanastraMove.Discard -> applyDiscard(state, move)
         }
 
-    /**
-     * Comprar agora processa os Três Vermelhos de forma manual.
-     * O turno fica travado na reposição até que o jogador puxe uma carta natural.
-     */
     private fun drawFromStock(state: CanastraState): CanastraState {
         val carta = state.stock.first()
         val monte = state.stock.drop(1)
@@ -695,6 +683,10 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         mao += devida
         val restoDoLixo = state.discard.dropLast(1)
 
+        val memoria = state.knownOpponentCards.toMutableMap()
+        val antigas = memoria[state.turn.index] ?: emptyList()
+        memoria[state.turn.index] = antigas + devida
+
         return state.copy(
             hands = trocarMao(state, mao),
             discard = emptyList(),
@@ -705,6 +697,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             owedCard = devida,
             openingProgress = zerarProgresso(state, time),
             drawnCard = null,
+            knownOpponentCards = memoria.toMap()
         )
     }
 
@@ -714,15 +707,26 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         mao: MutableList<Card>,
         vermelhos: MutableList<Int>,
         abertura: Abertura,
-        devida: Card?
+        devida: Card?,
+        memoria: MutableMap<Int, List<Card>>
     ): List<Card> {
         var finalPending = state.pendingDiscard
         val abaixoDoLimiar = state.scores.getOrElse(team) { 0 } < CANASTRA_OPENING_THRESHOLD
         val isOpeningDoneNow = abertura.firstMeldDone.getOrElse(team) { false } || abaixoDoLimiar
 
         if (devida == null && finalPending.isNotEmpty() && isOpeningDoneNow) {
+            val recemAdicionadas = mutableListOf<Card>()
             for (carta in finalPending) {
-                if (isRedThree(carta)) vermelhos[team] = vermelhos[team] + 1 else mao.add(carta)
+                if (isRedThree(carta)) {
+                    vermelhos[team] = vermelhos[team] + 1
+                } else {
+                    mao.add(carta)
+                    recemAdicionadas.add(carta)
+                }
+            }
+            if (recemAdicionadas.isNotEmpty()) {
+                val antigas = memoria[state.turn.index] ?: emptyList()
+                memoria[state.turn.index] = antigas + recemAdicionadas
             }
             finalPending = emptyList()
         }
@@ -750,7 +754,9 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val devida = if (state.owedCard != null && state.owedCard in move.cards) null else state.owedCard
         
         val vermelhos = state.redThrees.toMutableList()
-        val finalPending = checkPendingDiscard(state, time, mao, vermelhos, abertura, devida)
+        val memoria = state.knownOpponentCards.toMutableMap()
+        
+        val finalPending = checkPendingDiscard(state, time, mao, vermelhos, abertura, devida, memoria)
         val novaComprada = if (state.drawnCard != null && state.drawnCard in move.cards) null else state.drawnCard
 
         return settle(
@@ -764,6 +770,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                     drawnCard = novaComprada,
                     pendingDiscard = finalPending,
                     redThrees = vermelhos.toList(),
+                    knownOpponentCards = memoria.toMap(),
                     ply = state.ply + 1,
                 ),
             ),
@@ -816,7 +823,9 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val abertura = updateOpening(state, time, cardValue(move.card))
         
         val vermelhos = state.redThrees.toMutableList()
-        val finalPending = checkPendingDiscard(state, time, mao, vermelhos, abertura, devida)
+        val memoria = state.knownOpponentCards.toMutableMap()
+        
+        val finalPending = checkPendingDiscard(state, time, mao, vermelhos, abertura, devida, memoria)
         val novaComprada = if (state.drawnCard == move.card) null else state.drawnCard
 
         return settle(
@@ -830,6 +839,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                     drawnCard = novaComprada,
                     pendingDiscard = finalPending,
                     redThrees = vermelhos.toList(),
+                    knownOpponentCards = memoria.toMap(),
                     ply = state.ply + 1,
                 ),
             ),
@@ -868,7 +878,6 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         batidas[time] = batidas[time] + 1
 
         if (temMortoParaPegar(state, time)) {
-            // Conta os vermelhos e passa o dever de reposição para o jogador
             val morto = state.mortos.first()
             val vermelhosNoMorto = morto.count { isRedThree(it) }
             val mao = morto.filterNot { isRedThree(it) }
@@ -948,6 +957,8 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         },
         stock = state.stock.hidden(),
         mortos = state.mortos.map { it.hidden() },
+        // Esconde o histórico de cartas conhecidas, se não todo mundo espia a mão do outro na engine multiplayer
+        knownOpponentCards = emptyMap()
     )
 
     override val stateSerializer: KSerializer<CanastraState> = serializer()
