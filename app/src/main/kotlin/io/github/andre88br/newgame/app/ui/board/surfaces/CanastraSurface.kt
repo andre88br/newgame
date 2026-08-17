@@ -61,7 +61,7 @@ fun CanastraSurface(
     onMove: (Move) -> Unit,
 ) {
     val palette = LocalBoardPalette.current
-    
+
     // SISTEMA DE MEMÓRIA DE MÃO MANUAL
     val currentHand = state.hand(viewer)
     var customOrder by remember { mutableStateOf<List<Card>>(emptyList()) }
@@ -75,7 +75,7 @@ fun CanastraSurface(
             val newOrder = customOrder.toMutableList()
             val handCounts = currentHand.groupingBy { it }.eachCount().toMutableMap()
             val finalOrder = mutableListOf<Card>()
-            
+
             for (card in newOrder) {
                 val remaining = handCounts[card] ?: 0
                 if (remaining > 0) {
@@ -83,7 +83,7 @@ fun CanastraSurface(
                     handCounts[card] = remaining - 1
                 }
             }
-            
+
             val extras = mutableListOf<Card>()
             for ((card, count) in handCounts) {
                 repeat(count) { extras.add(card) }
@@ -207,12 +207,7 @@ fun CanastraSurface(
             state = state,
             enabled = enabled && minhaVez,
             escolhidas = cartasEscolhidas,
-            temCartasSelecionadas = escolhidas.isNotEmpty(),
-            onMove = onMove,
-            onResetOrder = {
-                customOrder = emptyList()
-                escolhidas = emptySet()
-            }
+            onMove = onMove
         )
 
         Box(
@@ -230,28 +225,75 @@ fun CanastraSurface(
                     }
                 } else {
                     null
-                },
-                onReorder = { from, to ->
-                    val list = displayHand.toMutableList()
-                    val temp = list[from]
-                    list[from] = list[to]
-                    list[to] = temp
-                    customOrder = list
-                    
-                    // Mantém a carta selecionada se ela foi movida
-                    if (from in escolhidas || to in escolhidas) {
-                        val newEscolhidas = escolhidas.toMutableSet()
-                        if (from in escolhidas && to !in escolhidas) {
-                            newEscolhidas.remove(from)
-                            newEscolhidas.add(to)
-                        } else if (to in escolhidas && from !in escolhidas) {
-                            newEscolhidas.remove(to)
-                            newEscolhidas.add(from)
-                        }
-                        escolhidas = newEscolhidas
-                    }
                 }
             )
+        }
+
+        // CONTROLES DE ORDENAÇÃO DA MÃO (Abaixo do Leque)
+        if (enabled && minhaVez && state.phase == CanastraPhase.PLAY) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        val list = displayHand.toMutableList()
+                        val newEscolhidas = mutableSetOf<Int>()
+                        val sortedSelected = escolhidas.sorted()
+                        for (i in sortedSelected) {
+                            if (i > 0 && (i - 1) !in newEscolhidas) {
+                                val temp = list[i]
+                                list[i] = list[i - 1]
+                                list[i - 1] = temp
+                                newEscolhidas.add(i - 1)
+                            } else {
+                                newEscolhidas.add(i)
+                            }
+                        }
+                        customOrder = list
+                        escolhidas = newEscolhidas
+                    },
+                    enabled = escolhidas.isNotEmpty(),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("◀")
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        customOrder = emptyList()
+                        escolhidas = emptySet()
+                    },
+                    modifier = Modifier.weight(1.5f)
+                ) {
+                    Text("✨ Ordenar")
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        val list = displayHand.toMutableList()
+                        val newEscolhidas = mutableSetOf<Int>()
+                        val sortedSelected = escolhidas.sortedDescending()
+                        for (i in sortedSelected) {
+                            if (i < list.size - 1 && (i + 1) !in newEscolhidas) {
+                                val temp = list[i]
+                                list[i] = list[i + 1]
+                                list[i + 1] = temp
+                                newEscolhidas.add(i + 1)
+                            } else {
+                                newEscolhidas.add(i)
+                            }
+                        }
+                        customOrder = list
+                        escolhidas = newEscolhidas
+                    },
+                    enabled = escolhidas.isNotEmpty(),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("▶")
+                }
+            }
         }
     }
 }
@@ -265,7 +307,7 @@ private fun Scoreboard(state: CanastraState, viewer: Seat, names: List<String>, 
         for (time in 0 until state.teams) {
             val meu = time == state.teamOf(viewer)
             val canastras = state.melds.getOrElse(time) { emptyList() }.count { it.isCanastra }
-            
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -275,7 +317,7 @@ private fun Scoreboard(state: CanastraState, viewer: Seat, names: List<String>, 
                     style = MaterialTheme.typography.labelMedium,
                     color = if (meu) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                
+
                 val red3Count = state.redThrees.getOrElse(time) { 0 }
                 if (red3Count > 0) {
                     Row(horizontalArrangement = Arrangement.spacedBy((-10).dp)) {
@@ -455,9 +497,7 @@ private fun Actions(
     state: CanastraState,
     enabled: Boolean,
     escolhidas: List<Card>,
-    temCartasSelecionadas: Boolean,
-    onMove: (Move) -> Unit,
-    onResetOrder: () -> Unit
+    onMove: (Move) -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -492,7 +532,7 @@ private fun Actions(
                     Text("Encerrar Mão")
                 }
             }
-            
+
             OutlinedButton(
                 onClick = { onMove(CanastraMove.TakeDiscard) },
                 enabled = enabled && state.discard.isNotEmpty() && !state.discardBlocked,
@@ -503,16 +543,6 @@ private fun Actions(
             return@Row
         }
 
-        if (!temCartasSelecionadas) {
-            OutlinedButton(
-                onClick = onResetOrder,
-                enabled = enabled,
-                modifier = Modifier.weight(0.8f)
-            ) {
-                Text("✨ Ordenar")
-            }
-        }
-
         Button(
             onClick = { onMove(CanastraMove.Meld(escolhidas)) },
             enabled = enabled && CanastraGame.canMeld(state, escolhidas),
@@ -520,7 +550,7 @@ private fun Actions(
         ) {
             Text(stringResource(R.string.canastra_meld, escolhidas.size))
         }
-        
+
         OutlinedButton(
             onClick = { escolhidas.singleOrNull()?.let { onMove(CanastraMove.Discard(it)) } },
             enabled = enabled && escolhidas.size == 1,
