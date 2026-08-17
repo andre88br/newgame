@@ -62,10 +62,12 @@ fun CanastraSurface(
 ) {
     val palette = LocalBoardPalette.current
     
+    // SISTEMA DE MEMÓRIA DE MÃO MANUAL
     val currentHand = state.hand(viewer)
     var customOrder by remember { mutableStateOf<List<Card>>(emptyList()) }
     var escolhidas by remember(state) { mutableStateOf(emptySet<Int>()) }
 
+    // Reconcilia de forma inteligente a mão atual do motor com a ordem customizada que o jogador fez
     val displayHand = remember(currentHand, customOrder) {
         if (customOrder.isEmpty() && currentHand.isNotEmpty()) {
             currentHand.sortedForHand()
@@ -229,6 +231,26 @@ fun CanastraSurface(
                 } else {
                     null
                 },
+                onReorder = { from, to ->
+                    val list = displayHand.toMutableList()
+                    val temp = list[from]
+                    list[from] = list[to]
+                    list[to] = temp
+                    customOrder = list
+                    
+                    // Mantém a carta selecionada se ela foi movida
+                    if (from in escolhidas || to in escolhidas) {
+                        val newEscolhidas = escolhidas.toMutableSet()
+                        if (from in escolhidas && to !in escolhidas) {
+                            newEscolhidas.remove(from)
+                            newEscolhidas.add(to)
+                        } else if (to in escolhidas && from !in escolhidas) {
+                            newEscolhidas.remove(to)
+                            newEscolhidas.add(from)
+                        }
+                        escolhidas = newEscolhidas
+                    }
+                }
             )
         }
     }
