@@ -11,13 +11,14 @@ import io.github.andre88br.newgame.core.cards.deckOf
 import io.github.andre88br.newgame.core.engine.Rng
 import io.github.andre88br.newgame.core.engine.Seat
 
-object CanastraEvaluator : Evaluator<CanastraState> {
+/** Define o estilo de jogo da IA, alterando os pesos e punições de suas escolhas. */
+enum class AiPersonality { AGRESSIVO, ACUMULADOR, BALANCEADO }
+
+class CanastraEvaluatorImpl(private val personality: AiPersonality = AiPersonality.BALANCEADO) : Evaluator<CanastraState> {
 
     private const val CANASTRA_WEIGHT = 250
     private const val CLEAN_BONUS = 150
-    private const val PROGRESS_WEIGHT = 12
     private const val MORTO_WEIGHT = 120
-    private const val WILD_IN_HAND_PENALTY = 3
 
     override fun evaluate(state: CanastraState, seat: Seat): Int {
         val meu = state.teamOf(seat)
@@ -30,11 +31,18 @@ object CanastraEvaluator : Evaluator<CanastraState> {
         val jogos = state.melds.getOrElse(team) { emptyList() }
         var total = state.scores.getOrElse(team) { 0 }
 
+        // PERSONALIDADE DA IA: Valoriza se a IA baixa jogos mais rápido ou espera
+        val progressWeight = when(personality) {
+            AiPersonality.AGRESSIVO -> 25 // Quer muito baixar qualquer coisa
+            AiPersonality.ACUMULADOR -> 2 // Odeia baixar jogo incompleto
+            AiPersonality.BALANCEADO -> 12
+        }
+
         for (jogo in jogos) {
             total += jogo.cards.sumOf { cardValue(it) }
             if (jogo.isCanastra) total += CANASTRA_WEIGHT
             if (jogo.isClean) total += CLEAN_BONUS
-            if (!jogo.isCanastra) total += (jogo.cards.size - CANASTRA_MIN_MELD) * PROGRESS_WEIGHT
+            if (!jogo.isCanastra) total += (jogo.cards.size - CANASTRA_MIN_MELD) * progressWeight
         }
 
         val vermelhos = state.redThrees.getOrElse(team) { 0 } * RED_THREE_VALUE
@@ -46,17 +54,24 @@ object CanastraEvaluator : Evaluator<CanastraState> {
             .filter { state.teamOf(Seat(it)) == team }
             .sumOf { seat ->
                 state.hand(Seat(seat)).sumOf { carta ->
-                    if (isWild(carta)) WILD_IN_HAND_PENALTY else cardValue(carta)
+                    if (isWild(carta)) 3 else cardValue(carta) // 3 é o WILD_IN_HAND_PENALTY
                 }
             }
+
+        // PERSONALIDADE DA IA: Quanto medo a IA tem de segurar cartas na mão
+        val multiplicadorDeDivida = when(personality) {
+            AiPersonality.AGRESSIVO -> 1.5f // Fica desesperado com carta na mão
+            AiPersonality.ACUMULADOR -> 0.5f // Segura cartas calmamente
+            AiPersonality.BALANCEADO -> 1.0f
+        }
 
         val precisaAberturaAlta = state.scores.getOrElse(team) { 0 } >= CANASTRA_OPENING_THRESHOLD && 
                                   !state.firstMeldDone.getOrElse(team) { false }
 
         val penalidade = if (precisaAberturaAlta) {
-            maxOf(0, valorBrutoNaMao - CANASTRA_OPENING_MIN_VALUE)
+            maxOf(0, (valorBrutoNaMao * multiplicadorDeDivida).toInt() - CANASTRA_OPENING_MIN_VALUE)
         } else {
-            valorBrutoNaMao
+            (valorBrutoNaMao * multiplicadorDeDivida).toInt()
         }
 
         return total - penalidade
@@ -80,13 +95,30 @@ val CanastraOrdering: MoveOrdering<CanastraState, CanastraMove> =
                     is CanastraMove.SwapWild -> 2_500 + cardValue(move.card)
                     CanastraMove.TakeDiscard -> 900
                     CanastraMove.DrawStock -> 800
-                    CanastraMove.Pass -> 700 // Prefere pegar o lixo se puder, mas aceita passar se for necessário.
-                    is CanastraMove.Discard -> when {
-                        isWild(move.card) -> {
-                            if (state.hand(state.turn).count { isWild(it) } > 1) -20 else -100
+                    CanastraMove.Pass -> 700
+                    
+                    is CanastraMove.Discard -> {
+                        // MEMÓRIA DA IA: Identifica se o próximo a jogar é o inimigo
+                        val proximoJogador = (state.turn.index + state.seats - 1) % state.seats
+                        val timeProximo = state.teamOf(Seat(proximoJogador))
+                        val meuTime = state.teamOf(state.turn)
+                        val isProximoInimigo = timeProximo != meuTime
+                        
+                        // Busca o que o inimigo pegou do lixo na memória
+                        val cartasConhecidasDoProximo = if (isProximoInimigo) state.knownOpponentCards[proximoJogador] ?: emptyList() else emptyList()
+                        
+                        val daJogoProAdversario = cartasConhecidasDoProximo.any { 
+                            it.suit == move.card.suit && Math.abs(it.rank.order - move.card.rank.order) <= 2 
                         }
-                        isBlackThree(move.card) -> 10
-                        else -> 100 - cardValue(move.card)
+
+                        when {
+                            isWild(move.card) -> {
+                                if (state.hand(state.turn).count { isWild(it) } > 1) -20 else -100
+                            }
+                            isBlackThree(move.card) -> 10
+                            daJogoProAdversario -> -50 // 🚨 IA Maliciosa nunca dá carta perto do que o inimigo pegou
+                            else -> 100 - cardValue(move.card)
+                        }
                     }
                 }
             }
@@ -136,7 +168,8 @@ fun completeCanastra(state: CanastraState, rng: Rng): CanastraState {
 
 val CanastraAi: GameAi<CanastraState, CanastraMove> = DeterminizedAi(
     game = CanastraGame,
-    evaluator = CanastraEvaluator,
+    // Pode alterar entre AGRESSIVO, ACUMULADOR ou BALANCEADO aqui:
+    evaluator = CanastraEvaluatorImpl(AiPersonality.AGRESSIVO),
     ordering = CanastraOrdering,
     limits = { difficulty ->
         when (difficulty) {
