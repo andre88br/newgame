@@ -399,6 +399,8 @@
     <string name="poker_waiting_for">%1$s\'s turn</string>
     <string name="poker_folded_this_hand">You folded this hand — waiting for the next one</string>
     <string name="poker_eliminated">You\'re out of chips: just watching the rest of the tournament</string>
+    <string name="poker_last_hand_won">%1$s won %2$d chips</string>
+    <string name="poker_last_hand_split">%1$s split %2$d chips</string>
     <string name="poker_fold">Fold</string>
     <string name="poker_check">Check</string>
     <string name="poker_call">Call %1$d</string>

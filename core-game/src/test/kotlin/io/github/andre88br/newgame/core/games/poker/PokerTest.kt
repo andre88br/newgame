@@ -116,6 +116,21 @@ class PokerTest {
         assertEquals(Seat(1), segundaDesistencia.button, "o botão volta a rodar na terceira mão")
     }
 
+    @Test
+    fun `o resultado da mao anterior fica guardado depois que a proxima ja foi repartida`() {
+        val primeira = novo(buyIn = 1000, bigBlind = 20)
+        assertEquals(null, primeira.lastResult, "antes da primeira mão fechar não há resultado nenhum")
+
+        val depois = PokerGame.applyOrThrow(primeira, PokerMove.Fold)
+        assertEquals(PokerHandResult(winners = listOf(0), amount = 30), depois.lastResult)
+
+        // A mão seguinte já está em andamento (outro pote, outra rodada) — paga em vez de
+        // desistir de novo, só para não fechar esta segunda mão também — e o resultado da
+        // anterior precisa continuar ali até esta fechar e sobrescrever.
+        val meioDaProxima = PokerGame.applyOrThrow(depois, PokerMove.Call)
+        assertEquals(depois.lastResult, meioDaProxima.lastResult)
+    }
+
     // -------- all-in trava aumento, e a mesa se revela sozinha até o showdown --------
 
     @Test

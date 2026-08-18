@@ -1,14 +1,18 @@
 package io.github.andre88br.newgame.app.ui.board.surfaces
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -20,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,6 +35,7 @@ import io.github.andre88br.newgame.core.cards.sortedForHand
 import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.games.poker.PokerGame
+import io.github.andre88br.newgame.core.games.poker.PokerHandResult
 import io.github.andre88br.newgame.core.games.poker.PokerMove
 import io.github.andre88br.newgame.core.games.poker.PokerState
 import io.github.andre88br.newgame.core.games.poker.PokerStreet
@@ -88,6 +94,14 @@ fun PokerSurface(
             TableArea(state = state, palette = palette)
         }
 
+        state.lastResult?.let { resultado ->
+            Text(
+                text = lastResultText(resultado, viewer, names),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+
         Text(
             text = when {
                 eliminado -> stringResource(R.string.poker_eliminated)
@@ -136,6 +150,7 @@ private fun StacksRow(state: PokerState, viewer: Seat, names: List<String>, pale
                         MaterialTheme.colorScheme.onSurface
                     },
                 )
+                ChipStack(amount = state.stack(seat))
                 Text(
                     text = "${state.stack(seat)}",
                     style = MaterialTheme.typography.labelMedium,
@@ -144,6 +159,55 @@ private fun StacksRow(state: PokerState, viewer: Seat, names: List<String>, pale
                 )
             }
         }
+    }
+}
+
+/** Cores fixas de ficha de pôquer, como vêm numa maleta física — não seguem o tema do app. */
+private val CHIP_COLORS = listOf(Color(0xFFC62828), Color(0xFF2E7D32), Color(0xFF1565C0))
+private val CHIP_SIZE = 20.dp
+private val CHIP_STACK_STEP = 4.dp
+
+/**
+ * Uma pilha de fichas.
+ *
+ * Não é enfeite: é o que faz "quantas fichas" parecer dinheiro em jogo, e não só mais um
+ * número ao lado do nome. A altura da pilha é só uma faixa grosseira de grandeza (pouco,
+ * médio, muito) — não uma conta exata de fichas físicas, que ninguém ia contar de olho.
+ */
+@Composable
+private fun ChipStack(amount: Int, modifier: Modifier = Modifier) {
+    val camadas = when {
+        amount <= 0 -> 0
+        amount < 100 -> 1
+        amount < 500 -> 2
+        else -> 3
+    }
+    if (camadas == 0) return
+    Box(
+        modifier = modifier.size(width = CHIP_SIZE, height = CHIP_SIZE + CHIP_STACK_STEP * (camadas - 1)),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        for (i in 0 until camadas) {
+            Box(
+                modifier = Modifier
+                    .offset(y = -CHIP_STACK_STEP * i)
+                    .size(CHIP_SIZE)
+                    .clip(CircleShape)
+                    .background(CHIP_COLORS[i % CHIP_COLORS.size])
+                    .border(2.dp, Color.White.copy(alpha = 0.6f), CircleShape),
+            )
+        }
+    }
+}
+
+/** "Fulano venceu 40 fichas", ou "Fulano, Sicrano dividiram 40 fichas" num empate. */
+@Composable
+private fun lastResultText(resultado: PokerHandResult, viewer: Seat, names: List<String>): String {
+    val nomes = resultado.winners.map { seatLabel(it, viewer, names) }
+    return if (nomes.size == 1) {
+        stringResource(R.string.poker_last_hand_won, nomes.first(), resultado.amount)
+    } else {
+        stringResource(R.string.poker_last_hand_split, nomes.joinToString(", "), resultado.amount)
     }
 }
 
@@ -160,6 +224,7 @@ private fun TableArea(state: PokerState, palette: BoardPalette) {
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            ChipStack(amount = state.pot)
             Text(
                 text = stringResource(R.string.poker_pot, state.pot),
                 style = MaterialTheme.typography.titleMedium,

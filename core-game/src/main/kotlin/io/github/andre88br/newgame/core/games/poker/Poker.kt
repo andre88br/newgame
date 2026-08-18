@@ -30,6 +30,18 @@ const val POKER_OPTION_BIG_BLIND: String = "poker.bigBlind"
 /** As quatro rodadas de aposta de uma mão de Texas Hold'em. */
 enum class PokerStreet { PREFLOP, FLOP, TURN, RIVER }
 
+/**
+ * Quem levou a mão anterior, e quanto — para a tela mostrar depois que o motor já repartiu a
+ * mão seguinte.
+ *
+ * O motor não para entre mãos: assim que uma fecha, a próxima já é repartida na mesma
+ * resposta (o mesmo padrão do truco). Sem guardar isto em algum lugar, o resultado apareceria
+ * e desapareceria no mesmo instante — a tela nunca teria a chance de mostrá-lo. Fica valendo
+ * até a mão seguinte fechar e sobrescrever com o resultado dela.
+ */
+@Serializable
+data class PokerHandResult(val winners: List<Int>, val amount: Int)
+
 @Serializable
 data class PokerState(
     /** As duas cartas de cada cadeira. Vazia para quem está fora do torneio ou fora desta mão. */
@@ -68,6 +80,8 @@ data class PokerState(
      * só nesse momento que este campo vira `true`.
      */
     val gameOver: Boolean = false,
+    /** O resultado da última mão fechada, ou `null` antes de a primeira mão terminar. */
+    val lastResult: PokerHandResult? = null,
 ) : GameState {
 
     fun hand(seat: Seat): List<Card> = hands.getOrElse(seat.index) { emptyList() }
@@ -433,12 +447,13 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
 
     /** Reparte o pote entre [ganhadores] (o resto de divisão ímpar fica com o primeiro) e inicia a próxima mão. */
     private fun concluirMao(state: PokerState, ganhadores: List<Int>): PokerState {
+        val resultado = PokerHandResult(winners = ganhadores, amount = state.pot)
         val porCabeca = state.pot / ganhadores.size
         val resto = state.pot % ganhadores.size
         val fichas = state.stacks.toMutableList()
         ganhadores.forEachIndexed { i, seat -> fichas[seat] += porCabeca + if (i == 0) resto else 0 }
 
-        val encerrado = state.copy(stacks = fichas, pot = 0)
+        val encerrado = state.copy(stacks = fichas, pot = 0, lastResult = resultado)
         val vivas = (0 until encerrado.seats).count { fichas[it] > 0 }
         if (vivas <= 1) {
             return encerrado.copy(folded = List(encerrado.seats) { fichas[it] <= 0 }, gameOver = true)
@@ -451,7 +466,7 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
             smallBlind = encerrado.smallBlind,
             bigBlind = encerrado.bigBlind,
             rng = encerrado.rng,
-        ).copy(ply = encerrado.ply)
+        ).copy(ply = encerrado.ply, lastResult = resultado)
     }
 
     override fun outcome(state: PokerState): Outcome {

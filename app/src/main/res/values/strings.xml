@@ -397,6 +397,8 @@
     <string name="poker_waiting_for">Vez de %1$s</string>
     <string name="poker_folded_this_hand">Você desistiu desta mão — aguardando a próxima</string>
     <string name="poker_eliminated">Você ficou sem fichas: só acompanhando o resto do torneio</string>
+    <string name="poker_last_hand_won">%1$s venceu %2$d fichas</string>
+    <string name="poker_last_hand_split">%1$s dividiram %2$d fichas</string>
     <string name="poker_fold">Desistir</string>
     <string name="poker_check">Passar</string>
     <string name="poker_call">Pagar %1$d</string>
