@@ -164,7 +164,7 @@ fun CanastraSurface(
             Text(
                 text = when {
                     !minhaVez -> stringResource(R.string.canastra_wait)
-                    state.pendingReplacements > 0 -> "Você tirou um 3 Vermelho! Compre uma carta de reposição."
+                    state.pendingReplacements > 0 -> "Tirou um 3 Vermelho! Compre uma carta de reposição."
                     state.owedCard != null -> stringResource(R.string.canastra_owed_card_prompt, cardName(state.owedCard!!))
                     state.phase == CanastraPhase.DRAW -> stringResource(R.string.canastra_draw_prompt)
                     else -> stringResource(R.string.canastra_play_prompt)
@@ -180,9 +180,9 @@ fun CanastraSurface(
                 onMove = onMove
             )
 
-            // CORREÇÃO DEFINITIVA: Pega a ÚLTIMA ocorrência da carta na mão (a que acabou de entrar no final)
-            val drawnCardIndex = displayHand.lastIndexOf(state.drawnCard)
-            val owedCardIndex = displayHand.lastIndexOf(state.owedCard)
+            // CORREÇÃO: A carta só ganha destaque se for a SUA VEZ de jogar.
+            val drawnCardIndex = if (minhaVez) displayHand.lastIndexOf(state.drawnCard) else -1
+            val owedCardIndex = if (minhaVez) displayHand.lastIndexOf(state.owedCard) else -1
 
             Box(
                 modifier = Modifier
@@ -312,7 +312,6 @@ fun CanastraSurface(
                 }
             )
         } else if (isGameOver) {
-            // Sobe o Pódio Épico se o placar já foi dispensado!
             EpicVictoryOverlay(state = state, viewer = viewer, names = names)
         }
     }
