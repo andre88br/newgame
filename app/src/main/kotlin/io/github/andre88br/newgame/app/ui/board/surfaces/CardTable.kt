@@ -1,6 +1,7 @@
 package io.github.andre88br.newgame.app.ui.board.surfaces
 
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,9 +14,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -24,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import io.github.andre88br.newgame.app.R
 import io.github.andre88br.newgame.app.ui.theme.BoardPalette
 import io.github.andre88br.newgame.core.engine.Seat
+import kotlinx.coroutines.delay
 
 /** Tamanho da carta de um adversário: menor que a sua, porque o que importa é contar, não ler. */
 private val OPPONENT_CARD_WIDTH = 32.dp
@@ -115,8 +122,7 @@ private fun OpponentHand(
 }
 
 /**
- * Animação fluida da mão dos adversários. 
- * Conforme eles compram ou descartam cartas, o leque cresce e encolhe na mesa do jogador.
+ * Animação fluida da mão dos adversários com distribuição das cartas.
  */
 @Composable
 private fun OpponentFan(count: Int, palette: BoardPalette, vertical: Boolean = false, modifier: Modifier = Modifier) {
@@ -130,11 +136,25 @@ private fun OpponentFan(count: Int, palette: BoardPalette, vertical: Boolean = f
 
     Box(modifier = modifier.size(animLargura, animAltura)) {
         for (index in 0 until count) {
-            val targetX = if (vertical) 0.dp else OPPONENT_FAN_STEP * index
-            val targetY = if (vertical) OPPONENT_FAN_STEP * index else 0.dp
+            
+            // Controle da animação de distribuição para os adversários
+            var cardDealt by remember { mutableStateOf(false) }
+            LaunchedEffect(index) {
+                delay(index * 40L)
+                cardDealt = true
+            }
+
+            val finalX = if (vertical) 0.dp else OPPONENT_FAN_STEP * index
+            val finalY = if (vertical) OPPONENT_FAN_STEP * index else 0.dp
+
+            // Se ainda não foi dada, a carta começa invisível e recolhida
+            val targetX = if (cardDealt) finalX else finalX - 15.dp
+            val targetY = if (cardDealt) finalY else finalY + 15.dp
+            val targetAlpha = if (cardDealt) 1f else 0f
 
             val animX by animateDpAsState(targetValue = targetX, label = "opp_x")
             val animY by animateDpAsState(targetValue = targetY, label = "opp_y")
+            val animAlpha by animateFloatAsState(targetValue = targetAlpha, label = "opp_alpha")
 
             FaceDownCard(
                 palette = palette,
@@ -142,6 +162,7 @@ private fun OpponentFan(count: Int, palette: BoardPalette, vertical: Boolean = f
                 height = if (vertical) OPPONENT_CARD_WIDTH else OPPONENT_CARD_HEIGHT,
                 modifier = Modifier
                     .offset(x = animX, y = animY)
+                    .alpha(animAlpha)
                     .clearAndSetSemantics { }
             )
         }
