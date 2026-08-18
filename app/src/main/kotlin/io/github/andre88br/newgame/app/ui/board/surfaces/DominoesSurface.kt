@@ -1,5 +1,7 @@
 package io.github.andre88br.newgame.app.ui.board.surfaces
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -9,10 +11,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -24,11 +27,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -57,6 +62,7 @@ import io.github.andre88br.newgame.core.games.dominoes.LineEnd
 import io.github.andre88br.newgame.core.games.dominoes.PlacedTile
 import io.github.andre88br.newgame.core.games.dominoes.Tile
 import io.github.andre88br.newgame.core.games.dominoes.handTiles
+import kotlinx.coroutines.delay
 
 /**
  * A mesa do dominó.
@@ -90,15 +96,36 @@ fun DominoesSurface(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Opponents(state = state, viewer = viewer, names = names, palette = palette)
-
-        // A mesa fica com todo o espaço que sobrar: é a parte que precisa ser vista.
-        Table(
-            line = state.line,
+        // A mesa com os adversários sentados ao redor — a mesma disposição (e a mesma
+        // animação de distribuir) das quatro mesas de carta, só que com peça em vez de
+        // carta virada: [handContent] é o único ponto que muda.
+        CardTable(
+            seats = state.seats,
+            viewer = viewer,
+            names = names,
+            handSize = { seat -> state.hand(seat).size },
             palette = palette,
+            handContent = { count, vertical ->
+                DominoOpponentFan(count = count, palette = palette, vertical = vertical)
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
+        ) {
+            // A mesa fica com todo o espaço que sobrar: é a parte que precisa ser vista.
+            Table(
+                line = state.line,
+                palette = palette,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(),
+            )
+        }
+
+        Text(
+            text = stringResource(R.string.dominoes_boneyard, state.boneyard.size),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         Text(
@@ -113,24 +140,27 @@ fun DominoesSurface(
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            for (item in hand) {
-                HandTileView(
-                    item = item,
-                    palette = palette,
-                    hinted = item.tile == hintTile,
-                    enabled = enabled,
-                    onClick = {
-                        val direct = item.onlyMove
-                        when {
-                            direct != null -> onMove(direct)
-                            item.playable -> asking = item
-                            // Peça que não encaixa: em vez de não responder ao toque, o
-                            // lance vai ao motor e volta com a explicação escrita, como
-                            // acontece nas damas quando a captura é obrigatória.
-                            else -> onMove(DominoesMove(item.tile, LineEnd.RIGHT))
-                        }
-                    },
-                )
+            hand.forEachIndexed { index, item ->
+                key(item.tile) {
+                    HandTileView(
+                        item = item,
+                        index = index,
+                        palette = palette,
+                        hinted = item.tile == hintTile,
+                        enabled = enabled,
+                        onClick = {
+                            val direct = item.onlyMove
+                            when {
+                                direct != null -> onMove(direct)
+                                item.playable -> asking = item
+                                // Peça que não encaixa: em vez de não responder ao toque, o
+                                // lance vai ao motor e volta com a explicação escrita, como
+                                // acontece nas damas quando a captura é obrigatória.
+                                else -> onMove(DominoesMove(item.tile, LineEnd.RIGHT))
+                            }
+                        },
+                    )
+                }
             }
         }
     }
@@ -163,97 +193,72 @@ fun DominoesSurface(
     }
 }
 
+/** Tamanho da peça de um adversário: pequena, porque o que importa é contar, não ler. */
+private val OPPONENT_TILE_WIDTH = 20.dp
+private val OPPONENT_TILE_HEIGHT = 38.dp
+
+/** Quanto de cada peça aparece na fileira do adversário — encostadas, como uma mão de dominó de verdade. */
+private val OPPONENT_TILE_STEP = 23.dp
+
 /**
- * As mãos dos adversários, viradas para baixo, e o que resta no monte.
- *
- * As peças aparecem **desenhadas** em vez de só contadas: numa mesa de quatro, "três peças"
- * escrito não dá a mesma noção que ver três costas de peça, e é essa noção que faz alguém
- * perceber que o vizinho está prestes a bater.
+ * A mão de um adversário, virada para baixo — a mesma animação de distribuir do leque de
+ * carta ([OpponentFan] em [CardTable]), só que desenhando peça em vez de carta. É o que o
+ * dominó ganha de graça ao entrar como [CardTable.handContent] em vez de continuar com a
+ * sua própria fileira de peças à parte.
  *
  * O valor continua sem sair de lugar nenhum: o estado que chega aqui já veio redigido pelo
  * motor, e o que existe destas peças é literalmente [Tile.HIDDEN]. Não há o que vazar.
  */
 @Composable
-private fun Opponents(
-    state: DominoesState,
-    viewer: Seat,
-    names: List<String>,
-    palette: BoardPalette,
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        for (seat in state.others(viewer)) {
-            val mao = state.hand(seat)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+private fun DominoOpponentFan(count: Int, palette: BoardPalette, vertical: Boolean = false, modifier: Modifier = Modifier) {
+    if (count == 0) return
+
+    val calcLargura = if (vertical) OPPONENT_TILE_HEIGHT else OPPONENT_TILE_STEP * (count - 1) + OPPONENT_TILE_WIDTH
+    val calcAltura = if (vertical) OPPONENT_TILE_STEP * (count - 1) + OPPONENT_TILE_WIDTH else OPPONENT_TILE_HEIGHT
+
+    val animLargura by animateDpAsState(targetValue = calcLargura, label = "dom_opp_width")
+    val animAltura by animateDpAsState(targetValue = calcAltura, label = "dom_opp_height")
+
+    Box(modifier = modifier.size(animLargura, animAltura)) {
+        for (index in 0 until count) {
+            // Controle da animação de distribuição para os adversários.
+            var tileDealt by remember { mutableStateOf(false) }
+            LaunchedEffect(index) {
+                delay(index * 40L)
+                tileDealt = true
+            }
+
+            val finalX = if (vertical) 0.dp else OPPONENT_TILE_STEP * index
+            val finalY = if (vertical) OPPONENT_TILE_STEP * index else 0.dp
+
+            // Se ainda não foi dada, a peça começa invisível e recolhida.
+            val targetX = if (tileDealt) finalX else finalX - 15.dp
+            val targetY = if (tileDealt) finalY else finalY + 15.dp
+            val targetAlpha = if (tileDealt) 1f else 0f
+
+            val animX by animateDpAsState(targetValue = targetX, label = "dom_opp_x")
+            val animY by animateDpAsState(targetValue = targetY, label = "dom_opp_y")
+            val animAlpha by animateFloatAsState(targetValue = targetAlpha, label = "dom_opp_alpha")
+
+            Canvas(
+                modifier = Modifier
+                    .size(
+                        width = if (vertical) OPPONENT_TILE_HEIGHT else OPPONENT_TILE_WIDTH,
+                        height = if (vertical) OPPONENT_TILE_WIDTH else OPPONENT_TILE_HEIGHT,
+                    )
+                    .offset(x = animX, y = animY)
+                    .alpha(animAlpha)
+                    .clearAndSetSemantics { },
             ) {
-                Text(
-                    // O nome de quem está do outro lado; sem ele — partida salva antes de
-                    // existirem nomes —, a cadeira numerada de sempre.
-                    text = names.getOrNull(seat.index)?.takeIf { it.isNotBlank() }
-                        ?: stringResource(R.string.dominoes_opponent_seat, seat.index + 1),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (seat == state.turn) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-                // O desenho é decoração: quem descreve a mão são os dois textos ao lado,
-                // e o leitor de tela leria "Jogador 2, 5" sem tropeçar num desenho mudo.
-                FaceDownHand(
-                    count = mao.size,
+                drawTileAt(
+                    first = Tile.HIDDEN.low,
+                    second = Tile.HIDDEN.high,
+                    outerTopLeft = Offset.Zero,
+                    outerSize = size,
+                    stacked = true,
                     palette = palette,
-                    modifier = Modifier
-                        .weight(1f)
-                        .clearAndSetSemantics { },
-                )
-                Text(
-                    text = mao.size.toString(),
-                    style = MaterialTheme.typography.labelMedium,
                 )
             }
-        }
-
-        Text(
-            text = stringResource(R.string.dominoes_boneyard, state.boneyard.size),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-/**
- * Uma fileira de costas de peça.
- *
- * Desenhada num `Canvas` só, e não numa peça por composable: são até sete por adversário e
- * até três adversários, e vinte e um composables para um enfeite seria desperdício num
- * celular modesto.
- */
-@Composable
-private fun FaceDownHand(count: Int, palette: BoardPalette, modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.height(26.dp)) {
-        if (count <= 0) return@Canvas
-
-        // Encostadas umas nas outras, à esquerda, como quem segura a mão — e não espalhadas
-        // pela largura toda, que era o que a `weight` fazia e deixava a mão parecendo maior
-        // do que é.
-        val largura = minOf(size.height * 0.5f, size.width / count)
-        val espaco = largura * 1.15f
-
-        for (index in 0 until count) {
-            drawTileAt(
-                first = Tile.HIDDEN.low,
-                second = Tile.HIDDEN.high,
-                outerTopLeft = Offset(index * espaco, 0f),
-                outerSize = Size(largura, size.height),
-                stacked = true,
-                palette = palette,
-            )
         }
     }
 }
@@ -345,6 +350,7 @@ private fun Table(
 @Composable
 private fun HandTileView(
     item: HandTile,
+    index: Int,
     palette: BoardPalette,
     hinted: Boolean,
     enabled: Boolean,
@@ -354,9 +360,23 @@ private fun HandTileView(
     // inteira seria uma fileira de desenhos mudos.
     val description = speechText(BoardSpeech.tile(item.tile, item.ends))
 
+    // A mesma entrada em cascata do leque de carta ([CardFan]): a peça sobe e aparece com
+    // um atraso proporcional à posição, em vez de a mão inteira saltar pronta na tela.
+    var tileDealt by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(index * 40L)
+        tileDealt = true
+    }
+    val targetY = if (tileDealt) 0.dp else 20.dp
+    val targetAlpha = if (tileDealt) 1f else 0f
+    val animY by animateDpAsState(targetValue = targetY, label = "hand_tile_y")
+    val animAlpha by animateFloatAsState(targetValue = targetAlpha, label = "hand_tile_alpha")
+
     Canvas(
         modifier = Modifier
             .size(width = 44.dp, height = 84.dp)
+            .offset(y = animY)
+            .alpha(animAlpha)
             .clickable(enabled = enabled, onClick = onClick)
             .semantics { contentDescription = description },
     ) {

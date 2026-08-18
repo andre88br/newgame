@@ -48,6 +48,14 @@ fun seatLabel(index: Int, viewer: Seat, names: List<String>): String =
             stringResource(R.string.dominoes_opponent_seat, index + 1)
         }
 
+/**
+ * A mesa com os adversários sentados ao redor, e o que estiver em jogo no meio.
+ *
+ * [handContent] desenha o que cada mão adversária mostra — o leque de costas de carta, por
+ * padrão — mas quem senta ao redor é sempre a mesma conta, esteja a mão em jogo feita de
+ * cartas ou de peças de dominó: é essa disposição (e a animação de distribuir) que o dominó
+ * ganha de graça ao passar seu próprio desenho de peça aqui, em vez de duplicar a mesa.
+ */
 @Composable
 fun CardTable(
     seats: Int,
@@ -56,6 +64,9 @@ fun CardTable(
     handSize: (Seat) -> Int,
     palette: BoardPalette,
     modifier: Modifier = Modifier,
+    handContent: @Composable (count: Int, vertical: Boolean) -> Unit = { count, vertical ->
+        OpponentFan(count = count, palette = palette, vertical = vertical)
+    },
     center: @Composable () -> Unit,
 ) {
     val outras = (1 until seats).map { offset -> Seat((viewer.index + offset) % seats) }
@@ -68,7 +79,11 @@ fun CardTable(
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         if (cima != null) {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                OpponentHand(count = handSize(cima), name = seatLabel(cima.index, viewer, names), palette = palette)
+                OpponentHand(
+                    count = handSize(cima),
+                    name = seatLabel(cima.index, viewer, names),
+                    handContent = handContent,
+                )
             }
             Spacer(modifier = Modifier.height(6.dp))
         }
@@ -77,7 +92,7 @@ fun CardTable(
                 OpponentHand(
                     count = handSize(esquerda),
                     name = seatLabel(esquerda.index, viewer, names),
-                    palette = palette,
+                    handContent = handContent,
                     vertical = true,
                 )
                 Spacer(modifier = Modifier.width(6.dp))
@@ -88,7 +103,7 @@ fun CardTable(
                 OpponentHand(
                     count = handSize(direita),
                     name = seatLabel(direita.index, viewer, names),
-                    palette = palette,
+                    handContent = handContent,
                     vertical = true,
                 )
             }
@@ -100,18 +115,15 @@ fun CardTable(
 private fun OpponentHand(
     count: Int,
     name: String,
-    palette: BoardPalette,
+    handContent: @Composable (count: Int, vertical: Boolean) -> Unit,
     vertical: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val descricao = stringResource(R.string.a11y_opponent_hand, name, count)
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
-        OpponentFan(
-            count = count,
-            palette = palette,
-            vertical = vertical,
-            modifier = Modifier.semantics { contentDescription = descricao },
-        )
+        Box(modifier = Modifier.semantics { contentDescription = descricao }) {
+            handContent(count, vertical)
+        }
         Text(
             text = name,
             style = MaterialTheme.typography.labelSmall,
