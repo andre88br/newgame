@@ -385,4 +385,21 @@
     <string name="truco_call_six">Seis!</string>
     <string name="truco_call_nine">Nove!</string>
     <string name="truco_call_twelve">Doze!</string>
+
+    <!-- Pôquer -->
+    <string name="poker_pot">Pote: %1$d</string>
+    <string name="poker_street_preflop">Pré-flop</string>
+    <string name="poker_street_flop">Flop</string>
+    <string name="poker_street_turn">Turn</string>
+    <string name="poker_street_river">River</string>
+    <string name="poker_board_empty">Sem cartas na mesa ainda</string>
+    <string name="poker_your_turn">Sua vez</string>
+    <string name="poker_waiting_for">Vez de %1$s</string>
+    <string name="poker_folded_this_hand">Você desistiu desta mão — aguardando a próxima</string>
+    <string name="poker_eliminated">Você ficou sem fichas: só acompanhando o resto do torneio</string>
+    <string name="poker_fold">Desistir</string>
+    <string name="poker_check">Passar</string>
+    <string name="poker_call">Pagar %1$d</string>
+    <string name="poker_raise_to">Aumentar para %1$d</string>
+    <string name="poker_all_in">All-in (%1$d)</string>
 </resources>
