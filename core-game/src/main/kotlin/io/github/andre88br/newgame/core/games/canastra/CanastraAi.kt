@@ -7,6 +7,7 @@ import io.github.andre88br.newgame.core.ai.GameAi
 import io.github.andre88br.newgame.core.ai.MoveOrdering
 import io.github.andre88br.newgame.core.ai.SearchLimits
 import io.github.andre88br.newgame.core.cards.Card
+import io.github.andre88br.newgame.core.cards.Suit
 import io.github.andre88br.newgame.core.cards.deckOf
 import io.github.andre88br.newgame.core.engine.Rng
 import io.github.andre88br.newgame.core.engine.Seat

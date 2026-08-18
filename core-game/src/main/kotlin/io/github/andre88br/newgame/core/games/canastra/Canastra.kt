@@ -866,7 +866,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         )
         if (depois.wentOut >= 0) return settle(depois)
         
-        val proximoTurno = Seat((state.turn.index + state.seats - 1) % state.seats)
+        val proximoTurno = Seat((state.turn.index + 1) % state.seats)
         return settle(
             depois.copy(
                 turn = proximoTurno, 
@@ -919,7 +919,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         
         if (somados.any { it >= CANASTRA_TARGET }) return state.copy(scores = somados, lastScores = ganhosDetalhes)
 
-        val proximoComecar = Seat((state.startingSeat.index + state.seats - 1) % state.seats)
+        val proximoComecar = Seat((state.startingSeat.index + 1) % state.seats)
         return dealHand(state.seats, somados, state.rng, startingSeat = proximoComecar, lastScores = ganhosDetalhes).copy(ply = state.ply)
     }
 

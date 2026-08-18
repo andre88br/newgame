@@ -40,7 +40,7 @@ class CanastraTest {
                 state.hands.all { it.size == CANASTRA_HAND_SIZE },
                 "mão fora do tamanho a $seats: ${state.hands.map { it.size }}",
             )
-            assertEquals(1, state.discard.size, "a mão abre com uma carta no lixo")
+            assertEquals(0, state.discard.size, "a mão abre com o lixo vazio: a primeira compra é do monte")
         }
     }
 
@@ -128,18 +128,22 @@ class CanastraTest {
             stock = listOf(carta(Rank.THREE, Suit.HEARTS), carta(Rank.KING, Suit.CLUBS)) + base.stock,
             phase = CanastraPhase.DRAW,
         )
-        val depois = CanastraGame.applyOrThrow(comVermelho, CanastraMove.DrawStock)
-
+        val meioCaminho = CanastraGame.applyOrThrow(comVermelho, CanastraMove.DrawStock)
         assertEquals(
             base.redThrees[time] + 1,
-            depois.redThrees[time],
+            meioCaminho.redThrees[time],
             "o três vermelho devia ter ido para a mesa",
         )
+        assertEquals(1, meioCaminho.pendingReplacements, "fica devendo uma compra de reposição")
+        assertTrue(meioCaminho.hand(Seat.FIRST).none { isRedThree(it) }, "vermelho não fica na mão")
+
+        // A reposição não vem sozinha: quem tirou o três vermelho compra de novo, à parte.
+        val depois = CanastraGame.applyOrThrow(meioCaminho, CanastraMove.DrawStock)
+        assertEquals(0, depois.pendingReplacements, "a reposição quita a dívida")
         assertTrue(
             carta(Rank.KING, Suit.CLUBS) in depois.hand(Seat.FIRST),
             "quem tira três vermelho compra outra carta no lugar",
         )
-        assertTrue(depois.hand(Seat.FIRST).none { isRedThree(it) }, "vermelho não fica na mão")
     }
 
     @Test
@@ -178,8 +182,8 @@ class CanastraTest {
         )
         val semCanastra = comCanastra.copy(melds = listOf(emptyList(), emptyList()))
 
-        val com = CanastraGame.scoreHand(comCanastra)[0]
-        val sem = CanastraGame.scoreHand(semCanastra)[0]
+        val com = CanastraGame.scoreHand(comCanastra)[0].totalRodada
+        val sem = CanastraGame.scoreHand(semCanastra)[0].totalRodada
 
         // A diferença é a canastra (que só existe do lado "com") mais os dois vermelhos a
         // 100 cada — e nada além disso, porque sem canastra eles não descontam.
@@ -199,7 +203,7 @@ class CanastraTest {
             scores = listOf(0, 0),
             batidas = listOf(0, 0),
         )
-        val pontos = CanastraGame.scoreHand(state)[0]
+        val pontos = CanastraGame.scoreHand(state)[0].totalRodada
         assertEquals(
             Meld(List(7) { carta(Rank.KING, Suit.CLUBS) }).score + 4 * RED_THREE_VALUE,
             pontos,
@@ -244,9 +248,20 @@ class CanastraTest {
 
         val antes = state.handSize(Seat.FIRST)
         val depois = CanastraGame.applyOrThrow(state, CanastraMove.TakeDiscard)
-        assertEquals(antes + 2, depois.handSize(Seat.FIRST), "pega-se o lixo inteiro")
+        assertEquals(antes + 1, depois.handSize(Seat.FIRST), "só a carta devida chega na hora")
         assertTrue(depois.discard.isEmpty(), "o lixo fica vazio depois de pego")
         assertEquals(rei, depois.owedCard, "a carta do topo fica devida até entrar em jogo")
+
+        // O resto do lixo (o três preto) só chega na mão quando a carta devida é baixada.
+        val valete = carta(Rank.JACK, Suit.HEARTS)
+        val dama = carta(Rank.QUEEN, Suit.HEARTS)
+        val jogado = CanastraGame.applyOrThrow(depois, CanastraMove.Meld(listOf(valete, dama, rei)))
+        assertNull(jogado.owedCard, "a carta devida foi baixada")
+        assertEquals(antes - 1, jogado.handSize(Seat.FIRST), "sai o trio baixado, entra o resto do lixo")
+        assertTrue(
+            carta(Rank.THREE, Suit.SPADES) in jogado.hand(Seat.FIRST),
+            "o resto do lixo (o três preto) chega na mão junto",
+        )
     }
 
     @Test
@@ -287,7 +302,7 @@ class CanastraTest {
             scores = listOf(0, 0),
             batidas = listOf(0, 0),
         )
-        assertEquals(-100, CanastraGame.scoreHand(state)[0])
+        assertEquals(-100, CanastraGame.scoreHand(state)[0].totalRodada)
     }
 
     // -------- o curinga tranca o lixo --------
