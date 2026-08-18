@@ -180,9 +180,9 @@ fun CanastraSurface(
                 onMove = onMove
             )
 
-            // CORREÇÃO: Descobre a posição exata (apenas a primeira ocorrência) da carta comprada ou devida
-            val drawnCardIndex = displayHand.indexOf(state.drawnCard)
-            val owedCardIndex = displayHand.indexOf(state.owedCard)
+            // CORREÇÃO DEFINITIVA: Pega a ÚLTIMA ocorrência da carta na mão (a que acabou de entrar no final)
+            val drawnCardIndex = displayHand.lastIndexOf(state.drawnCard)
+            val owedCardIndex = displayHand.lastIndexOf(state.owedCard)
 
             Box(
                 modifier = Modifier
@@ -193,7 +193,6 @@ fun CanastraSurface(
                     cards = displayHand,
                     palette = palette,
                     isRaised = { index, _ -> 
-                        // Agora levanta somente pelo ÍNDICE da carta, e não por todas que tiverem o mesmo valor
                         index in escolhidas || index == drawnCardIndex || index == owedCardIndex 
                     },
                     onClick = if (enabled && minhaVez && state.phase == CanastraPhase.PLAY) {
@@ -363,7 +362,7 @@ private fun EpicVictoryOverlay(state: CanastraState, viewer: Seat, names: List<S
                     val isWinner = time == winnerTeam
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = teamLabel(state, time, viewer, names).take(12), // Evita nomes gigantes
+                            text = teamLabel(state, time, viewer, names).take(12),
                             color = if (isWinner) Color(0xFFFFD700) else Color.White,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1
