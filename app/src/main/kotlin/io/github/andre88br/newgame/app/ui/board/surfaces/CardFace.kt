@@ -106,10 +106,10 @@ fun CardFan(
                     palette = palette,
                     selected = puxada,
                     playable = isPlayable(index, carta),
-                    alpha = animAlpha,
                     onClick = onClick?.let { acao -> { acao(index, carta) } },
                     modifier = Modifier
                         .offset(x = animX, y = animY)
+                        .alpha(animAlpha)
                         .zIndex(index.toFloat() + if (puxada) 0.5f else 0f)
                 )
             }
@@ -125,14 +125,6 @@ fun CardFace(
     selected: Boolean = false,
     hinted: Boolean = false,
     playable: Boolean = true,
-    /**
-     * Opacidade extra, multiplicada com a de [playable] — por exemplo a animação de
-     * distribuir, no leque ([CardFan]). Uma só camada de `alpha`, e não duas encadeadas: duas
-     * multiplicam do mesmo jeito, mas cada `.alpha()` cria sua própria camada de composição, e
-     * juntar num só é o que evita depender de duas camadas concordarem exatamente no mesmo
-     * quadro de animação.
-     */
-    alpha: Float = 1f,
     onClick: (() -> Unit)? = null,
 ) {
     if (card.isHidden) {
@@ -159,7 +151,7 @@ fun CardFace(
                 shape = RoundedCornerShape(6.dp),
             )
             .then(if (onClick != null) Modifier.clickable(onClickLabel = nome) { onClick() } else Modifier)
-            .alpha(alpha * if (playable) 1f else 0.45f)
+            .alpha(if (playable) 1f else 0.45f)
             .semantics { contentDescription = nome },
     ) {
         Column(
