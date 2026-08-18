@@ -19,6 +19,8 @@ import io.github.andre88br.newgame.core.games.klondike.KlondikeAi
 import io.github.andre88br.newgame.core.games.klondike.KlondikeGame
 import io.github.andre88br.newgame.core.games.pife.PifeAi
 import io.github.andre88br.newgame.core.games.pife.PifeGame
+import io.github.andre88br.newgame.core.games.poker.PokerAi
+import io.github.andre88br.newgame.core.games.poker.PokerGame
 import io.github.andre88br.newgame.core.games.ludo.LudoAi
 import io.github.andre88br.newgame.core.games.ludo.LudoGame
 import io.github.andre88br.newgame.core.games.reversi.ReversiAi
@@ -145,6 +147,15 @@ object GameCatalog {
             nameKey = "game_truco",
             // Trucar, responder e jogar carta são lances curtos e seguidos: o compasso longo
             // dos outros jogos deixaria a resposta a um truco parecendo travamento.
+            aiPaceMillis = 450L,
+        ),
+        GameEntry(
+            rules = PokerGame.asAny(),
+            ai = PokerAi.asAnyAi(),
+            interactor = null,
+            nameKey = "game_poker",
+            // Passar, pagar e as próprias cartas caindo são vários lances por mão: o mesmo
+            // motivo do truco para um compasso curto.
             aiPaceMillis = 450L,
         ),
     )

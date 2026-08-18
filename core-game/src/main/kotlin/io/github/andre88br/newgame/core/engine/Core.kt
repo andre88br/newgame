@@ -17,6 +17,7 @@ enum class GameId {
     PIFE,
     KLONDIKE,
     TRUCO,
+    POKER,
 }
 
 /**

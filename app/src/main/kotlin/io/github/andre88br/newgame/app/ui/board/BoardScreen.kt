@@ -316,7 +316,7 @@ private fun soloGame(gameId: GameId): Boolean =
  */
 private fun coloredPieces(gameId: GameId): Boolean = when (gameId) {
     GameId.DOMINOES, GameId.LUDO, GameId.HEARTS, GameId.CANASTRA, GameId.PIFE,
-    GameId.KLONDIKE, GameId.TRUCO,
+    GameId.KLONDIKE, GameId.TRUCO, GameId.POKER,
     -> false
     else -> true
 }

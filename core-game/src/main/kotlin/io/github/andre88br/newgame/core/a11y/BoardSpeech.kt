@@ -146,7 +146,7 @@ object BoardSpeech {
             // Dominó, ludo e os jogos de carta não têm casas de grade: veja [tile], [token]
             // e, nas cartas, a descrição que a própria tela monta a partir da mão.
             GameId.DOMINOES, GameId.LUDO, GameId.HEARTS, GameId.CANASTRA, GameId.PIFE,
-            GameId.KLONDIKE, GameId.TRUCO,
+            GameId.KLONDIKE, GameId.TRUCO, GameId.POKER,
             -> null
         }
 

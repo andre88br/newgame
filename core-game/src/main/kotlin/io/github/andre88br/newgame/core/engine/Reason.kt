@@ -158,6 +158,14 @@ enum class ReasonKey(
     TRUCO_NOTHING_TO_ANSWER("Não há truco na mesa para responder"),
     TRUCO_NOT_YOUR_CALL("Quem trucou foi o seu lado: espere o outro aumentar"),
     TRUCO_AT_THE_TOP("Doze é o máximo: não há como aumentar"),
+
+    // -------- pôquer --------
+
+    POKER_CANNOT_CHECK("Há uma aposta na mesa: pague, aumente ou desista"),
+    POKER_NOTHING_TO_CALL("Não há aposta para pagar: passe ou aumente"),
+    POKER_RAISE_TOO_LOW("O aumento precisa ser de pelo menos o valor mínimo desta rodada"),
+    POKER_RAISE_TOO_HIGH("Você não tem fichas suficientes para esse aumento"),
+    POKER_NO_RAISE_AFTER_ALL_IN("Com alguém all-in, só dá para pagar ou desistir"),
     ;
 
     /** `reason_game_over`, e assim por diante. */

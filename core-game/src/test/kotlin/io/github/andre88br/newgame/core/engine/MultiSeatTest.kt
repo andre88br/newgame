@@ -40,7 +40,7 @@ class MultiSeatTest {
         assertEquals(
             setOf(
                 GameId.DOMINOES, GameId.LUDO, GameId.HEARTS, GameId.CANASTRA, GameId.PIFE,
-                GameId.TRUCO,
+                GameId.TRUCO, GameId.POKER,
             ),
             grandes,
         )
@@ -50,7 +50,7 @@ class MultiSeatTest {
             .map { it.id }
             .toSet()
         assertEquals(
-            setOf(GameId.DOMINOES, GameId.LUDO, GameId.CANASTRA, GameId.PIFE, GameId.TRUCO),
+            setOf(GameId.DOMINOES, GameId.LUDO, GameId.CANASTRA, GameId.PIFE, GameId.TRUCO, GameId.POKER),
             escolhem,
             "copas é de quatro e só; os outros deixam escolher o tamanho da mesa",
         )

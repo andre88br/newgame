@@ -1,0 +1,472 @@
+package io.github.andre88br.newgame.core.games.poker
+
+import io.github.andre88br.newgame.core.cards.Card
+import io.github.andre88br.newgame.core.cards.hidden
+import io.github.andre88br.newgame.core.cards.standardDeck
+import io.github.andre88br.newgame.core.engine.BoardGame
+import io.github.andre88br.newgame.core.engine.GameId
+import io.github.andre88br.newgame.core.engine.GameState
+import io.github.andre88br.newgame.core.engine.MatchConfig
+import io.github.andre88br.newgame.core.engine.Move
+import io.github.andre88br.newgame.core.engine.MoveResult
+import io.github.andre88br.newgame.core.engine.Outcome
+import io.github.andre88br.newgame.core.engine.ReasonKey
+import io.github.andre88br.newgame.core.engine.Rng
+import io.github.andre88br.newgame.core.engine.Seat
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.serializer
+
+/** Fichas de compra padrão, quando a configuração não pede outro valor. */
+const val POKER_DEFAULT_BUY_IN: Int = 1000
+
+/** Big blind padrão. O small blind é sempre metade dele. */
+const val POKER_DEFAULT_BIG_BLIND: Int = 20
+
+/** Chaves de [MatchConfig.options] que este jogo entende. */
+const val POKER_OPTION_BUY_IN: String = "poker.buyIn"
+const val POKER_OPTION_BIG_BLIND: String = "poker.bigBlind"
+
+/** As quatro rodadas de aposta de uma mão de Texas Hold'em. */
+enum class PokerStreet { PREFLOP, FLOP, TURN, RIVER }
+
+@Serializable
+data class PokerState(
+    /** As duas cartas de cada cadeira. Vazia para quem está fora do torneio ou fora desta mão. */
+    val hands: List<List<Card>> = emptyList(),
+    /** As cartas comunitárias já reveladas: três, quatro ou cinco, conforme a rodada. */
+    val board: List<Card> = emptyList(),
+    /** O que resta do baralho embaralhado, para as próximas cartas comunitárias. */
+    val deck: List<Card> = emptyList(),
+    /** Fichas de cada cadeira. Zero é eliminação: a cadeira não volta a ser servida. */
+    val stacks: List<Int> = emptyList(),
+    /** Quanto cada cadeira já colocou **nesta rodada de aposta**. Zera a cada rua nova. */
+    val streetBet: List<Int> = emptyList(),
+    /** Quem já desistiu nesta mão — ou nunca foi servido, por estar eliminado. */
+    val folded: List<Boolean> = emptyList(),
+    /** Quem ainda precisa agir nesta rodada antes dela poder fechar. */
+    val toAct: List<Boolean> = emptyList(),
+    /** Fichas já apostadas nesta mão, de todas as ruas somadas. */
+    val pot: Int = 0,
+    val street: PokerStreet = PokerStreet.PREFLOP,
+    /** O aumento mínimo válido agora: o do último aumento desta rua, ou o big blind se nenhum houve. */
+    val minRaise: Int = POKER_DEFAULT_BIG_BLIND,
+    val button: Seat = Seat.FIRST,
+    val smallBlind: Int = POKER_DEFAULT_BIG_BLIND / 2,
+    val bigBlind: Int = POKER_DEFAULT_BIG_BLIND,
+    override val turn: Seat = Seat.FIRST,
+    override val ply: Int = 0,
+    val seats: Int = 2,
+    val rng: Rng = Rng(0),
+    /**
+     * O torneio já acabou — sobrou uma cadeira só com ficha.
+     *
+     * Não dá para derivar isto de "alguém está com [stacks] zerado agora": é assim que fica
+     * durante uma mão, sempre que alguém vai all-in, mesmo que essa cadeira ainda possa
+     * ganhar o showdown e voltar a ter ficha. O torneio só termina de verdade **entre mãos**,
+     * quando [PokerGame] já repartiu o pote e decide se reparte outra mão ou para aqui — e é
+     * só nesse momento que este campo vira `true`.
+     */
+    val gameOver: Boolean = false,
+) : GameState {
+
+    fun hand(seat: Seat): List<Card> = hands.getOrElse(seat.index) { emptyList() }
+
+    fun stack(seat: Seat): Int = stacks.getOrElse(seat.index) { 0 }
+
+    /** Ainda disputa esta mão — não desistiu e foi servido nela. */
+    fun isIn(seat: Seat): Boolean = folded.getOrElse(seat.index) { true }.not()
+
+    /** Continua no torneio: tem ficha, mesmo que já tenha desistido desta mão. */
+    fun isAlive(seat: Seat): Boolean = stack(seat) > 0 || isIn(seat)
+
+    /** Maior valor apostado nesta rua por qualquer cadeira, inclusive quem já desistiu. */
+    val maxStreetBet: Int get() = streetBet.maxOrNull() ?: 0
+
+    /** Quanto falta a [seat] para igualar a aposta da rua. */
+    fun toCall(seat: Seat): Int = maxStreetBet - streetBet.getOrElse(seat.index) { 0 }
+
+    /** Alguém nesta mão já apostou tudo o que tinha. Trava novos aumentos — veja a nota em [PokerGame]. */
+    val anyAllIn: Boolean get() = folded.indices.any { !folded[it] && stacks.getOrElse(it) { 0 } == 0 }
+
+    override fun toString(): String = buildString {
+        append("rua=$street pote=$pot vez=${turn.index}\n")
+        append("mesa: ${board.joinToString(" ")}\n")
+        hands.forEachIndexed { index, mao ->
+            append("cadeira $index: ${mao.joinToString(" ")} fichas=${stack(Seat(index))}")
+            if (!isIn(Seat(index))) append(" (fora)")
+            append("\n")
+        }
+    }
+}
+
+@Serializable
+sealed interface PokerMove : Move {
+
+    @Serializable
+    data object Fold : PokerMove {
+        override fun describe(): String = "desisto"
+    }
+
+    @Serializable
+    data object Check : PokerMove {
+        override fun describe(): String = "passo"
+    }
+
+    @Serializable
+    data object Call : PokerMove {
+        override fun describe(): String = "pago"
+    }
+
+    /**
+     * Aumenta a aposta da rua até [to] fichas — o total que a cadeira terá posto nesta rua,
+     * não só o quanto está acrescentando agora. `to` igual às fichas que a cadeira tem mais o
+     * que já apostou é ir all-in.
+     */
+    @Serializable
+    data class Raise(val to: Int) : PokerMove {
+        override fun describe(): String = "aumento para $to"
+    }
+}
+
+/**
+ * Texas Hold'em, torneio freezeout com fichas de um bolso só: quem zera está fora, e a
+ * partida termina quando resta uma cadeira com ficha.
+ *
+ * **Sem side pot, de propósito.** Pôquer de verdade divide o pote quando alguém vai all-in
+ * por menos do que os outros apostam depois — cada aposta a mais que o all-in mais curto
+ * forma um pote paralelo, disputado só por quem ainda tem ficha em jogo. Essa divisão é a
+ * parte mais complexa da contabilidade do pôquer, e esta primeira versão a evita por uma
+ * regra mais simples: **assim que qualquer cadeira desta mão fica all-in, ninguém mais pode
+ * aumentar** — só pagar ou desistir. Isso não elimina toda a assimetria (uma cadeira pode
+ * ainda ficar all-in por menos do que a aposta corrente, se não tiver ficha para pagar
+ * inteiro), mas nesse caso o pote continua **único**: quem vence o showdown leva tudo, mesmo
+ * a parte que o all-in mais curto não tinha como cobrir. É uma simplificação deliberada, não
+ * um bug — dividir de verdade fica para uma versão futura.
+ *
+ * Blinds fixos (não sobem com o tempo, como num torneio de verdade) — o buy-in e o big blind
+ * vêm de [MatchConfig.options] (`poker.buyIn`, `poker.bigBlind`), com [POKER_DEFAULT_BUY_IN] e
+ * [POKER_DEFAULT_BIG_BLIND] quando ausentes.
+ */
+object PokerGame : BoardGame<PokerState, PokerMove> {
+
+    override val id: GameId = GameId.POKER
+
+    override val supportedSeats: IntRange = 2..4
+
+    override fun seatsIn(state: PokerState): Int = state.seats
+
+    override val hasHiddenInformation: Boolean = true
+
+    override fun initialState(config: MatchConfig): PokerState {
+        val seats = config.seats
+        val buyIn = config.option(POKER_OPTION_BUY_IN)?.toIntOrNull()?.takeIf { it > 0 } ?: POKER_DEFAULT_BUY_IN
+        val bigBlind = config.option(POKER_OPTION_BIG_BLIND)?.toIntOrNull()?.takeIf { it > 0 } ?: POKER_DEFAULT_BIG_BLIND
+        // O botão nasce na última cadeira para o primeiro small blind cair na cadeira zero,
+        // por onde toda partida deste app começa — a mesma convenção do truco.
+        return dealHand(
+            seats = seats,
+            stacks = List(seats) { buyIn },
+            button = Seat(seats - 1),
+            smallBlind = bigBlind / 2,
+            bigBlind = bigBlind,
+            rng = config.rng(),
+        )
+    }
+
+    /** Reparte uma mão nova: duas cartas para cada cadeira viva, blinds postados. */
+    private fun dealHand(
+        seats: Int,
+        stacks: List<Int>,
+        button: Seat,
+        smallBlind: Int,
+        bigBlind: Int,
+        rng: Rng,
+    ): PokerState {
+        val vivas = (0 until seats).filter { stacks[it] > 0 }
+        check(vivas.size >= 2) { "Não dá para repartir uma mão com menos de duas cadeiras vivas" }
+
+        val embaralhado = rng.shuffle(standardDeck())
+        var baralho = embaralhado.value
+        val maos = MutableList(seats) { emptyList<Card>() }
+        for (s in vivas) {
+            maos[s] = baralho.take(2)
+            baralho = baralho.drop(2)
+        }
+
+        val botao = if (button.index in vivas) button else nextAlive(button, vivas, seats)
+        val sbSeat = if (vivas.size == 2) botao else nextAlive(botao, vivas, seats)
+        val bbSeat = nextAlive(sbSeat, vivas, seats)
+        val primeiroAAgir = nextAlive(bbSeat, vivas, seats)
+
+        val novasFichas = stacks.toMutableList()
+        val streetBet = MutableList(seats) { 0 }
+        val sbPago = minOf(smallBlind, novasFichas[sbSeat.index])
+        val bbPago = minOf(bigBlind, novasFichas[bbSeat.index])
+        novasFichas[sbSeat.index] -= sbPago
+        novasFichas[bbSeat.index] -= bbPago
+        streetBet[sbSeat.index] = sbPago
+        streetBet[bbSeat.index] = bbPago
+
+        val folded = List(seats) { it !in vivas }
+        val toAct = List(seats) { it in vivas && novasFichas[it] > 0 }
+
+        val repartido = PokerState(
+            hands = maos,
+            board = emptyList(),
+            deck = baralho,
+            stacks = novasFichas,
+            streetBet = streetBet,
+            folded = folded,
+            toAct = toAct,
+            pot = sbPago + bbPago,
+            street = PokerStreet.PREFLOP,
+            minRaise = bigBlind,
+            button = botao,
+            smallBlind = smallBlind,
+            bigBlind = bigBlind,
+            turn = primeiroAAgir,
+            ply = 0,
+            seats = seats,
+            rng = embaralhado.rng,
+        )
+        // Só acontece com uma cadeira curtíssima de fichas (o blind já a deixou all-in): a
+        // rodada pode ter fechado antes de qualquer lance — cai direto no mesmo caminho de
+        // "ninguém mais decide nada" que uma aposta comum usaria depois de um lance.
+        return if (rodadaFechou(repartido)) avancarRua(repartido) else repartido.copy(turn = firstToAct(toAct, primeiroAAgir))
+    }
+
+    /**
+     * [from] se ainda precisa agir, senão a próxima cadeira (a partir dela, inclusive dando a
+     * volta) que precisa — usado para não travar a vez numa cadeira all-in perto do botão.
+     */
+    private fun firstToAct(toAct: List<Boolean>, from: Seat): Seat {
+        for (offset in 0 until toAct.size) {
+            val idx = (from.index + offset) % toAct.size
+            if (toAct[idx]) return Seat(idx)
+        }
+        return from
+    }
+
+    /** A próxima cadeira, depois de [from], que ainda precisa agir nesta rodada. */
+    private fun nextToAct(state: PokerState, from: Seat): Seat {
+        for (offset in 1..state.seats) {
+            val idx = (from.index + offset) % state.seats
+            if (state.toAct[idx]) return Seat(idx)
+        }
+        error("Lance aplicado sem a rodada ter fechado, mas ninguém precisa agir")
+    }
+
+    /** A próxima cadeira viva (com ficha) a partir de [from], sem contar ela mesma. */
+    private fun nextAlive(from: Seat, vivas: List<Int>, seats: Int): Seat {
+        for (offset in 1..seats) {
+            val idx = (from.index + offset) % seats
+            if (idx in vivas) return Seat(idx)
+        }
+        error("Nenhuma cadeira viva encontrada a partir de $from")
+    }
+
+    override fun legalMoves(state: PokerState): List<PokerMove> {
+        if (outcome(state).isOver) return emptyList()
+        val seat = state.turn
+        if (!state.isIn(seat)) return emptyList()
+
+        val toCall = state.toCall(seat)
+        val saida = mutableListOf<PokerMove>()
+        if (toCall > 0) {
+            saida += PokerMove.Fold
+            saida += PokerMove.Call
+        } else {
+            saida += PokerMove.Check
+        }
+
+        if (!state.anyAllIn && state.stack(seat) > 0) {
+            val allInTo = state.streetBet.getOrElse(seat.index) { 0 } + state.stack(seat)
+            if (allInTo > state.maxStreetBet) {
+                val minTo = state.maxStreetBet + state.minRaise
+                val candidatos = sortedSetOf<Int>()
+                if (minTo <= allInTo) candidatos += minTo
+                val potRaiseTo = state.maxStreetBet + toCall + state.pot
+                if (potRaiseTo in (minTo + 1) until allInTo) candidatos += potRaiseTo
+                candidatos += allInTo
+                candidatos.forEach { saida += PokerMove.Raise(it) }
+            }
+        }
+        return saida
+    }
+
+    override fun applyMove(state: PokerState, move: PokerMove): MoveResult<PokerState> {
+        if (outcome(state).isOver) return MoveResult.Illegal(ReasonKey.GAME_OVER)
+        val seat = state.turn
+        if (!state.isIn(seat)) return MoveResult.Illegal(ReasonKey.GAME_OVER)
+
+        when (move) {
+            PokerMove.Fold -> {
+                if (state.toCall(seat) == 0) return MoveResult.Illegal(ReasonKey.POKER_NOTHING_TO_CALL)
+            }
+            PokerMove.Check -> {
+                if (state.toCall(seat) > 0) return MoveResult.Illegal(ReasonKey.POKER_CANNOT_CHECK)
+            }
+            PokerMove.Call -> {
+                if (state.toCall(seat) == 0) return MoveResult.Illegal(ReasonKey.POKER_NOTHING_TO_CALL)
+            }
+            is PokerMove.Raise -> {
+                if (state.anyAllIn) return MoveResult.Illegal(ReasonKey.POKER_NO_RAISE_AFTER_ALL_IN)
+                val allInTo = state.streetBet.getOrElse(seat.index) { 0 } + state.stack(seat)
+                if (move.to <= state.maxStreetBet) return MoveResult.Illegal(ReasonKey.POKER_RAISE_TOO_LOW)
+                if (move.to > allInTo) return MoveResult.Illegal(ReasonKey.POKER_RAISE_TOO_HIGH)
+                val minTo = state.maxStreetBet + state.minRaise
+                if (move.to < minTo && move.to != allInTo) {
+                    return MoveResult.Illegal(ReasonKey.POKER_RAISE_TOO_LOW)
+                }
+            }
+        }
+        return MoveResult.Ok(applyKnownLegal(state, move))
+    }
+
+    override fun applyKnownLegal(state: PokerState, move: PokerMove): PokerState {
+        val seat = state.turn
+        val depois = when (move) {
+            PokerMove.Fold -> state.copy(
+                folded = state.folded.toMutableList().also { it[seat.index] = true },
+                toAct = state.toAct.toMutableList().also { it[seat.index] = false },
+                ply = state.ply + 1,
+            )
+            PokerMove.Check -> state.copy(
+                toAct = state.toAct.toMutableList().also { it[seat.index] = false },
+                ply = state.ply + 1,
+            )
+            PokerMove.Call -> {
+                val paga = minOf(state.toCall(seat), state.stack(seat))
+                state.copy(
+                    stacks = state.stacks.toMutableList().also { it[seat.index] -= paga },
+                    streetBet = state.streetBet.toMutableList().also { it[seat.index] += paga },
+                    pot = state.pot + paga,
+                    toAct = state.toAct.toMutableList().also { it[seat.index] = false },
+                    ply = state.ply + 1,
+                )
+            }
+            is PokerMove.Raise -> {
+                val paga = move.to - state.streetBet.getOrElse(seat.index) { 0 }
+                val aumento = move.to - state.maxStreetBet
+                val novoToAct = state.toAct.toMutableList()
+                for (i in 0 until state.seats) {
+                    novoToAct[i] = i != seat.index && !state.folded[i] && state.stacks.getOrElse(i) { 0 } > 0
+                }
+                state.copy(
+                    stacks = state.stacks.toMutableList().also { it[seat.index] -= paga },
+                    streetBet = state.streetBet.toMutableList().also { it[seat.index] = move.to },
+                    pot = state.pot + paga,
+                    toAct = novoToAct,
+                    minRaise = maxOf(state.minRaise, aumento),
+                    ply = state.ply + 1,
+                )
+            }
+        }
+
+        // Desistência que deixa uma cadeira só de pé fecha a mão sem showdown.
+        val emJogo = (0 until depois.seats).filter { depois.folded[it].not() }
+        if (move is PokerMove.Fold && emJogo.size == 1) {
+            return concluirMao(depois, ganhadores = emJogo)
+        }
+
+        if (rodadaFechou(depois)) return avancarRua(depois)
+        return depois.copy(turn = nextToAct(depois, seat))
+    }
+
+    /** A rodada de apostas desta rua já pode fechar: ninguém que ainda pode agir está devendo ação. */
+    private fun rodadaFechou(state: PokerState): Boolean =
+        (0 until state.seats).none { state.toAct[it] }
+
+    /**
+     * Avança para a rua seguinte — ou, se ninguém mais pode decidir nada (todo mundo all-in
+     * menos no máximo um), revela o resto da mesa de uma vez e vai direto ao showdown.
+     */
+    private fun avancarRua(state: PokerState): PokerState {
+        val podemAgir = (0 until state.seats).count { !state.folded[it] && state.stacks[it] > 0 }
+        val semMaisAposta = podemAgir <= 1
+
+        if (state.street == PokerStreet.RIVER) return showdown(state)
+
+        val cartas = when (state.street) {
+            PokerStreet.PREFLOP -> 3
+            PokerStreet.FLOP -> 1
+            PokerStreet.TURN -> 1
+            PokerStreet.RIVER -> 0
+        }
+        val novoBoard = state.board + state.deck.take(cartas)
+        val novoDeck = state.deck.drop(cartas)
+        val novaRua = when (state.street) {
+            PokerStreet.PREFLOP -> PokerStreet.FLOP
+            PokerStreet.FLOP -> PokerStreet.TURN
+            PokerStreet.TURN -> PokerStreet.RIVER
+            PokerStreet.RIVER -> PokerStreet.RIVER
+        }
+
+        val vivas = (0 until state.seats).filter { !state.folded[it] }
+        val proximo = nextAlive(state.button, vivas, state.seats)
+        val novoToAct = List(state.seats) { !state.folded[it] && state.stacks[it] > 0 }
+        val avancado = state.copy(
+            board = novoBoard,
+            deck = novoDeck,
+            street = novaRua,
+            streetBet = List(state.seats) { 0 },
+            minRaise = state.bigBlind,
+            toAct = novoToAct,
+            // O primeiro a agir na rua nova é o próximo não desistente depois do botão — a
+            // menos que ele já esteja all-in, caso em que não há nada para ele decidir e a
+            // vez passa direto para quem ainda pode apostar.
+            turn = firstToAct(novoToAct, proximo),
+        )
+
+        return if (semMaisAposta) avancarRua(avancado) else avancado
+    }
+
+    /** Ninguém mais aposta: compara as mãos de quem sobrou e reparte o pote. */
+    private fun showdown(state: PokerState): PokerState {
+        val emJogo = (0 until state.seats).filter { !state.folded[it] }
+        val valores = emJogo.associateWith { bestHand(state.hand(Seat(it)) + state.board) }
+        val melhor = valores.values.max()
+        val ganhadores = emJogo.filter { valores.getValue(it) == melhor }
+        return concluirMao(state, ganhadores)
+    }
+
+    /** Reparte o pote entre [ganhadores] (o resto de divisão ímpar fica com o primeiro) e inicia a próxima mão. */
+    private fun concluirMao(state: PokerState, ganhadores: List<Int>): PokerState {
+        val porCabeca = state.pot / ganhadores.size
+        val resto = state.pot % ganhadores.size
+        val fichas = state.stacks.toMutableList()
+        ganhadores.forEachIndexed { i, seat -> fichas[seat] += porCabeca + if (i == 0) resto else 0 }
+
+        val encerrado = state.copy(stacks = fichas, pot = 0)
+        val vivas = (0 until encerrado.seats).count { fichas[it] > 0 }
+        if (vivas <= 1) {
+            return encerrado.copy(folded = List(encerrado.seats) { fichas[it] <= 0 }, gameOver = true)
+        }
+
+        return dealHand(
+            seats = encerrado.seats,
+            stacks = fichas,
+            button = nextAlive(encerrado.button, (0 until encerrado.seats).filter { fichas[it] > 0 }, encerrado.seats),
+            smallBlind = encerrado.smallBlind,
+            bigBlind = encerrado.bigBlind,
+            rng = encerrado.rng,
+        ).copy(ply = encerrado.ply)
+    }
+
+    override fun outcome(state: PokerState): Outcome {
+        if (!state.gameOver) return Outcome.InProgress
+        val vencedor = state.stacks.indexOfFirst { it > 0 }
+        return Outcome.Win(Seat(vencedor))
+    }
+
+    /** A mão de cada um é dela, e a mesa é pública — o padrão de todo jogo de carta de informação oculta. */
+    override fun redactFor(state: PokerState, viewer: Seat): PokerState = state.copy(
+        hands = state.hands.mapIndexed { index, mao ->
+            if (index == viewer.index || mao.isEmpty()) mao else mao.hidden()
+        },
+    )
+
+    override val stateSerializer: KSerializer<PokerState> = serializer()
+    override val moveSerializer: KSerializer<PokerMove> = serializer()
+}
