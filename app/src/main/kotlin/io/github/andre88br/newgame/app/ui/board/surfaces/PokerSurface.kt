@@ -37,6 +37,7 @@ import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.games.poker.PokerGame
 import io.github.andre88br.newgame.core.games.poker.PokerHandResult
 import io.github.andre88br.newgame.core.games.poker.PokerMove
+import io.github.andre88br.newgame.core.games.poker.PokerPotShare
 import io.github.andre88br.newgame.core.games.poker.PokerState
 import io.github.andre88br.newgame.core.games.poker.PokerStreet
 
@@ -81,14 +82,16 @@ fun PokerSurface(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        StacksRow(state = state, viewer = viewer, names = names, palette = palette)
-
         CardTable(
             seats = state.seats,
             viewer = viewer,
             names = names,
             handSize = { seat -> if (state.isIn(seat)) 2 else 0 },
             palette = palette,
+            // As fichas de cada adversário aparecem junto do nome dela, embaixo da própria
+            // mão — não numa faixa à parte lá em cima, onde ficariam longe das cartas que
+            // decidem se vale a pena pagar aquela aposta.
+            seatExtra = { seat -> PlayerChips(amount = state.stack(seat), destaque = seat == state.turn) },
             modifier = Modifier.fillMaxWidth(),
         ) {
             TableArea(state = state, palette = palette)
@@ -124,41 +127,30 @@ fun PokerSurface(
             )
         }
 
-        CardFan(cards = mao, palette = palette)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // A própria pilha fica ao lado da própria mão, pelo mesmo motivo da de cada
+            // adversário: é olhando as fichas que se decide pagar ou desistir.
+            PlayerChips(amount = state.stack(viewer), destaque = minhaVez)
+            CardFan(cards = mao, palette = palette)
+        }
     }
 }
 
-/** As fichas de cada cadeira, numa faixa só — é o que decide se vale pagar ou desistir. */
+/** A pilha de fichas e o valor de uma cadeira — usado ao lado da mão dela, própria ou adversária. */
 @Composable
-private fun StacksRow(state: PokerState, viewer: Seat, names: List<String>, palette: BoardPalette) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        for (index in 0 until state.seats) {
-            val seat = Seat(index)
-            val foraDaMao = !state.isIn(seat)
-            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = seatLabel(index, viewer, names),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (foraDaMao) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else if (seat == viewer) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                )
-                ChipStack(amount = state.stack(seat))
-                Text(
-                    text = "${state.stack(seat)}",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = if (seat == state.turn) FontWeight.Bold else FontWeight.Normal,
-                    color = if (foraDaMao) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                )
-            }
-        }
+private fun PlayerChips(amount: Int, destaque: Boolean, modifier: Modifier = Modifier) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
+        ChipStack(amount = amount)
+        Text(
+            text = "$amount",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (destaque) FontWeight.Bold else FontWeight.Normal,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 
@@ -200,14 +192,26 @@ private fun ChipStack(amount: Int, modifier: Modifier = Modifier) {
     }
 }
 
-/** "Fulano venceu 40 fichas", ou "Fulano, Sicrano dividiram 40 fichas" num empate. */
+/**
+ * "Fulano venceu 40 fichas", ou "Fulano, Sicrano dividiram 40 fichas" num empate.
+ *
+ * Quando a mão fechou com pote lateral (alguém foi all-in por menos do que os outros
+ * cobriram), [PokerHandResult.pots] tem mais de um item — um por camada — e cada um vira sua
+ * própria frase, juntas nesta linha.
+ */
 @Composable
 private fun lastResultText(resultado: PokerHandResult, viewer: Seat, names: List<String>): String {
-    val nomes = resultado.winners.map { seatLabel(it, viewer, names) }
+    val partes = resultado.pots.map { pote -> potShareText(pote, viewer, names) }
+    return partes.joinToString(" • ")
+}
+
+@Composable
+private fun potShareText(pote: PokerPotShare, viewer: Seat, names: List<String>): String {
+    val nomes = pote.winners.map { seatLabel(it, viewer, names) }
     return if (nomes.size == 1) {
-        stringResource(R.string.poker_last_hand_won, nomes.first(), resultado.amount)
+        stringResource(R.string.poker_last_hand_won, nomes.first(), pote.amount)
     } else {
-        stringResource(R.string.poker_last_hand_split, nomes.joinToString(", "), resultado.amount)
+        stringResource(R.string.poker_last_hand_split, nomes.joinToString(", "), pote.amount)
     }
 }
 

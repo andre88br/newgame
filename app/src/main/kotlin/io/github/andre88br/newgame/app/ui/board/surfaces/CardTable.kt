@@ -67,6 +67,12 @@ fun CardTable(
     handContent: @Composable (count: Int, vertical: Boolean) -> Unit = { count, vertical ->
         OpponentFan(count = count, palette = palette, vertical = vertical)
     },
+    /**
+     * O que mostrar junto do nome de cada adversário — vazio por padrão. O pôquer usa isto
+     * para colocar a pilha de fichas de cada um ao lado da própria mão, em vez de só numa
+     * faixa separada em cima da mesa; os outros jogos de carta não passam nada aqui.
+     */
+    seatExtra: @Composable (Seat) -> Unit = {},
     center: @Composable () -> Unit,
 ) {
     val outras = (1 until seats).map { offset -> Seat((viewer.index + offset) % seats) }
@@ -80,9 +86,11 @@ fun CardTable(
         if (cima != null) {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 OpponentHand(
+                    seat = cima,
                     count = handSize(cima),
                     name = seatLabel(cima.index, viewer, names),
                     handContent = handContent,
+                    seatExtra = seatExtra,
                 )
             }
             Spacer(modifier = Modifier.height(6.dp))
@@ -90,9 +98,11 @@ fun CardTable(
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (esquerda != null) {
                 OpponentHand(
+                    seat = esquerda,
                     count = handSize(esquerda),
                     name = seatLabel(esquerda.index, viewer, names),
                     handContent = handContent,
+                    seatExtra = seatExtra,
                     vertical = true,
                 )
                 Spacer(modifier = Modifier.width(6.dp))
@@ -101,9 +111,11 @@ fun CardTable(
             if (direita != null) {
                 Spacer(modifier = Modifier.width(6.dp))
                 OpponentHand(
+                    seat = direita,
                     count = handSize(direita),
                     name = seatLabel(direita.index, viewer, names),
                     handContent = handContent,
+                    seatExtra = seatExtra,
                     vertical = true,
                 )
             }
@@ -113,9 +125,11 @@ fun CardTable(
 
 @Composable
 private fun OpponentHand(
+    seat: Seat,
     count: Int,
     name: String,
     handContent: @Composable (count: Int, vertical: Boolean) -> Unit,
+    seatExtra: @Composable (Seat) -> Unit,
     vertical: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -130,6 +144,7 @@ private fun OpponentHand(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.clearAndSetSemantics { },
         )
+        seatExtra(seat)
     }
 }
 

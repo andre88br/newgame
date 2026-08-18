@@ -30,6 +30,10 @@ const val POKER_OPTION_BIG_BLIND: String = "poker.bigBlind"
 /** As quatro rodadas de aposta de uma mão de Texas Hold'em. */
 enum class PokerStreet { PREFLOP, FLOP, TURN, RIVER }
 
+/** Quem levou um pote (principal ou lateral) do showdown, e quanto. */
+@Serializable
+data class PokerPotShare(val winners: List<Int>, val amount: Int)
+
 /**
  * Quem levou a mão anterior, e quanto — para a tela mostrar depois que o motor já repartiu a
  * mão seguinte.
@@ -38,9 +42,14 @@ enum class PokerStreet { PREFLOP, FLOP, TURN, RIVER }
  * resposta (o mesmo padrão do truco). Sem guardar isto em algum lugar, o resultado apareceria
  * e desapareceria no mesmo instante — a tela nunca teria a chance de mostrá-lo. Fica valendo
  * até a mão seguinte fechar e sobrescrever com o resultado dela.
+ *
+ * Normalmente [pots] tem um item só. Quando alguém foi all-in por menos do que os outros
+ * apostaram depois, tem mais de um: um pote principal, que todo mundo ainda na mão disputa, e
+ * um ou mais potes laterais, que só quem cobriu aquele valor disputa — veja a nota em
+ * [PokerGame] sobre por que essa divisão existe.
  */
 @Serializable
-data class PokerHandResult(val winners: List<Int>, val amount: Int)
+data class PokerHandResult(val pots: List<PokerPotShare>)
 
 @Serializable
 data class PokerState(
@@ -54,6 +63,12 @@ data class PokerState(
     val stacks: List<Int> = emptyList(),
     /** Quanto cada cadeira já colocou **nesta rodada de aposta**. Zera a cada rua nova. */
     val streetBet: List<Int> = emptyList(),
+    /**
+     * Quanto cada cadeira já colocou **nesta mão inteira**, somando todas as ruas. Nunca zera
+     * durante a mão — é o que permite montar os potes laterais no showdown, comparando quanto
+     * cada um efetivamente cobriu.
+     */
+    val contrib: List<Int> = emptyList(),
     /** Quem já desistiu nesta mão — ou nunca foi servido, por estar eliminado. */
     val folded: List<Boolean> = emptyList(),
     /** Quem ainda precisa agir nesta rodada antes dela poder fechar. */
@@ -147,16 +162,16 @@ sealed interface PokerMove : Move {
  * Texas Hold'em, torneio freezeout com fichas de um bolso só: quem zera está fora, e a
  * partida termina quando resta uma cadeira com ficha.
  *
- * **Sem side pot, de propósito.** Pôquer de verdade divide o pote quando alguém vai all-in
- * por menos do que os outros apostam depois — cada aposta a mais que o all-in mais curto
- * forma um pote paralelo, disputado só por quem ainda tem ficha em jogo. Essa divisão é a
- * parte mais complexa da contabilidade do pôquer, e esta primeira versão a evita por uma
- * regra mais simples: **assim que qualquer cadeira desta mão fica all-in, ninguém mais pode
- * aumentar** — só pagar ou desistir. Isso não elimina toda a assimetria (uma cadeira pode
- * ainda ficar all-in por menos do que a aposta corrente, se não tiver ficha para pagar
- * inteiro), mas nesse caso o pote continua **único**: quem vence o showdown leva tudo, mesmo
- * a parte que o all-in mais curto não tinha como cobrir. É uma simplificação deliberada, não
- * um bug — dividir de verdade fica para uma versão futura.
+ * **Com side pot.** Assim que qualquer cadeira desta mão fica all-in, ninguém mais pode
+ * aumentar — só pagar ou desistir (veja [PokerState.anyAllIn]). Isso não impede uma cadeira
+ * de ficar all-in por menos do que a aposta corrente, se não tiver ficha para pagar inteiro; e
+ * quem cobre mais do que um all-in curto pode acabar apostando, na mesma rua, mais do que
+ * aquela cadeira curta colocou. Por isso o pote se divide em camadas no showdown (veja
+ * [PokerState.contrib] e a divisão em [PokerGame]): quem foi all-in por menos só disputa até
+ * onde apostou — o pote principal, que todos ainda na mão disputam — e o que os outros
+ * apostaram a mais forma potes laterais, disputados só por quem cobriu aquele valor. Uma
+ * cadeira curta nunca ganha mais do que o dobro do que tinha quando foi all-in contra um só
+ * adversário: o excedente que ela não cobriu volta para quem apostou mais.
  *
  * Blinds fixos (não sobem com o tempo, como num torneio de verdade) — o buy-in e o big blind
  * vêm de [MatchConfig.options] (`poker.buyIn`, `poker.bigBlind`), com [POKER_DEFAULT_BUY_IN] e
@@ -221,6 +236,9 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
         novasFichas[bbSeat.index] -= bbPago
         streetBet[sbSeat.index] = sbPago
         streetBet[bbSeat.index] = bbPago
+        val contrib = MutableList(seats) { 0 }
+        contrib[sbSeat.index] = sbPago
+        contrib[bbSeat.index] = bbPago
 
         val folded = List(seats) { it !in vivas }
         val toAct = List(seats) { it in vivas && novasFichas[it] > 0 }
@@ -231,6 +249,7 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
             deck = baralho,
             stacks = novasFichas,
             streetBet = streetBet,
+            contrib = contrib,
             folded = folded,
             toAct = toAct,
             pot = sbPago + bbPago,
@@ -355,6 +374,7 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
                 state.copy(
                     stacks = state.stacks.toMutableList().also { it[seat.index] -= paga },
                     streetBet = state.streetBet.toMutableList().also { it[seat.index] += paga },
+                    contrib = state.contrib.toMutableList().also { it[seat.index] += paga },
                     pot = state.pot + paga,
                     toAct = state.toAct.toMutableList().also { it[seat.index] = false },
                     ply = state.ply + 1,
@@ -370,6 +390,7 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
                 state.copy(
                     stacks = state.stacks.toMutableList().also { it[seat.index] -= paga },
                     streetBet = state.streetBet.toMutableList().also { it[seat.index] = move.to },
+                    contrib = state.contrib.toMutableList().also { it[seat.index] += paga },
                     pot = state.pot + paga,
                     toAct = novoToAct,
                     minRaise = maxOf(state.minRaise, aumento),
@@ -378,10 +399,12 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
             }
         }
 
-        // Desistência que deixa uma cadeira só de pé fecha a mão sem showdown.
+        // Desistência que deixa uma cadeira só de pé fecha a mão sem showdown: quem ficou leva
+        // o pote inteiro, mesmo a parte que ela mesma não cobriu — não há mais ninguém para
+        // disputar aquele excedente.
         val emJogo = (0 until depois.seats).filter { depois.folded[it].not() }
         if (move is PokerMove.Fold && emJogo.size == 1) {
-            return concluirMao(depois, ganhadores = emJogo)
+            return concluirMao(depois, listOf(PokerPotShare(winners = emJogo, amount = depois.pot)))
         }
 
         if (rodadaFechou(depois)) return avancarRua(depois)
@@ -436,22 +459,56 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
         return if (semMaisAposta) avancarRua(avancado) else avancado
     }
 
-    /** Ninguém mais aposta: compara as mãos de quem sobrou e reparte o pote. */
+    /** Ninguém mais aposta: compara as mãos de quem sobrou e reparte o pote em camadas. */
     private fun showdown(state: PokerState): PokerState {
         val emJogo = (0 until state.seats).filter { !state.folded[it] }
         val valores = emJogo.associateWith { bestHand(state.hand(Seat(it)) + state.board) }
-        val melhor = valores.values.max()
-        val ganhadores = emJogo.filter { valores.getValue(it) == melhor }
-        return concluirMao(state, ganhadores)
+        val pots = potLayers(state).map { (valor, elegiveisNaCamada) ->
+            // Nenhuma cadeira que ainda disputa a mão chegou a cobrir esta camada — não devia
+            // acontecer (veja a nota em [potLayers]), mas se acontecer o pote fica com quem
+            // continua na mão, em vez de travar sem dono.
+            val elegiveis = elegiveisNaCamada.ifEmpty { emJogo }
+            val melhor = elegiveis.maxOf { valores.getValue(it) }
+            PokerPotShare(winners = elegiveis.filter { valores.getValue(it) == melhor }, amount = valor)
+        }
+        return concluirMao(state, pots)
     }
 
-    /** Reparte o pote entre [ganhadores] (o resto de divisão ímpar fica com o primeiro) e inicia a próxima mão. */
-    private fun concluirMao(state: PokerState, ganhadores: List<Int>): PokerState {
-        val resultado = PokerHandResult(winners = ganhadores, amount = state.pot)
-        val porCabeca = state.pot / ganhadores.size
-        val resto = state.pot % ganhadores.size
+    /**
+     * Divide [PokerState.contrib] em camadas de pote — do menor all-in ao maior contribuinte —
+     * cada uma com quem ainda disputa aquele valor: quem entrou com menos fichas do que a
+     * camada só aparece nas camadas até onde apostou, e quem já desistiu não é elegível em
+     * nenhuma, mas a ficha que ele colocou continua contando para o tamanho da camada. É esta
+     * divisão que garante que uma cadeira curta nunca ganha mais do que cobriu.
+     *
+     * Uma cadeira que segue na mão sempre cobriu (ou nunca enfrentou) qualquer aposta que
+     * ainda esteja de pé — desistir é a única forma de não igualar uma, e isso trava a
+     * contribuição dela onde parou. Por isso nenhuma camada devia ficar sem elegível; o
+     * chamador ainda tem um fallback para esse caso, por segurança.
+     */
+    private fun potLayers(state: PokerState): List<Pair<Int, List<Int>>> {
+        val restante = state.contrib.toMutableList()
+        val camadas = mutableListOf<Pair<Int, List<Int>>>()
+        while (restante.any { it > 0 }) {
+            val ativos = restante.indices.filter { restante[it] > 0 }
+            val menor = ativos.minOf { restante[it] }
+            val valor = menor * ativos.size
+            val elegiveis = ativos.filter { !state.folded[it] }
+            camadas += valor to elegiveis
+            for (i in ativos) restante[i] -= menor
+        }
+        return camadas
+    }
+
+    /** Reparte o pote entre [pots] (o resto de divisão ímpar de cada camada fica com o primeiro) e inicia a próxima mão. */
+    private fun concluirMao(state: PokerState, pots: List<PokerPotShare>): PokerState {
+        val resultado = PokerHandResult(pots = pots)
         val fichas = state.stacks.toMutableList()
-        ganhadores.forEachIndexed { i, seat -> fichas[seat] += porCabeca + if (i == 0) resto else 0 }
+        for (pote in pots) {
+            val porCabeca = pote.amount / pote.winners.size
+            val resto = pote.amount % pote.winners.size
+            pote.winners.forEachIndexed { i, seat -> fichas[seat] += porCabeca + if (i == 0) resto else 0 }
+        }
 
         val encerrado = state.copy(stacks = fichas, pot = 0, lastResult = resultado)
         val vivas = (0 until encerrado.seats).count { fichas[it] > 0 }

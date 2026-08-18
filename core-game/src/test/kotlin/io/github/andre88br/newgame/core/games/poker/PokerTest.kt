@@ -1,8 +1,12 @@
 package io.github.andre88br.newgame.core.games.poker
 
+import io.github.andre88br.newgame.core.cards.Card
+import io.github.andre88br.newgame.core.cards.Rank
+import io.github.andre88br.newgame.core.cards.Suit
 import io.github.andre88br.newgame.core.engine.MatchConfig
 import io.github.andre88br.newgame.core.engine.MoveResult
 import io.github.andre88br.newgame.core.engine.Outcome
+import io.github.andre88br.newgame.core.engine.Rng
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.applyOrThrow
 import kotlin.test.Test
@@ -122,7 +126,7 @@ class PokerTest {
         assertEquals(null, primeira.lastResult, "antes da primeira mão fechar não há resultado nenhum")
 
         val depois = PokerGame.applyOrThrow(primeira, PokerMove.Fold)
-        assertEquals(PokerHandResult(winners = listOf(0), amount = 30), depois.lastResult)
+        assertEquals(PokerHandResult(pots = listOf(PokerPotShare(winners = listOf(0), amount = 30))), depois.lastResult)
 
         // A mão seguinte já está em andamento (outro pote, outra rodada) — paga em vez de
         // desistir de novo, só para não fechar esta segunda mão também — e o resultado da
@@ -167,6 +171,59 @@ class PokerTest {
             assertTrue(estado.stacks.all { it == 40 || it == 30 }, "os blinds da mão nova, sobre 50 e 50 empatados")
             assertEquals(0, estado.board.size, "mão nova já repartida depois do empate")
         }
+    }
+
+    // -------- pote lateral: quem foi all-in por menos só disputa até onde cobriu --------
+
+    @Test
+    fun `all-in por menos so ganha ate o dobro do que apostou, e o resto volta para quem cobriu mais`() {
+        // Cadeira 0 foi all-in por 30 e tem a mão melhor; cadeira 1 cobriu 100. Mesmo vencendo
+        // o showdown, a cadeira 0 só pode levar o que os dois colocaram até seus 30 — o
+        // restante que a cadeira 1 apostou sozinha (70) não estava em disputa e volta para ela.
+        val estado = PokerState(
+            hands = listOf(
+                listOf(Card(Rank.ACE, Suit.CLUBS), Card(Rank.ACE, Suit.DIAMONDS)),
+                listOf(Card(Rank.KING, Suit.CLUBS), Card(Rank.KING, Suit.DIAMONDS)),
+            ),
+            board = listOf(
+                Card(Rank.TWO, Suit.CLUBS),
+                Card(Rank.SEVEN, Suit.DIAMONDS),
+                Card(Rank.NINE, Suit.HEARTS),
+                Card(Rank.QUEEN, Suit.SPADES),
+                Card(Rank.THREE, Suit.CLUBS),
+            ),
+            deck = emptyList(),
+            stacks = listOf(0, 400),
+            streetBet = listOf(0, 0),
+            contrib = listOf(30, 100),
+            folded = listOf(false, false),
+            toAct = listOf(true, false),
+            pot = 130,
+            street = PokerStreet.RIVER,
+            minRaise = 20,
+            button = Seat(1),
+            smallBlind = 10,
+            bigBlind = 20,
+            turn = Seat(0),
+            ply = 10,
+            seats = 2,
+            rng = Rng(1),
+        )
+        val totalDeFichas = estado.stacks.sum() + estado.pot
+
+        val depois = PokerGame.applyOrThrow(estado, PokerMove.Check)
+
+        assertEquals(
+            PokerHandResult(
+                pots = listOf(
+                    PokerPotShare(winners = listOf(0), amount = 60),
+                    PokerPotShare(winners = listOf(1), amount = 70),
+                ),
+            ),
+            depois.lastResult,
+            "cadeira 0 leva só o dobro dos 30 que apostou; os outros 70 voltam para a cadeira 1",
+        )
+        assertEquals(totalDeFichas, depois.stacks.sum() + depois.pot, "fichas não podem sumir nem duplicar")
     }
 
     // -------- uma partida inteira, jogada até o fim --------
