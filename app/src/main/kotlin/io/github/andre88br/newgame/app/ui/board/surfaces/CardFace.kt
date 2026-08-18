@@ -110,7 +110,7 @@ fun CardFan(
                     modifier = Modifier
                         .offset(x = animX, y = animY)
                         .alpha(animAlpha)
-                        .zIndex(if (puxada) 1f else 0f) 
+                        .zIndex(index.toFloat() + if (puxada) 0.5f else 0f)
                 )
             }
         }
