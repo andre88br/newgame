@@ -176,22 +176,27 @@ object KlondikeGame : BoardGame<KlondikeState, KlondikeMove> {
 
     override fun initialState(config: MatchConfig): KlondikeState {
         val embaralhado = config.rng().shuffle(standardDeck())
-        val cartas = embaralhado.value.toMutableList()
+        val cartas = embaralhado.value
 
+        // Cursor de onde ainda não foi distribuído, em vez de `removeAt(0)` repetido: tirar
+        // sempre do início de uma lista desloca o resto a cada chamada, e aqui bastam 28
+        // fatias de um índice que só anda para a frente.
+        var proxima = 0
         val viradas = mutableListOf<List<Card>>()
         val abertas = mutableListOf<List<Card>>()
         for (coluna in 0 until KLONDIKE_PILES) {
             // A coluna n recebe n cartas para baixo e uma para cima: 1, 2, 3… 7 no total.
-            val paraBaixo = List(coluna) { cartas.removeAt(0) }
-            viradas += paraBaixo
-            abertas += listOf(cartas.removeAt(0))
+            viradas += cartas.subList(proxima, proxima + coluna).toList()
+            proxima += coluna
+            abertas += listOf(cartas[proxima])
+            proxima += 1
         }
 
         return KlondikeState(
             downs = viradas,
             ups = abertas,
             // O monte sai pelo fim da lista, então a ordem de compra é a ordem do baralho.
-            stock = cartas.reversed(),
+            stock = cartas.subList(proxima, cartas.size).reversed(),
             waste = emptyList(),
         )
     }

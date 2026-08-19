@@ -363,7 +363,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         if (openingIncomplete(state, state.teamOf(state.turn))) {
             return jogos
         }
-        
+
         return jogos + discardMoves(state, mao)
     }
 
@@ -401,7 +401,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 is CanastraMove.Meld ->
                     encurrala(state, mao.size, move.cards.size, teraCanastra(state, move)) ||
                         !isOpeningPathPreserved(state, mao, move)
-                
+
                 is CanastraMove.SwapWild -> {
                     val jogo = state.meldsOf(state.turn).getOrNull(move.into)
                     (jogo != null && encurrala(state, mao.size, 1, teraCanastraSwap(state, move))) ||
@@ -476,7 +476,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             if (canForm) {
                 val score = cand.cards.sumOf { cardValue(it) }
                 if (score >= faltam) return score
-                
+
                 val total = score + maxOpeningScore(state, nextHand, faltam - score)
                 if (total >= faltam) return total
                 if (total > max) max = total
@@ -495,22 +495,22 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             is CanastraMove.SwapWild -> cardValue(move.card)
             else -> 0
         }
-        
+
         val jaBaixado = state.openingProgress.getOrElse(team) { 0 }
         if (jaBaixado + pontosAdicionais >= CANASTRA_OPENING_MIN_VALUE) return true
-        
+
         val faltam = CANASTRA_OPENING_MIN_VALUE - (jaBaixado + pontosAdicionais)
         val removedCards = when (move) {
             is CanastraMove.Meld -> move.cards
             is CanastraMove.SwapWild -> listOf(move.card)
             else -> emptyList()
         }
-        
+
         val remainingHand = mao.toMutableList()
         for (c in removedCards) {
             remainingHand.remove(c)
         }
-        
+
         val maxPossivel = maxOpeningScore(state, remainingHand, faltam)
         return maxPossivel >= faltam
     }
@@ -602,7 +602,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 if (!temTodas(mao, move.cards)) return MoveResult.Illegal(ReasonKey.CARD_NOT_IN_HAND)
                 if (move.cards.any { isRedThree(it) }) return MoveResult.Illegal(ReasonKey.CANASTRA_RED_THREE_NOT_PLAYABLE)
                 if (move.cards.any { isBlackThree(it) }) return MoveResult.Illegal(ReasonKey.CANASTRA_BLACK_THREE_NEVER_MELDS)
-                
+
                 if (move.into != null) {
                     var atual = state.meldsOf(state.turn).getOrNull(move.into)
                         ?: return MoveResult.Illegal(ReasonKey.CANASTRA_NO_SUCH_MELD)
@@ -615,7 +615,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                         return MoveResult.Illegal(ReasonKey.CANASTRA_TRINCA_NEEDS_CANASTRA)
                     }
                 }
-                
+
                 if (!isOpeningPathPreserved(state, mao, move)) {
                     return MoveResult.Illegal(ReasonKey.CANASTRA_OPENING_MELD_TOO_LOW)
                 }
@@ -631,7 +631,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
                 val esperada = wildRepresents(jogo)
                     ?: return MoveResult.Illegal(ReasonKey.CANASTRA_NO_WILD_TO_SWAP)
                 if (move.card != esperada) return MoveResult.Illegal(ReasonKey.CANASTRA_DOES_NOT_FIT)
-                
+
                 if (!isOpeningPathPreserved(state, mao, move)) {
                     return MoveResult.Illegal(ReasonKey.CANASTRA_OPENING_MELD_TOO_LOW)
                 }
@@ -912,11 +912,11 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             ),
         )
         if (depois.wentOut >= 0) return settle(depois)
-        
+
         val proximoTurno = Seat((state.turn.index + 1) % state.seats)
         return settle(
             depois.copy(
-                turn = proximoTurno, 
+                turn = proximoTurno,
                 phase = CanastraPhase.DRAW,
                 drawnCard = null
             ),
@@ -935,13 +935,13 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             val morto = state.mortos.first()
             val vermelhosNoMorto = morto.count { isRedThree(it) }
             val mao = morto.filterNot { isRedThree(it) }
-            
+
             val vermelhos = state.redThrees.toMutableList()
             vermelhos[time] = vermelhos[time] + vermelhosNoMorto
-            
+
             val pegou = state.tookMorto.toMutableList()
             pegou[time] = true
-            
+
             return state.copy(
                 hands = trocarMao(state, mao),
                 redThrees = vermelhos.toList(),
@@ -963,7 +963,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
 
         val ganhosDetalhes = scoreHand(state)
         val somados = List(state.teams) { time -> state.scores.getOrElse(time) { 0 } + ganhosDetalhes[time].totalRodada }
-        
+
         if (somados.any { it >= CANASTRA_TARGET }) return state.copy(scores = somados, lastScores = ganhosDetalhes)
 
         val proximoComecar = Seat((state.startingSeat.index + 1) % state.seats)
