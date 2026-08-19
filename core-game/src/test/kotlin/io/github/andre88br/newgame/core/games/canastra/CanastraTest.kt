@@ -11,6 +11,7 @@ import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.applyOrThrow
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -1312,5 +1313,135 @@ class CanastraTest {
             )
             state = CanastraGame.applyOrThrow(state, escolhido)
         }
+    }
+
+    // -------- refatoração: belowOpeningThreshold, checkNotNull diagnóstico, checkPendingDiscard imutável --------
+
+    /**
+     * A unificação da checagem `scores < 1500` em `belowOpeningThreshold` removeu, dentro de
+     * `isOpeningPathPreserved`, uma linha que a análise apontou como redundante — coberta pela
+     * checagem seguinte, que já fazia a mesma pergunta de outro jeito. Este teste crava o
+     * limiar exatamente nos três pontos que provariam essa análise errada, se ela estivesse
+     * errada: um ponto abaixo de 1500, em cima, e um ponto acima.
+     */
+    @Test
+    fun `o limiar de 1500 continua exatamente no mesmo lugar depois da unificacao em belowOpeningThreshold`() {
+        val baixo = listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FIVE, Suit.HEARTS), carta(Rank.SIX, Suit.HEARTS))
+        assertTrue(
+            baixo.sumOf { cardValue(it) } < CANASTRA_OPENING_MIN_VALUE,
+            "o jogo de teste precisa valer menos que o mínimo, senão o teste não prova nada",
+        )
+        fun estadoCom(pontos: Int) = novo(seats = 4).copy(
+            phase = CanastraPhase.PLAY,
+            hands = listOf(baixo + List(10) { carta(Rank.KING, Suit.CLUBS) }, emptyList(), emptyList(), emptyList()),
+            scores = listOf(pontos, 0),
+        )
+        val lance = CanastraMove.Meld(baixo)
+
+        assertTrue(
+            CanastraGame.applyMove(estadoCom(CANASTRA_OPENING_THRESHOLD - 1), lance) is MoveResult.Ok,
+            "com 1499 pontos o limiar ainda não vale: o jogo baixo devia passar",
+        )
+        assertTrue(
+            CanastraGame.applyMove(estadoCom(CANASTRA_OPENING_THRESHOLD), lance) is MoveResult.Illegal,
+            "com exatamente 1500 pontos o limiar já vale: o jogo baixo devia ser recusado",
+        )
+        assertTrue(
+            CanastraGame.applyMove(estadoCom(CANASTRA_OPENING_THRESHOLD + 1), lance) is MoveResult.Illegal,
+            "com 1501 pontos o limiar continua valendo — não é só o valor exato de 1500 que dispara a regra",
+        )
+    }
+
+    /**
+     * `applyKnownLegal` só é chamado depois que `applyMove` já validou o lance — é o contrato
+     * do motor. Os cinco `!!` que viraram `checkNotNull`/`error` nesta rodada continuam sendo
+     * crash em caso de bug de validação, só que agora com mensagem diagnosticável em vez de um
+     * `NullPointerException` mudo. Este teste contorna `applyMove` de propósito — chamando
+     * `applyKnownLegal` direto com um `Meld` que não fecha jogo nenhum — para cravar que o
+     * crash continua acontecendo, e que ele explica o que quebrou.
+     */
+    @Test
+    fun `applyKnownLegal com um meld invalido crava a mensagem diagnostica do checkNotNull`() {
+        val soltas = listOf(carta(Rank.FOUR, Suit.HEARTS), carta(Rank.NINE, Suit.SPADES))
+        val state = novo(seats = 4).copy(
+            phase = CanastraPhase.PLAY,
+            hands = listOf(soltas + List(9) { carta(Rank.KING, Suit.CLUBS) }, emptyList(), emptyList(), emptyList()),
+        )
+        val lanceInvalido = CanastraMove.Meld(soltas)
+        assertTrue(
+            CanastraGame.applyMove(state, lanceInvalido) is MoveResult.Illegal,
+            "confirma que o lance é mesmo ilegal pela porta normal — o teste é sobre contornar essa porta",
+        )
+
+        val erro = assertFailsWith<IllegalStateException> {
+            CanastraGame.applyKnownLegal(state, lanceInvalido)
+        }
+        assertTrue(
+            erro.message.orEmpty().contains("não forma um jogo válido"),
+            "a mensagem devia explicar o que quebrou, não só estourar nulo: ${erro.message}",
+        )
+    }
+
+    /**
+     * O maior ponto de risco da rodada: `checkPendingDiscard` deixou de mutar `mao`,
+     * `vermelhos` e `memoria` por referência e passou a devolver um `PendingDiscardOutcome`
+     * imutável. Este teste percorre o fluxo de ponta a ponta: o time pega o lixo com uma carta
+     * devida e, atrás dela, uma pendência de duas cartas (um três vermelho e uma carta comum)
+     * que ainda não pode entrar na mão porque a abertura não foi feita. Só quando a jogada
+     * seguinte fecha a abertura (150 pontos, nesta mesma tacada, incluindo a própria carta
+     * devida) é que a pendência devia ser entregue — o vermelho somando ao contador sem entrar
+     * na mão, a carta comum indo para a mão e ficando registrada em `knownOpponentCards`.
+     */
+    @Test
+    fun `pendencia do lixo com um vermelho e uma carta comum e entregue quando o meld fecha a abertura`() {
+        val tresVermelho = carta(Rank.THREE, Suit.HEARTS)
+        val pendente = carta(Rank.SEVEN, Suit.DIAMONDS)
+        // Oito ases (20 pontos cada = 160) fecham os 150 da abertura numa jogada só, e o
+        // primeiro deles é o que vai para o lixo como a carta devida.
+        val todosAses = Suit.entries.flatMap { listOf(carta(Rank.ACE, it), carta(Rank.ACE, it)) }
+        val devidaAs = todosAses.first()
+        val asesNaMao = todosAses - devidaAs
+        val fillers = List(2) { carta(Rank.NINE, Suit.CLUBS) }
+        // Uma trinca de ás precisa de canastra já feita — como qualquer trinca na canastra.
+        val jaTemCanastra = Meld(List(7) { carta(Rank.KING, Suit.DIAMONDS) })
+
+        val inicial = novo(seats = 4).copy(
+            phase = CanastraPhase.DRAW,
+            scores = listOf(CANASTRA_OPENING_THRESHOLD, 0),
+            firstMeldDone = listOf(false, false),
+            openingProgress = listOf(0, 0),
+            redThrees = listOf(0, 0),
+            melds = listOf(listOf(jaTemCanastra), emptyList()),
+            discard = listOf(pendente, tresVermelho, devidaAs),
+            hands = listOf(asesNaMao + fillers, emptyList(), emptyList(), emptyList()),
+            turn = Seat.FIRST,
+        )
+
+        val depoisPegar = CanastraGame.applyOrThrow(inicial, CanastraMove.TakeDiscard)
+        assertEquals(devidaAs, depoisPegar.owedCard, "a carta do topo fica devida")
+        assertEquals(
+            listOf(pendente, tresVermelho),
+            depoisPegar.pendingDiscard,
+            "o resto do lixo fica pendente até a abertura se completar",
+        )
+
+        val depoisBaixar = CanastraGame.applyOrThrow(depoisPegar, CanastraMove.Meld(todosAses))
+
+        assertTrue(depoisBaixar.firstMeldDone[0], "160 pontos nesta jogada fecham a abertura")
+        assertNull(depoisBaixar.owedCard, "a carta devida foi cumprida pelo próprio meld")
+        assertTrue(depoisBaixar.pendingDiscard.isEmpty(), "a pendência foi entregue, não ficou presa")
+
+        assertEquals(1, depoisBaixar.redThrees[0], "o três vermelho pendente somou ao contador")
+        assertTrue(tresVermelho !in depoisBaixar.hand(Seat.FIRST), "o três vermelho nunca entra na mão")
+        assertEquals(
+            fillers + listOf(pendente),
+            depoisBaixar.hand(Seat.FIRST),
+            "a mão final é só o que sobrou dos ases mais a carta comum entregue pela pendência",
+        )
+        assertEquals(
+            listOf(devidaAs, pendente),
+            depoisBaixar.knownOpponentCards[Seat.FIRST.index],
+            "a carta devida (pega do lixo) e a carta comum da pendência ficam conhecidas dos adversários",
+        )
     }
 }
