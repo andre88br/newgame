@@ -379,6 +379,10 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
         return MoveResult.Ok(applyKnownLegal(state, move))
     }
 
+    /** Devolve a lista com a posição [index] trocada por [value] — o resto continua igual. */
+    private fun <T> List<T>.replacing(index: Int, value: T): List<T> =
+        toMutableList().also { it[index] = value }.toList()
+
     override fun applyKnownLegal(state: PokerState, move: PokerMove): PokerState {
         if (move is PokerMove.AdvanceStreet) return avancarRua(state)
 
@@ -386,22 +390,22 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
         val depois = when (move) {
             PokerMove.AdvanceStreet -> error("tratado antes do bloco when")
             PokerMove.Fold -> state.copy(
-                folded = state.folded.toMutableList().also { it[seat.index] = true },
-                toAct = state.toAct.toMutableList().also { it[seat.index] = false },
+                folded = state.folded.replacing(seat.index, true),
+                toAct = state.toAct.replacing(seat.index, false),
                 ply = state.ply + 1,
             )
             PokerMove.Check -> state.copy(
-                toAct = state.toAct.toMutableList().also { it[seat.index] = false },
+                toAct = state.toAct.replacing(seat.index, false),
                 ply = state.ply + 1,
             )
             PokerMove.Call -> {
                 val paga = minOf(state.toCall(seat), state.stack(seat))
                 state.copy(
-                    stacks = state.stacks.toMutableList().also { it[seat.index] -= paga },
-                    streetBet = state.streetBet.toMutableList().also { it[seat.index] += paga },
-                    contrib = state.contrib.toMutableList().also { it[seat.index] += paga },
+                    stacks = state.stacks.replacing(seat.index, state.stack(seat) - paga),
+                    streetBet = state.streetBet.replacing(seat.index, state.streetBet.getOrElse(seat.index) { 0 } + paga),
+                    contrib = state.contrib.replacing(seat.index, state.contrib.getOrElse(seat.index) { 0 } + paga),
                     pot = state.pot + paga,
-                    toAct = state.toAct.toMutableList().also { it[seat.index] = false },
+                    toAct = state.toAct.replacing(seat.index, false),
                     ply = state.ply + 1,
                 )
             }
@@ -413,9 +417,9 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
                     novoToAct[i] = i != seat.index && !state.folded[i] && state.stacks.getOrElse(i) { 0 } > 0
                 }
                 state.copy(
-                    stacks = state.stacks.toMutableList().also { it[seat.index] -= paga },
-                    streetBet = state.streetBet.toMutableList().also { it[seat.index] = move.to },
-                    contrib = state.contrib.toMutableList().also { it[seat.index] += paga },
+                    stacks = state.stacks.replacing(seat.index, state.stack(seat) - paga),
+                    streetBet = state.streetBet.replacing(seat.index, move.to),
+                    contrib = state.contrib.replacing(seat.index, state.contrib.getOrElse(seat.index) { 0 } + paga),
                     pot = state.pot + paga,
                     toAct = novoToAct,
                     minRaise = maxOf(state.minRaise, aumento),
