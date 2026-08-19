@@ -51,28 +51,28 @@ fun MoveSurface(
 ) {
     when {
         gameId == GameId.DOMINOES && state is DominoesState ->
-            DominoesSurface(state, viewer, names, enabled, hinted, modifier, onMove)
+            DominoesSurface(state, viewer, names, enabled, hinted, animated, modifier, onMove)
 
         gameId == GameId.LUDO && state is LudoState ->
             LudoSurface(state, viewer, enabled, hinted, animated, modifier, onMove)
 
         gameId == GameId.HEARTS && state is HeartsState ->
-            HeartsSurface(state, viewer, names, enabled, hinted, roundJustEnded, onAcknowledgeRoundEnd, modifier, onMove)
+            HeartsSurface(state, viewer, names, enabled, hinted, animated, roundJustEnded, onAcknowledgeRoundEnd, modifier, onMove)
 
         gameId == GameId.CANASTRA && state is CanastraState ->
-            CanastraSurface(state, viewer, names, enabled, hinted, roundJustEnded, onAcknowledgeRoundEnd, modifier, onMove)
+            CanastraSurface(state, viewer, names, enabled, hinted, animated, roundJustEnded, onAcknowledgeRoundEnd, modifier, onMove)
 
         gameId == GameId.PIFE && state is PifeState ->
-            PifeSurface(state, viewer, names, enabled, hinted, modifier, onMove)
+            PifeSurface(state, viewer, names, enabled, hinted, animated, modifier, onMove)
 
         gameId == GameId.KLONDIKE && state is KlondikeState ->
-            KlondikeSurface(state, viewer, names, enabled, hinted, modifier, onMove)
+            KlondikeSurface(state, viewer, names, enabled, hinted, animated, modifier, onMove)
 
         gameId == GameId.TRUCO && state is TrucoState ->
-            TrucoSurface(state, viewer, names, enabled, hinted, roundJustEnded, onAcknowledgeRoundEnd, modifier, onMove)
+            TrucoSurface(state, viewer, names, enabled, hinted, animated, roundJustEnded, onAcknowledgeRoundEnd, modifier, onMove)
 
         gameId == GameId.POKER && state is PokerState ->
-            PokerSurface(state, viewer, names, enabled, hinted, roundJustEnded, onAcknowledgeRoundEnd, modifier, onMove)
+            PokerSurface(state, viewer, names, enabled, hinted, animated, roundJustEnded, onAcknowledgeRoundEnd, modifier, onMove)
 
         // Jogo sem tela: dizer isso é melhor do que mostrar uma área em branco.
         else -> Text(stringResource(R.string.board_no_surface, gameId.name))

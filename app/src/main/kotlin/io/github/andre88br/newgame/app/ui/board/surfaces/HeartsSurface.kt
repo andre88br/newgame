@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -60,6 +61,8 @@ fun HeartsSurface(
     names: List<String>,
     enabled: Boolean,
     hinted: Move?,
+    /** Segue o ajuste de animações das Configurações: desligado, cartas e vazas já nascem prontas. */
+    animated: Boolean = true,
     roundJustEnded: Boolean,
     onAcknowledgeRoundEnd: () -> Unit,
     modifier: Modifier = Modifier,
@@ -97,9 +100,16 @@ fun HeartsSurface(
             names = names,
             handSize = { seat -> state.handSize(seat) },
             palette = palette,
+            animated = animated,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            TrickArea(state = state, names = names, palette = palette, modifier = Modifier.fillMaxWidth())
+            TrickArea(
+                state = state,
+                names = names,
+                palette = palette,
+                animated = animated,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
 
         Text(
@@ -132,6 +142,7 @@ fun HeartsSurface(
             CardFan(
                 cards = mao,
                 palette = palette,
+                animated = animated,
                 // A sugerida da dica sai do leque para ser vista.
                 isRaised = { _, carta -> carta == sugerida },
                 // Fora da vez nada fica apagado — não está sendo pedido nada a você. Na sua
@@ -241,6 +252,7 @@ private fun TrickArea(
     state: HeartsState,
     names: List<String>,
     palette: BoardPalette,
+    animated: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -266,14 +278,19 @@ private fun TrickArea(
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (jogada in state.trick) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CardFace(card = jogada.card, palette = palette)
-                    Text(
-                        text = names.getOrNull(jogada.seat.index)?.takeIf { it.isNotBlank() }
-                            ?: stringResource(R.string.dominoes_opponent_seat, jogada.seat.index + 1),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                // Cada cadeira joga no máximo uma carta por vaza: a chave é quem jogou, não
+                // a posição na fileira, então uma carta que já pousou não pousa de novo só
+                // porque outra chegou ao lado dela.
+                key(jogada.seat) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CardFace(card = jogada.card, palette = palette, modifier = rememberLandAnimation(animated))
+                        Text(
+                            text = names.getOrNull(jogada.seat.index)?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.dominoes_opponent_seat, jogada.seat.index + 1),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }

@@ -1,7 +1,7 @@
 package io.github.andre88br.newgame.app.ui.board.surfaces
 
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -62,7 +62,6 @@ import io.github.andre88br.newgame.core.games.dominoes.LineEnd
 import io.github.andre88br.newgame.core.games.dominoes.PlacedTile
 import io.github.andre88br.newgame.core.games.dominoes.Tile
 import io.github.andre88br.newgame.core.games.dominoes.handTiles
-import kotlinx.coroutines.delay
 
 /**
  * A mesa do dominó.
@@ -80,6 +79,8 @@ fun DominoesSurface(
     names: List<String>,
     enabled: Boolean,
     hinted: Move?,
+    /** Segue o ajuste de animações das Configurações: desligado, a mão já nasce completa. */
+    animated: Boolean = true,
     modifier: Modifier = Modifier,
     onMove: (Move) -> Unit,
 ) {
@@ -105,8 +106,9 @@ fun DominoesSurface(
             names = names,
             handSize = { seat -> state.hand(seat).size },
             palette = palette,
+            animated = animated,
             handContent = { _, count, vertical ->
-                DominoOpponentFan(count = count, palette = palette, vertical = vertical)
+                DominoOpponentFan(count = count, palette = palette, animated = animated, vertical = vertical)
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -148,6 +150,7 @@ fun DominoesSurface(
                         palette = palette,
                         hinted = item.tile == hintTile,
                         enabled = enabled,
+                        animated = animated,
                         onClick = {
                             val direct = item.onlyMove
                             when {
@@ -208,56 +211,65 @@ private val OPPONENT_TILE_STEP = 23.dp
  *
  * O valor continua sem sair de lugar nenhum: o estado que chega aqui já veio redigido pelo
  * motor, e o que existe destas peças é literalmente [Tile.HIDDEN]. Não há o que vazar.
+ *
+ * Como em [OpponentFan], a posição na fileira é a própria identidade da peça — todas são o
+ * mesmo verso —, e [key] por índice deixa isso explícito.
+ *
+ * [animated] segue o ajuste de animações das Configurações: desligado, a mão inteira já
+ * nasce completa, sem o efeito cascata.
  */
 @Composable
-private fun DominoOpponentFan(count: Int, palette: BoardPalette, vertical: Boolean = false, modifier: Modifier = Modifier) {
+private fun DominoOpponentFan(
+    count: Int,
+    palette: BoardPalette,
+    animated: Boolean = true,
+    vertical: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
     if (count == 0) return
 
     val calcLargura = if (vertical) OPPONENT_TILE_HEIGHT else OPPONENT_TILE_STEP * (count - 1) + OPPONENT_TILE_WIDTH
     val calcAltura = if (vertical) OPPONENT_TILE_STEP * (count - 1) + OPPONENT_TILE_WIDTH else OPPONENT_TILE_HEIGHT
+    val duration = if (animated) DEAL_ANIM_DURATION_MS else 0
 
-    val animLargura by animateDpAsState(targetValue = calcLargura, label = "dom_opp_width")
-    val animAltura by animateDpAsState(targetValue = calcAltura, label = "dom_opp_height")
+    val animLargura by animateDpAsState(calcLargura, tween(duration), label = "dom_opp_width")
+    val animAltura by animateDpAsState(calcAltura, tween(duration), label = "dom_opp_height")
 
     Box(modifier = modifier.size(animLargura, animAltura)) {
         for (index in 0 until count) {
-            // Controle da animação de distribuição para os adversários.
-            var tileDealt by remember { mutableStateOf(false) }
-            LaunchedEffect(index) {
-                delay(index * 40L)
-                tileDealt = true
-            }
+            key(index) {
+                val finalX = if (vertical) 0.dp else OPPONENT_TILE_STEP * index
+                val finalY = if (vertical) OPPONENT_TILE_STEP * index else 0.dp
 
-            val finalX = if (vertical) 0.dp else OPPONENT_TILE_STEP * index
-            val finalY = if (vertical) OPPONENT_TILE_STEP * index else 0.dp
-
-            // Se ainda não foi dada, a peça começa invisível e recolhida.
-            val targetX = if (tileDealt) finalX else finalX - 15.dp
-            val targetY = if (tileDealt) finalY else finalY + 15.dp
-            val targetAlpha = if (tileDealt) 1f else 0f
-
-            val animX by animateDpAsState(targetValue = targetX, label = "dom_opp_x")
-            val animY by animateDpAsState(targetValue = targetY, label = "dom_opp_y")
-            val animAlpha by animateFloatAsState(targetValue = targetAlpha, label = "dom_opp_alpha")
-
-            Canvas(
-                modifier = Modifier
-                    .size(
-                        width = if (vertical) OPPONENT_TILE_HEIGHT else OPPONENT_TILE_WIDTH,
-                        height = if (vertical) OPPONENT_TILE_WIDTH else OPPONENT_TILE_HEIGHT,
-                    )
-                    .offset(x = animX, y = animY)
-                    .alpha(animAlpha)
-                    .clearAndSetSemantics { },
-            ) {
-                drawTileAt(
-                    first = Tile.HIDDEN.low,
-                    second = Tile.HIDDEN.high,
-                    outerTopLeft = Offset.Zero,
-                    outerSize = size,
-                    stacked = true,
-                    palette = palette,
+                // Se ainda não foi dada, a peça começa invisível e recolhida.
+                val posicao = rememberDealAnimation(
+                    index = index,
+                    animated = animated,
+                    finalX = finalX,
+                    finalY = finalY,
+                    startX = finalX - 15.dp,
+                    startY = finalY + 15.dp,
                 )
+
+                Canvas(
+                    modifier = Modifier
+                        .size(
+                            width = if (vertical) OPPONENT_TILE_HEIGHT else OPPONENT_TILE_WIDTH,
+                            height = if (vertical) OPPONENT_TILE_WIDTH else OPPONENT_TILE_HEIGHT,
+                        )
+                        .offset(x = posicao.x, y = posicao.y)
+                        .alpha(posicao.alpha)
+                        .clearAndSetSemantics { },
+                ) {
+                    drawTileAt(
+                        first = Tile.HIDDEN.low,
+                        second = Tile.HIDDEN.high,
+                        outerTopLeft = Offset.Zero,
+                        outerSize = size,
+                        stacked = true,
+                        palette = palette,
+                    )
+                }
             }
         }
     }
@@ -354,6 +366,8 @@ private fun HandTileView(
     palette: BoardPalette,
     hinted: Boolean,
     enabled: Boolean,
+    /** Segue o ajuste de animações das Configurações: desligado, a peça já nasce no lugar. */
+    animated: Boolean = true,
     onClick: () -> Unit,
 ) {
     // O que o leitor de tela lê: "peça 2 por 5, encaixa nas duas pontas". Sem isto a mão
@@ -361,22 +375,22 @@ private fun HandTileView(
     val description = speechText(BoardSpeech.tile(item.tile, item.ends))
 
     // A mesma entrada em cascata do leque de carta ([CardFan]): a peça sobe e aparece com
-    // um atraso proporcional à posição, em vez de a mão inteira saltar pronta na tela.
-    var tileDealt by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        delay(index * 40L)
-        tileDealt = true
-    }
-    val targetY = if (tileDealt) 0.dp else 20.dp
-    val targetAlpha = if (tileDealt) 1f else 0f
-    val animY by animateDpAsState(targetValue = targetY, label = "hand_tile_y")
-    val animAlpha by animateFloatAsState(targetValue = targetAlpha, label = "hand_tile_alpha")
+    // um atraso proporcional à posição, em vez de a mão inteira saltar pronta na tela. Quem
+    // chama isto já embrulha cada peça num `key(item.tile)`, então a animação pertence à
+    // peça, não à posição dela na mão.
+    val posicao = rememberDealAnimation(
+        index = index,
+        animated = animated,
+        finalX = 0.dp,
+        finalY = 0.dp,
+        startY = 20.dp,
+    )
 
     Canvas(
         modifier = Modifier
             .size(width = 44.dp, height = 84.dp)
-            .offset(y = animY)
-            .alpha(animAlpha)
+            .offset(y = posicao.y)
+            .alpha(posicao.alpha)
             .clickable(enabled = enabled, onClick = onClick)
             .semantics { contentDescription = description },
     ) {

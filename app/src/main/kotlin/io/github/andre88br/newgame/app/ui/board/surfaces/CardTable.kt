@@ -1,7 +1,7 @@
 package io.github.andre88br.newgame.app.ui.board.surfaces
 
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,11 +14,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -30,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import io.github.andre88br.newgame.app.R
 import io.github.andre88br.newgame.app.ui.theme.BoardPalette
 import io.github.andre88br.newgame.core.engine.Seat
-import kotlinx.coroutines.delay
 
 /** Tamanho da carta de um adversário: menor que a sua, porque o que importa é contar, não ler. */
 private val OPPONENT_CARD_WIDTH = 32.dp
@@ -63,9 +59,11 @@ fun CardTable(
     names: List<String>,
     handSize: (Seat) -> Int,
     palette: BoardPalette,
+    /** Segue o ajuste de animações das Configurações: desligado, as mãos alheias já nascem completas. */
+    animated: Boolean = true,
     modifier: Modifier = Modifier,
     handContent: @Composable (seat: Seat, count: Int, vertical: Boolean) -> Unit = { _, count, vertical ->
-        OpponentFan(count = count, palette = palette, vertical = vertical)
+        OpponentFan(count = count, palette = palette, animated = animated, vertical = vertical)
     },
     /**
      * O que mostrar junto do nome de cada adversário — vazio por padrão. O pôquer usa isto
@@ -154,48 +152,57 @@ private fun OpponentHand(
  * Não é `private`: o pôquer chama isto direto para desenhar a mão virada para baixo de quem
  * ainda não mostrou as cartas, dentro do próprio [handContent] que decide, por cadeira, se
  * mostra a carta virada ou de costas.
+ *
+ * As cartas de um adversário não têm identidade própria — o estado chega redigido, e uma
+ * costa de carta é igual à outra —, então a posição na fileira já é a chave certa: usar
+ * [key] por índice deixa isso explícito, em vez de depender da ordem implícita do laço.
+ *
+ * [animated] segue o ajuste de animações das Configurações: desligado, a mão inteira já
+ * nasce completa, sem o efeito cascata.
  */
 @Composable
-internal fun OpponentFan(count: Int, palette: BoardPalette, vertical: Boolean = false, modifier: Modifier = Modifier) {
+internal fun OpponentFan(
+    count: Int,
+    palette: BoardPalette,
+    animated: Boolean = true,
+    vertical: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
     if (count == 0) return
 
     val calcLargura = if (vertical) OPPONENT_CARD_HEIGHT else OPPONENT_FAN_STEP * (count - 1) + OPPONENT_CARD_WIDTH
     val calcAltura = if (vertical) OPPONENT_FAN_STEP * (count - 1) + OPPONENT_CARD_WIDTH else OPPONENT_CARD_HEIGHT
+    val duration = if (animated) DEAL_ANIM_DURATION_MS else 0
 
-    val animLargura by animateDpAsState(targetValue = calcLargura, label = "opp_width")
-    val animAltura by animateDpAsState(targetValue = calcAltura, label = "opp_height")
+    val animLargura by animateDpAsState(calcLargura, tween(duration), label = "opp_width")
+    val animAltura by animateDpAsState(calcAltura, tween(duration), label = "opp_height")
 
     Box(modifier = modifier.size(animLargura, animAltura)) {
         for (index in 0 until count) {
-            
-            // Controle da animação de distribuição para os adversários
-            var cardDealt by remember { mutableStateOf(false) }
-            LaunchedEffect(index) {
-                delay(index * 40L)
-                cardDealt = true
+            key(index) {
+                val finalX = if (vertical) 0.dp else OPPONENT_FAN_STEP * index
+                val finalY = if (vertical) OPPONENT_FAN_STEP * index else 0.dp
+
+                // Se ainda não foi dada, a carta começa invisível e recolhida.
+                val posicao = rememberDealAnimation(
+                    index = index,
+                    animated = animated,
+                    finalX = finalX,
+                    finalY = finalY,
+                    startX = finalX - 15.dp,
+                    startY = finalY + 15.dp,
+                )
+
+                FaceDownCard(
+                    palette = palette,
+                    width = if (vertical) OPPONENT_CARD_HEIGHT else OPPONENT_CARD_WIDTH,
+                    height = if (vertical) OPPONENT_CARD_WIDTH else OPPONENT_CARD_HEIGHT,
+                    modifier = Modifier
+                        .offset(x = posicao.x, y = posicao.y)
+                        .alpha(posicao.alpha)
+                        .clearAndSetSemantics { }
+                )
             }
-
-            val finalX = if (vertical) 0.dp else OPPONENT_FAN_STEP * index
-            val finalY = if (vertical) OPPONENT_FAN_STEP * index else 0.dp
-
-            // Se ainda não foi dada, a carta começa invisível e recolhida
-            val targetX = if (cardDealt) finalX else finalX - 15.dp
-            val targetY = if (cardDealt) finalY else finalY + 15.dp
-            val targetAlpha = if (cardDealt) 1f else 0f
-
-            val animX by animateDpAsState(targetValue = targetX, label = "opp_x")
-            val animY by animateDpAsState(targetValue = targetY, label = "opp_y")
-            val animAlpha by animateFloatAsState(targetValue = targetAlpha, label = "opp_alpha")
-
-            FaceDownCard(
-                palette = palette,
-                width = if (vertical) OPPONENT_CARD_HEIGHT else OPPONENT_CARD_WIDTH,
-                height = if (vertical) OPPONENT_CARD_WIDTH else OPPONENT_CARD_HEIGHT,
-                modifier = Modifier
-                    .offset(x = animX, y = animY)
-                    .alpha(animAlpha)
-                    .clearAndSetSemantics { }
-            )
         }
     }
 }

@@ -2,6 +2,7 @@ package io.github.andre88br.newgame.app.ui.board.surfaces
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -58,13 +60,105 @@ private val CARD_FAN_LIFT = 10.dp
 private val SUIT_RED = Color(0xFFC62828)
 private val SUIT_BLACK = Color(0xFF1B1B1B)
 
+/** Atraso entre uma carta e a seguinte começarem a deslizar, no efeito cascata de distribuir. */
+private const val DEAL_STAGGER_MS = 40L
+
+/**
+ * Duração de cada animação de posição/opacidade de uma carta, com as animações ligadas.
+ *
+ * Não é `private`: [OpponentFan], em [CardTable], reaproveita o mesmo número para a
+ * animação de tamanho do leque dos adversários, em vez de inventar outra duração ao lado.
+ */
+internal const val DEAL_ANIM_DURATION_MS = 220
+
+/** Duração da animação de uma carta pousando na mesa ou no descarte, com animações ligadas. */
+private const val LAND_ANIM_DURATION_MS = 180
+
+/** De que tamanho uma carta nasce ao pousar, antes de crescer até o tamanho normal. */
+private const val LAND_ANIM_MIN_SCALE = 0.82f
+
+/** Posição e opacidade animadas de uma carta ou peça sendo distribuída. */
+data class DealAnimationState(val x: Dp, val y: Dp, val alpha: Float)
+
+/**
+ * O estado de uma carta (ou peça) sendo "distribuída": nasce deslocada de [startX]/[startY] e
+ * invisível, e desliza até [finalX]/[finalY] com um atraso proporcional a [index] — o efeito
+ * cascata usado na mão ([CardFan]), no leque dos adversários ([OpponentFan] em [CardTable]) e
+ * na mão do dominó ([FaceDownCard] com peças).
+ *
+ * Quem chama isto de dentro de um `key(...)` por carta (como [CardFan] faz) garante que uma
+ * carta que já apareceu não recomeça a distribuição só porque a mão ao redor dela mudou de
+ * tamanho — o [remember] fica preso à identidade da carta, não à posição dela na lista.
+ *
+ * Quando [animated] é falso — o ajuste de animações desligado nas Configurações —, a carta já
+ * nasce na posição final: sem atraso, sem movimento, sem espera.
+ */
+@Composable
+fun rememberDealAnimation(
+    index: Int,
+    animated: Boolean,
+    finalX: Dp,
+    finalY: Dp,
+    startX: Dp = finalX,
+    startY: Dp = finalY,
+): DealAnimationState {
+    var dealt by remember { mutableStateOf(!animated) }
+    LaunchedEffect(animated) {
+        if (!animated) {
+            dealt = true
+            return@LaunchedEffect
+        }
+        dealt = false
+        delay(index * DEAL_STAGGER_MS) // As cartas deslizam com um atraso entre si.
+        dealt = true
+    }
+
+    val duration = if (animated) DEAL_ANIM_DURATION_MS else 0
+    val animX by animateDpAsState(if (dealt) finalX else startX, tween(duration), label = "deal_x")
+    val animY by animateDpAsState(if (dealt) finalY else startY, tween(duration), label = "deal_y")
+    val animAlpha by animateFloatAsState(if (dealt) 1f else 0f, tween(duration), label = "deal_alpha")
+    return DealAnimationState(animX, animY, animAlpha)
+}
+
+/**
+ * Um modificador para uma carta pousando na mesa: nasce um pouco menor e transparente, e
+ * cresce até o tamanho normal — usado onde uma jogada ou um descarte de verdade acontece (a
+ * rodada do truco, a vaza da copas, o descarte da paciência/canastra/pife), em vez de a carta
+ * simplesmente aparecer pronta.
+ *
+ * Roda uma vez por identidade: chame isto de dentro de um `key(carta)` (ou equivalente) no
+ * ponto onde a carta é desenhada, para que ela pouse uma vez só e não reanime a cada
+ * recomposição motivada por outra coisa.
+ *
+ * Quando [animated] é falso, a carta já nasce no tamanho e na opacidade finais.
+ */
+@Composable
+fun rememberLandAnimation(animated: Boolean): Modifier {
+    var landed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { landed = true }
+
+    val duration = if (animated) LAND_ANIM_DURATION_MS else 0
+    val progress by animateFloatAsState(if (landed) 1f else 0f, tween(duration), label = "land_progress")
+
+    return Modifier.graphicsLayer {
+        alpha = progress
+        val scale = LAND_ANIM_MIN_SCALE + (1f - LAND_ANIM_MIN_SCALE) * progress
+        scaleX = scale
+        scaleY = scale
+    }
+}
+
 /**
  * Uma mão em leque com animações fluidas de Distribuição (Dealing) e Reordenação.
+ *
+ * [animated] segue o ajuste de animações das Configurações: desligado, a mão inteira já
+ * nasce na posição final, sem o efeito cascata.
  */
 @Composable
 fun CardFan(
     cards: List<Card>,
     palette: BoardPalette,
+    animated: Boolean = true,
     modifier: Modifier = Modifier,
     isRaised: (Int, Card) -> Boolean = { _, _ -> false },
     isPlayable: (Int, Card) -> Boolean = { _, _ -> true },
@@ -73,7 +167,11 @@ fun CardFan(
     if (cards.isEmpty()) return
 
     // O tamanho total do leque é animado para a mão encolher e crescer suavemente.
-    val largura by animateDpAsState(targetValue = CARD_FAN_STEP * (cards.size - 1) + CARD_WIDTH, label = "fan_width")
+    val largura by animateDpAsState(
+        targetValue = CARD_FAN_STEP * (cards.size - 1) + CARD_WIDTH,
+        animationSpec = tween(if (animated) DEAL_ANIM_DURATION_MS else 0),
+        label = "fan_width",
+    )
     val altura = CARD_HEIGHT + CARD_FAN_LIFT
 
     Box(modifier = modifier.size(largura, altura)) {
@@ -82,24 +180,16 @@ fun CardFan(
             val occurrenceIndex = cards.take(index).count { it == carta }
 
             key(carta.rank, carta.suit, occurrenceIndex) {
-                
-                // Variável de controle para a animação de entrada (dar as cartas)
-                var cardDealt by remember { mutableStateOf(false) }
-                
-                // Efeito cascata: a carta espera o seu momento para aparecer
-                LaunchedEffect(Unit) {
-                    delay(index * 40L) // As cartas deslizam com um atraso de 40ms entre si
-                    cardDealt = true
-                }
-
-                // Cálculo da posição. Se ainda não foi dada, ela começa escondida um pouco para baixo e para a esquerda
-                val targetX = if (cardDealt) CARD_FAN_STEP * index else (CARD_FAN_STEP * index) - 30.dp
-                val targetY = if (cardDealt) (if (puxada) 0.dp else CARD_FAN_LIFT) else CARD_HEIGHT / 2
-                val targetAlpha = if (cardDealt) 1f else 0f
-
-                val animX by animateDpAsState(targetValue = targetX, label = "animX")
-                val animY by animateDpAsState(targetValue = targetY, label = "animY")
-                val animAlpha by animateFloatAsState(targetValue = targetAlpha, label = "animAlpha")
+                // Se ainda não foi dada, a carta começa escondida um pouco para baixo e para
+                // a esquerda da posição em que vai ficar no leque.
+                val posicao = rememberDealAnimation(
+                    index = index,
+                    animated = animated,
+                    finalX = CARD_FAN_STEP * index,
+                    finalY = if (puxada) 0.dp else CARD_FAN_LIFT,
+                    startX = CARD_FAN_STEP * index - 30.dp,
+                    startY = CARD_HEIGHT / 2,
+                )
 
                 CardFace(
                     card = carta,
@@ -108,8 +198,8 @@ fun CardFan(
                     playable = isPlayable(index, carta),
                     onClick = onClick?.let { acao -> { acao(index, carta) } },
                     modifier = Modifier
-                        .offset(x = animX, y = animY)
-                        .alpha(animAlpha)
+                        .offset(x = posicao.x, y = posicao.y)
+                        .alpha(posicao.alpha)
                         .zIndex(index.toFloat() + if (puxada) 0.5f else 0f)
                 )
             }

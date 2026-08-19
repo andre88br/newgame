@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -71,6 +72,8 @@ fun TrucoSurface(
     names: List<String>,
     enabled: Boolean,
     hinted: Move?,
+    /** Segue o ajuste de animações das Configurações: desligado, cartas e jogadas já nascem prontas. */
+    animated: Boolean = true,
     roundJustEnded: Boolean,
     onAcknowledgeRoundEnd: () -> Unit,
     modifier: Modifier = Modifier,
@@ -109,9 +112,10 @@ fun TrucoSurface(
             names = names,
             handSize = { seat -> state.handSize(seat) },
             palette = palette,
+            animated = animated,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            TableArea(state = state, viewer = viewer, names = names, palette = palette)
+            TableArea(state = state, viewer = viewer, names = names, palette = palette, animated = animated)
         }
 
         if (state.answering) {
@@ -151,6 +155,7 @@ fun TrucoSurface(
             CardFan(
                 cards = mao,
                 palette = palette,
+                animated = animated,
                 // Só a sugerida sai do leque. Marcar as manilhas aqui também seria tentador
                 // e erraria duas vezes: some com o realce da dica, e ensina pelo enfeite em
                 // vez de pela linha acima, que diz quais são e vale para a mesa inteira.
@@ -294,6 +299,7 @@ private fun TableArea(
     viewer: Seat,
     names: List<String>,
     palette: BoardPalette,
+    animated: Boolean,
 ) {
     Box(
         modifier = Modifier
@@ -315,13 +321,17 @@ private fun TableArea(
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (jogada in state.table) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CardFace(card = jogada.card, palette = palette)
-                    Text(
-                        text = seatLabel(jogada.seat, viewer, names),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                // Cada carta pousa uma vez só: a chave é a cadeira que jogou, não a posição
+                // na fileira, porque cada cadeira joga no máximo uma carta por rodada.
+                key(jogada.seat) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CardFace(card = jogada.card, palette = palette, modifier = rememberLandAnimation(animated))
+                        Text(
+                            text = seatLabel(jogada.seat, viewer, names),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
