@@ -105,7 +105,7 @@ fun DominoesSurface(
             names = names,
             handSize = { seat -> state.hand(seat).size },
             palette = palette,
-            handContent = { count, vertical ->
+            handContent = { _, count, vertical ->
                 DominoOpponentFan(count = count, palette = palette, vertical = vertical)
             },
             modifier = Modifier

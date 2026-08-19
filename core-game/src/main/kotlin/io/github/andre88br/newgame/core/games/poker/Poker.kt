@@ -532,10 +532,22 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
         return Outcome.Win(Seat(vencedor))
     }
 
-    /** A mão de cada um é dela, e a mesa é pública — o padrão de todo jogo de carta de informação oculta. */
+    /**
+     * A mão de cada um é dela, e a mesa é pública — o padrão de todo jogo de carta de
+     * informação oculta. A exceção é quem já foi all-in: a cadeira que apostou tudo o que
+     * tinha e segue na mão vira a carta para cima, como na mesa de verdade.
+     *
+     * Isso só acontece depois que a rodada em que ela foi all-in **fecha** — enquanto
+     * [PokerState.maxStreetBet] ainda está de pé, mostrar a mão adiantado daria a quem falta
+     * decidir (pagar ou desistir daquela aposta) uma informação que ela não teria numa mesa de
+     * verdade. Uma vez fechada a rodada, não sobra mais decisão nenhuma que ver a carta possa
+     * influenciar — o resto da mão é só passar até o showdown — e é seguro revelar.
+     */
     override fun redactFor(state: PokerState, viewer: Seat): PokerState = state.copy(
         hands = state.hands.mapIndexed { index, mao ->
-            if (index == viewer.index || mao.isEmpty()) mao else mao.hidden()
+            val seat = Seat(index)
+            val allInRevelado = state.isIn(seat) && state.stack(seat) == 0 && state.maxStreetBet == 0
+            if (index == viewer.index || mao.isEmpty() || allInRevelado) mao else mao.hidden()
         },
     )
 

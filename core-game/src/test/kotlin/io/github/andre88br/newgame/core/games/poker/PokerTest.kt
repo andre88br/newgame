@@ -226,6 +226,86 @@ class PokerTest {
         assertEquals(totalDeFichas, depois.stacks.sum() + depois.pot, "fichas não podem sumir nem duplicar")
     }
 
+    // -------- all-in vira a carta, mas só depois que a rodada em que aconteceu fecha --------
+
+    @Test
+    fun `quem foi all-in fica com a carta escondida enquanto ainda falta alguem decidir se paga`() {
+        // Cadeira 0 foi all-in por 30; cadeira 1 já cobriu os 100. Cadeira 2 ainda não decidiu
+        // se paga aquela aposta — mostrar a carta da 0 agora daria a ela informação que não
+        // teria numa mesa de verdade, bem na hora em que essa decisão ainda vale alguma coisa.
+        val estado = PokerState(
+            hands = listOf(
+                listOf(Card(Rank.ACE, Suit.CLUBS), Card(Rank.ACE, Suit.DIAMONDS)),
+                listOf(Card(Rank.KING, Suit.CLUBS), Card(Rank.KING, Suit.DIAMONDS)),
+                listOf(Card(Rank.QUEEN, Suit.CLUBS), Card(Rank.QUEEN, Suit.DIAMONDS)),
+            ),
+            board = emptyList(),
+            deck = emptyList(),
+            stacks = listOf(0, 300, 300),
+            streetBet = listOf(30, 100, 0),
+            contrib = listOf(30, 100, 0),
+            folded = listOf(false, false, false),
+            toAct = listOf(false, false, true),
+            pot = 130,
+            street = PokerStreet.PREFLOP,
+            minRaise = 20,
+            button = Seat(2),
+            smallBlind = 10,
+            bigBlind = 20,
+            turn = Seat(2),
+            ply = 3,
+            seats = 3,
+            rng = Rng(1),
+        )
+
+        val paraCadeira2 = PokerGame.redactFor(estado, Seat(2))
+
+        assertTrue(
+            paraCadeira2.hand(Seat(0)).all { it.isHidden },
+            "a rodada ainda está aberta: cadeira 2 ainda decide se paga o all-in",
+        )
+        assertEquals(estado.hand(Seat(2)), paraCadeira2.hand(Seat(2)), "a própria mão nunca é escondida de quem é dela")
+    }
+
+    @Test
+    fun `quem foi all-in vira a carta assim que a rodada em que aconteceu fecha`() {
+        // Mesmo all-in de 30 da cadeira 0, mas agora já no flop: a rodada em que ela foi
+        // all-in fechou, ninguém mais pode aumentar (a regra do motor), e o resto da mão é só
+        // passar até o showdown — não há mais decisão nenhuma que ver a carta possa mudar.
+        val estado = PokerState(
+            hands = listOf(
+                listOf(Card(Rank.ACE, Suit.CLUBS), Card(Rank.ACE, Suit.DIAMONDS)),
+                listOf(Card(Rank.KING, Suit.CLUBS), Card(Rank.KING, Suit.DIAMONDS)),
+                listOf(Card(Rank.QUEEN, Suit.CLUBS), Card(Rank.QUEEN, Suit.DIAMONDS)),
+            ),
+            board = listOf(Card(Rank.TWO, Suit.SPADES), Card(Rank.SEVEN, Suit.HEARTS), Card(Rank.NINE, Suit.CLUBS)),
+            deck = emptyList(),
+            stacks = listOf(0, 200, 200),
+            streetBet = listOf(0, 0, 0),
+            contrib = listOf(30, 100, 100),
+            folded = listOf(false, false, false),
+            toAct = listOf(false, true, true),
+            pot = 230,
+            street = PokerStreet.FLOP,
+            minRaise = 20,
+            button = Seat(2),
+            smallBlind = 10,
+            bigBlind = 20,
+            turn = Seat(1),
+            ply = 5,
+            seats = 3,
+            rng = Rng(1),
+        )
+
+        val paraCadeira2 = PokerGame.redactFor(estado, Seat(2))
+
+        assertFalse(
+            paraCadeira2.hand(Seat(0)).any { it.isHidden },
+            "a rodada onde a cadeira 0 foi all-in já fechou: não há mais nada que a carta escondida protegeria",
+        )
+        assertTrue(paraCadeira2.hand(Seat(1)).all { it.isHidden }, "quem não foi all-in continua com a carta escondida")
+    }
+
     // -------- uma partida inteira, jogada até o fim --------
 
     /**

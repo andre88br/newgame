@@ -64,7 +64,7 @@ fun CardTable(
     handSize: (Seat) -> Int,
     palette: BoardPalette,
     modifier: Modifier = Modifier,
-    handContent: @Composable (count: Int, vertical: Boolean) -> Unit = { count, vertical ->
+    handContent: @Composable (seat: Seat, count: Int, vertical: Boolean) -> Unit = { _, count, vertical ->
         OpponentFan(count = count, palette = palette, vertical = vertical)
     },
     /**
@@ -128,7 +128,7 @@ private fun OpponentHand(
     seat: Seat,
     count: Int,
     name: String,
-    handContent: @Composable (count: Int, vertical: Boolean) -> Unit,
+    handContent: @Composable (seat: Seat, count: Int, vertical: Boolean) -> Unit,
     seatExtra: @Composable (Seat) -> Unit,
     vertical: Boolean = false,
     modifier: Modifier = Modifier,
@@ -136,7 +136,7 @@ private fun OpponentHand(
     val descricao = stringResource(R.string.a11y_opponent_hand, name, count)
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
         Box(modifier = Modifier.semantics { contentDescription = descricao }) {
-            handContent(count, vertical)
+            handContent(seat, count, vertical)
         }
         Text(
             text = name,
@@ -150,9 +150,13 @@ private fun OpponentHand(
 
 /**
  * Animação fluida da mão dos adversários com distribuição das cartas.
+ *
+ * Não é `private`: o pôquer chama isto direto para desenhar a mão virada para baixo de quem
+ * ainda não mostrou as cartas, dentro do próprio [handContent] que decide, por cadeira, se
+ * mostra a carta virada ou de costas.
  */
 @Composable
-private fun OpponentFan(count: Int, palette: BoardPalette, vertical: Boolean = false, modifier: Modifier = Modifier) {
+internal fun OpponentFan(count: Int, palette: BoardPalette, vertical: Boolean = false, modifier: Modifier = Modifier) {
     if (count == 0) return
 
     val calcLargura = if (vertical) OPPONENT_CARD_HEIGHT else OPPONENT_FAN_STEP * (count - 1) + OPPONENT_CARD_WIDTH

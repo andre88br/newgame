@@ -94,6 +94,18 @@ fun PokerSurface(
             // cada rodada.
             handSize = { seat -> if (state.isAlive(seat)) 2 else 0 },
             palette = palette,
+            // Quem foi all-in já mostra a carta virada para cima assim que [PokerGame.redactFor]
+            // considera seguro revelar (a rodada em que ela foi all-in fechou) — o motor já
+            // manda a carta de verdade em vez de oculta, então basta reconhecer isso aqui e
+            // desenhar a face em vez do leque virado para baixo de sempre.
+            handContent = { seat, count, vertical ->
+                val maoAdversario = state.hand(seat)
+                if (maoAdversario.isNotEmpty() && maoAdversario.none { it.isHidden }) {
+                    CardFan(cards = maoAdversario, palette = palette)
+                } else {
+                    OpponentFan(count = count, palette = palette, vertical = vertical)
+                }
+            },
             // As fichas de cada adversário aparecem junto do nome dela, embaixo da própria
             // mão — não numa faixa à parte lá em cima, onde ficariam longe das cartas que
             // decidem se vale a pena pagar aquela aposta.
