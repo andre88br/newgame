@@ -142,6 +142,9 @@ data class MatchConfig(
 
     fun option(key: String): String? = options[key]
 
+    /** A mesma mesa (cadeiras, opções) com um sorteio novo — para recomeçar valer como jogo novo. */
+    fun reseeded(): MatchConfig = copy(seed = java.security.SecureRandom().nextLong())
+
     companion object {
         /**
          * Uma cadeira, e não duas.

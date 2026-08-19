@@ -53,7 +53,7 @@ sealed interface PlayResult {
  */
 class MatchSession(
     val entry: GameEntry,
-    val config: MatchConfig,
+    config: MatchConfig,
     val players: Map<Seat, Player>,
     record: MatchRecord = MatchRecord(entry.id, config),
 ) {
@@ -63,6 +63,15 @@ class MatchSession(
             "O registro é de ${record.gameId} e a sessão é de ${entry.id}"
         }
     }
+
+    /**
+     * A configuração da partida — cadeiras, opções e a semente do sorteio atual.
+     *
+     * Muda quando [restart] sorteia uma mão nova: recomeçar precisa parecer um jogo novo de
+     * verdade, não a mesma sequência de cartas ou dados replayada do zero.
+     */
+    var config: MatchConfig = config
+        private set
 
     var record: MatchRecord = record
         private set
@@ -209,8 +218,14 @@ class MatchSession(
         return true
     }
 
-    /** Recomeça a partida do zero, mantendo jogadores e configuração. */
+    /**
+     * Recomeça a partida do zero, mantendo jogadores, cadeiras e opções — mas sorteando de
+     * novo. Sem isto "recomeçar" devolveria a mesma sequência de cartas ou dados de sempre,
+     * porque [config] guarda a semente da partida original: pareceria a mesma mão, não um
+     * jogo novo.
+     */
     fun restart() {
+        config = config.reseeded()
         adopt(MatchRecord(entry.id, config))
     }
 
