@@ -1,6 +1,7 @@
 package io.github.andre88br.newgame.app.ui.board.surfaces
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import io.github.andre88br.newgame.core.cards.Card
 import io.github.andre88br.newgame.core.cards.standardDeck
