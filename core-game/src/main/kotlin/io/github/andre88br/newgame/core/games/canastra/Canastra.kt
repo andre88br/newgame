@@ -136,7 +136,9 @@ fun asSequence(cards: List<Card>): List<Card>? {
     }
 
     return posicoes.sorted().map { posicao ->
-        naturais.firstOrNull { sequenceOrder(it.rank) == posicao } ?: curinga!!
+        naturais.firstOrNull { sequenceOrder(it.rank) == posicao }
+            ?: curinga
+            ?: error("asSequence: posição $posicao sem carta natural e sem curinga para preenchê-la")
     }
 }
 
@@ -365,9 +367,20 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         return jogos + discardMoves(state, mao)
     }
 
+    /**
+     * O time ainda não chegou aos pontos que obrigam o primeiro jogo a valer ao menos 150.
+     *
+     * Única fonte da checagem do limiar: [openingIncomplete], [isOpeningPathPreserved] e
+     * [updateOpening] reimplementavam esta mesma conta cada um a seu jeito, e um deles
+     * (`isOpeningPathPreserved`) fazia isso com uma dupla negação difícil de ler. Centralizar
+     * aqui evita a regra derivar entre os três lugares.
+     */
+    private fun belowOpeningThreshold(state: CanastraState, team: Int): Boolean =
+        state.scores.getOrElse(team) { 0 } < CANASTRA_OPENING_THRESHOLD
+
     private fun openingIncomplete(state: CanastraState, team: Int): Boolean {
         if (state.firstMeldDone.getOrElse(team) { false }) return false
-        if (state.scores.getOrElse(team) { 0 } < CANASTRA_OPENING_THRESHOLD) return false
+        if (belowOpeningThreshold(state, team)) return false
         val progresso = state.openingProgress.getOrElse(team) { 0 }
         return progresso in 1 until CANASTRA_OPENING_MIN_VALUE
     }
@@ -474,10 +487,9 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
 
     private fun isOpeningPathPreserved(state: CanastraState, mao: List<Card>, move: CanastraMove): Boolean {
         val team = state.teamOf(state.turn)
-        if (!openingIncomplete(state, team) && (state.scores.getOrElse(team) { 0 } >= CANASTRA_OPENING_THRESHOLD) == false) return true
         if (state.firstMeldDone.getOrElse(team) { false }) return true
-        if (state.scores.getOrElse(team) { 0 } < CANASTRA_OPENING_THRESHOLD) return true
-        
+        if (belowOpeningThreshold(state, team)) return true
+
         val pontosAdicionais = when (move) {
             is CanastraMove.Meld -> move.cards.sumOf { cardValue(it) }
             is CanastraMove.SwapWild -> cardValue(move.card)
@@ -685,14 +697,24 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         )
     }
 
-    private fun zerarProgresso(state: CanastraState, team: Int): List<Int> =
-        state.openingProgress.toMutableList().also {
-            while (it.size <= team) it.add(0)
-            it[team] = 0
+    /**
+     * Devolve a lista com a posição [index] trocada por [value], crescendo com [default] até lá
+     * se ela ainda não chegar tão longe.
+     *
+     * Extraído porque o padrão "cresce a lista até o índice e troca o valor" se repetia, cada
+     * vez escrito à mão, em [zerarProgresso] e duas vezes dentro de [updateOpening].
+     */
+    private fun <T> List<T>.updated(index: Int, default: T, value: T): List<T> =
+        toMutableList().also {
+            while (it.size <= index) it.add(default)
+            it[index] = value
         }.toList()
 
+    private fun zerarProgresso(state: CanastraState, team: Int): List<Int> =
+        state.openingProgress.updated(team, 0, 0)
+
     private fun takeDiscard(state: CanastraState): CanastraState {
-        val devida = state.discardTop!!
+        val devida = checkNotNull(state.discardTop) { "takeDiscard chamado com o lixo vazio" }
         val mao = state.hand(state.turn).toMutableList()
         val vermelhos = state.redThrees.toMutableList()
         val time = state.teamOf(state.turn)
@@ -718,36 +740,51 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         )
     }
 
+    /** O que [checkPendingDiscard] devolve: a mão, os vermelhos e a memória já com a pendência resolvida, e o que sobrou pendente. */
+    private data class PendingDiscardOutcome(
+        val hand: List<Card>,
+        val redThrees: List<Int>,
+        val knownOpponentCards: Map<Int, List<Card>>,
+        val pendingDiscard: List<Card>,
+    )
+
+    /**
+     * Se a abertura acabou de se completar e havia cartas do lixo pegas antes de a mão poder
+     * recebê-las, entrega agora: soma os vermelhos, acrescenta o resto à mão e anota o que ficou
+     * visível para os adversários. Sem pendência, ou com a abertura ainda incompleta, devolve
+     * [hand], [redThrees] e [knownOpponentCards] inalterados.
+     *
+     * Devolve um resultado imutável em vez de mutar [hand], [redThrees] e [knownOpponentCards]
+     * por referência — o formato antigo escondia, na assinatura, que a função tinha três efeitos
+     * colaterais ao mesmo tempo que devolvia um quarto valor por `return`.
+     */
     private fun checkPendingDiscard(
         state: CanastraState,
         team: Int,
-        mao: MutableList<Card>,
-        vermelhos: MutableList<Int>,
+        hand: List<Card>,
+        redThrees: List<Int>,
         abertura: Abertura,
         devida: Card?,
-        memoria: MutableMap<Int, List<Card>>
-    ): List<Card> {
-        var finalPending = state.pendingDiscard
-        val abaixoDoLimiar = state.scores.getOrElse(team) { 0 } < CANASTRA_OPENING_THRESHOLD
-        val isOpeningDoneNow = abertura.firstMeldDone.getOrElse(team) { false } || abaixoDoLimiar
+        knownOpponentCards: Map<Int, List<Card>>,
+    ): PendingDiscardOutcome {
+        val pending = state.pendingDiscard
+        val isOpeningDoneNow = abertura.firstMeldDone.getOrElse(team) { false } || belowOpeningThreshold(state, team)
 
-        if (devida == null && finalPending.isNotEmpty() && isOpeningDoneNow) {
-            val recemAdicionadas = mutableListOf<Card>()
-            for (carta in finalPending) {
-                if (isRedThree(carta)) {
-                    vermelhos[team] = vermelhos[team] + 1
-                } else {
-                    mao.add(carta)
-                    recemAdicionadas.add(carta)
-                }
-            }
-            if (recemAdicionadas.isNotEmpty()) {
-                val antigas = memoria[state.turn.index] ?: emptyList()
-                memoria[state.turn.index] = antigas + recemAdicionadas
-            }
-            finalPending = emptyList()
+        if (devida != null || pending.isEmpty() || !isOpeningDoneNow) {
+            return PendingDiscardOutcome(hand, redThrees, knownOpponentCards, pending)
         }
-        return finalPending
+
+        val (vermelhosPendentes, restante) = pending.partition { isRedThree(it) }
+        val novaMao = hand + restante
+        val novosVermelhos = redThrees.updated(team, 0, redThrees.getOrElse(team) { 0 } + vermelhosPendentes.size)
+        val novaMemoria = if (restante.isEmpty()) {
+            knownOpponentCards
+        } else {
+            val antigas = knownOpponentCards[state.turn.index] ?: emptyList()
+            knownOpponentCards + (state.turn.index to antigas + restante)
+        }
+
+        return PendingDiscardOutcome(novaMao, novosVermelhos, novaMemoria, emptyList())
     }
 
     private fun applyMeld(state: CanastraState, move: CanastraMove.Meld): CanastraState {
@@ -758,10 +795,19 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val jogos = state.melds[time].toMutableList()
         if (move.into != null) {
             var atual = jogos[move.into]
-            for (carta in move.cards) atual = extendMeld(atual, carta)!!
+            for (carta in move.cards) {
+                // applyMove já validou que cada carta encaixa (CANASTRA_DOES_NOT_FIT); se isto
+                // disparar é bug de validação, não lance ilegal de quem joga.
+                atual = checkNotNull(extendMeld(atual, carta)) {
+                    "applyMeld: $carta não encaixa no jogo ${move.into} — deveria ter sido barrado em applyMove"
+                }
+            }
             jogos[move.into] = atual
         } else {
-            jogos += asMeld(move.cards)!!
+            // applyMove já validou que move.cards forma um jogo válido (CANASTRA_INVALID_MELD).
+            jogos += checkNotNull(asMeld(move.cards)) {
+                "applyMeld: ${move.cards} não forma um jogo válido — deveria ter sido barrado em applyMove"
+            }
         }
 
         val mesa = state.melds.toMutableList()
@@ -769,25 +815,22 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
 
         val abertura = updateOpening(state, time, move.cards.sumOf { cardValue(it) })
         val devida = if (state.owedCard != null && state.owedCard in move.cards) null else state.owedCard
-        
-        val vermelhos = state.redThrees.toMutableList()
-        val memoria = state.knownOpponentCards.toMutableMap()
-        
-        val finalPending = checkPendingDiscard(state, time, mao, vermelhos, abertura, devida, memoria)
+
+        val pendente = checkPendingDiscard(state, time, mao, state.redThrees, abertura, devida, state.knownOpponentCards)
         val novaComprada = if (state.drawnCard != null && state.drawnCard in move.cards) null else state.drawnCard
 
         return settle(
             semMao(
                 state.copy(
-                    hands = trocarMao(state, mao),
+                    hands = trocarMao(state, pendente.hand),
                     melds = mesa.toList(),
                     firstMeldDone = abertura.firstMeldDone,
                     openingProgress = abertura.openingProgress,
                     owedCard = devida,
                     drawnCard = novaComprada,
-                    pendingDiscard = finalPending,
-                    redThrees = vermelhos.toList(),
-                    knownOpponentCards = memoria.toMap(),
+                    pendingDiscard = pendente.pendingDiscard,
+                    redThrees = pendente.redThrees,
+                    knownOpponentCards = pendente.knownOpponentCards,
                     ply = state.ply + 1,
                 ),
             ),
@@ -800,22 +843,15 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         if (state.firstMeldDone.getOrElse(team) { false }) {
             return Abertura(state.firstMeldDone, state.openingProgress)
         }
-        val abaixoDoLimiar = state.scores.getOrElse(team) { 0 } < CANASTRA_OPENING_THRESHOLD
         val novoProgresso = state.openingProgress.getOrElse(team) { 0 } + pontos
-        val completou = abaixoDoLimiar || novoProgresso >= CANASTRA_OPENING_MIN_VALUE
+        val completou = belowOpeningThreshold(state, team) || novoProgresso >= CANASTRA_OPENING_MIN_VALUE
 
         val firstMeldDone = if (completou) {
-            state.firstMeldDone.toMutableList().also {
-                while (it.size <= team) it.add(false)
-                it[team] = true
-            }.toList()
+            state.firstMeldDone.updated(team, false, true)
         } else {
             state.firstMeldDone
         }
-        val openingProgress = state.openingProgress.toMutableList().also {
-            while (it.size <= team) it.add(0)
-            it[team] = novoProgresso
-        }.toList()
+        val openingProgress = state.openingProgress.updated(team, 0, novoProgresso)
         return Abertura(firstMeldDone, openingProgress)
     }
 
@@ -829,8 +865,12 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         val indiceCuringa = antigo.cards.indexOfFirst { isWild(it) }
         val curinga = antigo.cards[indiceCuringa]
         val semCuringa = antigo.cards.toMutableList().also { it[indiceCuringa] = move.card }
-        
-        val novaSequencia = asSequence(semCuringa + curinga)!!
+
+        // applyMove já validou que move.card é exatamente a carta que o curinga representa
+        // (wildRepresents), então a troca sempre forma uma sequência válida.
+        val novaSequencia = checkNotNull(asSequence(semCuringa + curinga)) {
+            "applySwapWild: troca de curinga não formou sequência válida — deveria ter sido barrada em applyMove"
+        }
         jogos[move.into] = Meld(novaSequencia)
 
         val mesa = state.melds.toMutableList()
@@ -838,25 +878,22 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
 
         val devida = if (state.owedCard == move.card) null else state.owedCard
         val abertura = updateOpening(state, time, cardValue(move.card))
-        
-        val vermelhos = state.redThrees.toMutableList()
-        val memoria = state.knownOpponentCards.toMutableMap()
-        
-        val finalPending = checkPendingDiscard(state, time, mao, vermelhos, abertura, devida, memoria)
+
+        val pendente = checkPendingDiscard(state, time, mao, state.redThrees, abertura, devida, state.knownOpponentCards)
         val novaComprada = if (state.drawnCard == move.card) null else state.drawnCard
 
         return settle(
             semMao(
                 state.copy(
-                    hands = trocarMao(state, mao),
+                    hands = trocarMao(state, pendente.hand),
                     melds = mesa.toList(),
                     firstMeldDone = abertura.firstMeldDone,
                     openingProgress = abertura.openingProgress,
                     owedCard = devida,
                     drawnCard = novaComprada,
-                    pendingDiscard = finalPending,
-                    redThrees = vermelhos.toList(),
-                    knownOpponentCards = memoria.toMap(),
+                    pendingDiscard = pendente.pendingDiscard,
+                    redThrees = pendente.redThrees,
+                    knownOpponentCards = pendente.knownOpponentCards,
                     ply = state.ply + 1,
                 ),
             ),
