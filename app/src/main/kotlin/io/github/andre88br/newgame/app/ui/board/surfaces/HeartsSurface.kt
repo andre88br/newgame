@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -84,79 +85,90 @@ fun HeartsSurface(
     val isGameOver = state.scores.any { it >= HEARTS_TARGET_SCORE }
     val showRoundDialog = state.lastHand != null && (roundJustEnded || (isGameOver && !finalScoreDismissed))
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Scoreboard(state = state, viewer = viewer, names = names)
+    // A largura disponível decide o quanto a carta cresce — veja [cardScaleFor]. Numa tela
+    // estreita o resultado é sempre 1 (o tamanho de sempre); numa tela deitada ou num
+    // tablet, a mesa inteira cresce junto.
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val scale = cardScaleFor(maxWidth)
 
-        // Os adversários sentados ao redor, com a vaza no meio — a mesma mesa que a copas
-        // sempre foi, só que agora desenhada, e não contada em texto.
-        CardTable(
-            seats = HEARTS_SEATS,
-            viewer = viewer,
-            names = names,
-            handSize = { seat -> state.handSize(seat) },
-            palette = palette,
-            animated = animated,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            TrickArea(
-                state = state,
-                names = names,
-                palette = palette,
-                animated = animated,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
-        Text(
-            text = phaseText(state, viewer),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        // **As cartas que você já escolheu para passar.**
-        //
-        // Elas saem da mão assim que são tocadas — é o que impede escolher a mesma duas
-        // vezes —, e sem mostrá-las aqui a pessoa veria três cartas sumirem sem saber quais
-        // foram, justamente na hora em que precisa decidir a terceira.
-        val escolhidas = state.passing.getOrElse(viewer.index) { emptyList() }
-        if (state.phase == HeartsPhase.PASSING && escolhidas.isNotEmpty()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                for (carta in escolhidas) {
-                    CardFace(card = carta, palette = palette, selected = true)
-                }
-            }
-        }
-
-        // A mão em leque, uma carta por cima da outra. Treze cartas lado a lado não caberiam
-        // na largura de um celular, e uma mão que só se vê rolando não dá para avaliar.
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            CardFan(
-                cards = mao,
+            Scoreboard(state = state, viewer = viewer, names = names)
+
+            // Os adversários sentados ao redor, com a vaza no meio — a mesma mesa que a
+            // copas sempre foi, só que agora desenhada, e não contada em texto.
+            CardTable(
+                seats = HEARTS_SEATS,
+                viewer = viewer,
+                names = names,
+                handSize = { seat -> state.handSize(seat) },
                 palette = palette,
                 animated = animated,
-                // A sugerida da dica sai do leque para ser vista.
-                isRaised = { _, carta -> carta == sugerida },
-                // Fora da vez nada fica apagado — não está sendo pedido nada a você. Na sua
-                // vez, apaga o que a regra não deixa: no passe tudo serve, nas vazas só as
-                // cartas que servem o naipe (ou o que valer no momento).
-                isPlayable = { _, carta ->
-                    !minhaVez || state.phase == HeartsPhase.PASSING || carta in jogaveis
-                },
-                onClick = if (enabled) {
-                    { _, carta -> onMove(HeartsMove(carta)) }
-                } else {
-                    null
-                },
+                scale = scale,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                TrickArea(
+                    state = state,
+                    names = names,
+                    palette = palette,
+                    animated = animated,
+                    scale = scale,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            Text(
+                text = phaseText(state, viewer),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            // **As cartas que você já escolheu para passar.**
+            //
+            // Elas saem da mão assim que são tocadas — é o que impede escolher a mesma duas
+            // vezes —, e sem mostrá-las aqui a pessoa veria três cartas sumirem sem saber
+            // quais foram, justamente na hora em que precisa decidir a terceira.
+            val escolhidas = state.passing.getOrElse(viewer.index) { emptyList() }
+            if (state.phase == HeartsPhase.PASSING && escolhidas.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    for (carta in escolhidas) {
+                        CardFace(card = carta, palette = palette, selected = true, scale = scale)
+                    }
+                }
+            }
+
+            // A mão em leque, uma carta por cima da outra. Treze cartas lado a lado não
+            // caberiam na largura de um celular, e uma mão que só se vê rolando não dá para
+            // avaliar.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+            ) {
+                CardFan(
+                    cards = mao,
+                    palette = palette,
+                    animated = animated,
+                    scale = scale,
+                    // A sugerida da dica sai do leque para ser vista.
+                    isRaised = { _, carta -> carta == sugerida },
+                    // Fora da vez nada fica apagado — não está sendo pedido nada a você. Na
+                    // sua vez, apaga o que a regra não deixa: no passe tudo serve, nas vazas
+                    // só as cartas que servem o naipe (ou o que valer no momento).
+                    isPlayable = { _, carta ->
+                        !minhaVez || state.phase == HeartsPhase.PASSING || carta in jogaveis
+                    },
+                    onClick = if (enabled) {
+                        { _, carta -> onMove(HeartsMove(carta)) }
+                    } else {
+                        null
+                    },
+                )
+            }
         }
     }
 
@@ -253,13 +265,14 @@ private fun TrickArea(
     names: List<String>,
     palette: BoardPalette,
     animated: Boolean,
+    scale: Float,
     modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
             .background(palette.darkSquare)
-            .heightIn(min = CARD_HEIGHT + 32.dp)
+            .heightIn(min = CARD_HEIGHT * scale + 32.dp)
             .padding(10.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -283,7 +296,12 @@ private fun TrickArea(
                 // porque outra chegou ao lado dela.
                 key(jogada.seat) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CardFace(card = jogada.card, palette = palette, modifier = rememberLandAnimation(animated))
+                        CardFace(
+                            card = jogada.card,
+                            palette = palette,
+                            scale = scale,
+                            modifier = rememberLandAnimation(animated),
+                        )
                         Text(
                             text = names.getOrNull(jogada.seat.index)?.takeIf { it.isNotBlank() }
                                 ?: stringResource(R.string.dominoes_opponent_seat, jogada.seat.index + 1),

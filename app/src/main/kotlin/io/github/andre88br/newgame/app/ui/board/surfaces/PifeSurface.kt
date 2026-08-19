@@ -3,6 +3,7 @@ package io.github.andre88br.newgame.app.ui.board.surfaces
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -67,83 +68,92 @@ fun PifeSurface(
     // A dica vem como lance pronto; aqui ela vira o realce da carta que ela descartaria.
     val sugerida = (hinted as? PifeMove.Discard)?.card
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        HandCounts(state = state, viewer = viewer)
+    // A largura disponível decide o quanto a carta cresce — veja [cardScaleFor]. Numa tela
+    // estreita o resultado é sempre 1 (o tamanho de sempre); numa tela deitada ou num
+    // tablet, a mesa inteira cresce junto.
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val scale = cardScaleFor(maxWidth)
 
-        // Os adversários sentados ao redor, com o monte e o lixo no meio.
-        CardTable(
-            seats = state.seats,
-            viewer = viewer,
-            names = names,
-            handSize = { seat -> state.handSize(seat) },
-            palette = palette,
-            animated = animated,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            TableInfo(state = state, palette = palette, animated = animated)
-        }
-
-        Text(
-            text = when {
-                !minhaVez -> stringResource(R.string.pife_wait)
-                state.phase == PifePhase.DRAW -> stringResource(R.string.pife_draw_prompt)
-                else -> stringResource(R.string.pife_discard_prompt)
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (state.phase == PifePhase.DRAW) {
-                Button(
-                    onClick = { onMove(PifeMove.DrawStock) },
-                    enabled = enabled && minhaVez,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(stringResource(R.string.pife_draw_stock))
-                }
-                OutlinedButton(
-                    onClick = { onMove(PifeMove.DrawDiscard) },
-                    enabled = enabled && minhaVez && state.discardTop != null,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(stringResource(R.string.pife_take_discard))
-                }
-            } else {
-                Button(
-                    onClick = { carta?.let { onMove(PifeMove.Discard(it)) } },
-                    enabled = enabled && minhaVez && carta != null,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(stringResource(R.string.pife_discard))
-                }
-            }
-        }
-
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            CardFan(
-                cards = mao,
+            HandCounts(state = state, viewer = viewer)
+
+            // Os adversários sentados ao redor, com o monte e o lixo no meio.
+            CardTable(
+                seats = state.seats,
+                viewer = viewer,
+                names = names,
+                handSize = { seat -> state.handSize(seat) },
                 palette = palette,
                 animated = animated,
-                isRaised = { index, atual -> index == escolhida || atual == sugerida },
-                onClick = if (enabled && minhaVez && state.phase == PifePhase.DISCARD) {
-                    { index, _ -> escolhida = if (index == escolhida) null else index }
-                } else {
-                    null
+                scale = scale,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                TableInfo(state = state, palette = palette, animated = animated, scale = scale)
+            }
+
+            Text(
+                text = when {
+                    !minhaVez -> stringResource(R.string.pife_wait)
+                    state.phase == PifePhase.DRAW -> stringResource(R.string.pife_draw_prompt)
+                    else -> stringResource(R.string.pife_discard_prompt)
                 },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (state.phase == PifePhase.DRAW) {
+                    Button(
+                        onClick = { onMove(PifeMove.DrawStock) },
+                        enabled = enabled && minhaVez,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(stringResource(R.string.pife_draw_stock))
+                    }
+                    OutlinedButton(
+                        onClick = { onMove(PifeMove.DrawDiscard) },
+                        enabled = enabled && minhaVez && state.discardTop != null,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(stringResource(R.string.pife_take_discard))
+                    }
+                } else {
+                    Button(
+                        onClick = { carta?.let { onMove(PifeMove.Discard(it)) } },
+                        enabled = enabled && minhaVez && carta != null,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(stringResource(R.string.pife_discard))
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+            ) {
+                CardFan(
+                    cards = mao,
+                    palette = palette,
+                    animated = animated,
+                    scale = scale,
+                    isRaised = { index, atual -> index == escolhida || atual == sugerida },
+                    onClick = if (enabled && minhaVez && state.phase == PifePhase.DISCARD) {
+                        { index, _ -> escolhida = if (index == escolhida) null else index }
+                    } else {
+                        null
+                    },
+                )
+            }
         }
     }
 }
@@ -171,7 +181,7 @@ private fun HandCounts(state: PifeState, viewer: Seat) {
 
 /** De onde se compra: o monte virado para baixo e a carta de cima do lixo, à vista. */
 @Composable
-private fun TableInfo(state: PifeState, palette: BoardPalette, animated: Boolean) {
+private fun TableInfo(state: PifeState, palette: BoardPalette, animated: Boolean, scale: Float) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -181,7 +191,7 @@ private fun TableInfo(state: PifeState, palette: BoardPalette, animated: Boolean
             if (state.stock.isEmpty()) {
                 Box(modifier = Modifier.padding(2.dp)) { Text("—") }
             } else {
-                FaceDownCard(palette = palette)
+                FaceDownCard(palette = palette, width = CARD_WIDTH * scale, height = CARD_HEIGHT * scale)
             }
             Text(
                 text = stringResource(R.string.pife_stock, state.stock.size),
@@ -197,7 +207,12 @@ private fun TableInfo(state: PifeState, palette: BoardPalette, animated: Boolean
                 // A carta descartada pousa uma vez: a chave é o tamanho da pilha, não a
                 // carta em si, para não confundir duas cartas iguais em descartes seguidos.
                 key(state.discard.size) {
-                    CardFace(card = topo, palette = palette, modifier = rememberLandAnimation(animated))
+                    CardFace(
+                        card = topo,
+                        palette = palette,
+                        scale = scale,
+                        modifier = rememberLandAnimation(animated),
+                    )
                 }
             }
             Text(

@@ -61,9 +61,11 @@ fun CardTable(
     palette: BoardPalette,
     /** Segue o ajuste de animações das Configurações: desligado, as mãos alheias já nascem completas. */
     animated: Boolean = true,
+    /** Segue o espaço disponível na tela — veja [cardScaleFor]. Em 1 (o padrão), o tamanho de sempre. */
+    scale: Float = 1f,
     modifier: Modifier = Modifier,
     handContent: @Composable (seat: Seat, count: Int, vertical: Boolean) -> Unit = { _, count, vertical ->
-        OpponentFan(count = count, palette = palette, animated = animated, vertical = vertical)
+        OpponentFan(count = count, palette = palette, animated = animated, scale = scale, vertical = vertical)
     },
     /**
      * O que mostrar junto do nome de cada adversário — vazio por padrão. O pôquer usa isto
@@ -159,19 +161,27 @@ private fun OpponentHand(
  *
  * [animated] segue o ajuste de animações das Configurações: desligado, a mão inteira já
  * nasce completa, sem o efeito cascata.
+ *
+ * [scale] segue o espaço disponível na tela — veja [cardScaleFor]. As costas dos adversários
+ * crescem junto com a própria mão, para a mesa inteira parecer uma coisa só num tablet.
  */
 @Composable
 internal fun OpponentFan(
     count: Int,
     palette: BoardPalette,
     animated: Boolean = true,
+    scale: Float = 1f,
     vertical: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     if (count == 0) return
 
-    val calcLargura = if (vertical) OPPONENT_CARD_HEIGHT else OPPONENT_FAN_STEP * (count - 1) + OPPONENT_CARD_WIDTH
-    val calcAltura = if (vertical) OPPONENT_FAN_STEP * (count - 1) + OPPONENT_CARD_WIDTH else OPPONENT_CARD_HEIGHT
+    val cardWidth = OPPONENT_CARD_WIDTH * scale
+    val cardHeight = OPPONENT_CARD_HEIGHT * scale
+    val fanStep = OPPONENT_FAN_STEP * scale
+
+    val calcLargura = if (vertical) cardHeight else fanStep * (count - 1) + cardWidth
+    val calcAltura = if (vertical) fanStep * (count - 1) + cardWidth else cardHeight
     val duration = if (animated) DEAL_ANIM_DURATION_MS else 0
 
     val animLargura by animateDpAsState(calcLargura, tween(duration), label = "opp_width")
@@ -180,8 +190,8 @@ internal fun OpponentFan(
     Box(modifier = modifier.size(animLargura, animAltura)) {
         for (index in 0 until count) {
             key(index) {
-                val finalX = if (vertical) 0.dp else OPPONENT_FAN_STEP * index
-                val finalY = if (vertical) OPPONENT_FAN_STEP * index else 0.dp
+                val finalX = if (vertical) 0.dp else fanStep * index
+                val finalY = if (vertical) fanStep * index else 0.dp
 
                 // Se ainda não foi dada, a carta começa invisível e recolhida.
                 val posicao = rememberDealAnimation(
@@ -195,8 +205,8 @@ internal fun OpponentFan(
 
                 FaceDownCard(
                     palette = palette,
-                    width = if (vertical) OPPONENT_CARD_HEIGHT else OPPONENT_CARD_WIDTH,
-                    height = if (vertical) OPPONENT_CARD_WIDTH else OPPONENT_CARD_HEIGHT,
+                    width = if (vertical) cardHeight else cardWidth,
+                    height = if (vertical) cardWidth else cardHeight,
                     modifier = Modifier
                         .offset(x = posicao.x, y = posicao.y)
                         .alpha(posicao.alpha)

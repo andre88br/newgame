@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -95,79 +96,96 @@ fun TrucoSurface(
     val isGameOver = state.scores.any { it >= TRUCO_TARGET }
     val showRoundDialog = state.lastHand != null && (roundJustEnded || (isGameOver && !finalScoreDismissed))
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Scoreboard(state = state, viewer = viewer)
+    // A largura disponível decide o quanto a carta cresce — veja [cardScaleFor]. Numa tela
+    // estreita o resultado é sempre 1 (o tamanho de sempre); numa tela deitada ou num
+    // tablet, a mesa inteira — mão, adversários, rodada — cresce junto.
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val scale = cardScaleFor(maxWidth)
 
-        RoundMarkers(state = state, viewer = viewer, palette = palette)
-
-        // Os adversários sentados ao redor, com a rodada corrente no meio.
-        CardTable(
-            seats = state.seats,
-            viewer = viewer,
-            names = names,
-            handSize = { seat -> state.handSize(seat) },
-            palette = palette,
-            animated = animated,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            TableArea(state = state, viewer = viewer, names = names, palette = palette, animated = animated)
-        }
-
-        if (state.answering) {
-            BetBanner(state = state, viewer = viewer, palette = palette)
-        } else {
-            Text(
-                text = when {
-                    !minhaVez -> stringResource(R.string.truco_wait)
-                    else -> stringResource(R.string.truco_play_prompt)
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        Actions(
-            state = state,
-            legais = legais,
-            enabled = enabled && minhaVez,
-            onMove = onMove,
-        )
-
-        // A referência das manilhas. Não é ajuda escondida: no truco mineiro elas são fixas e
-        // todo mundo à mesa sabe quais são. Quem está aprendendo é que não sabe, e descobrir
-        // isso perdendo a mão não ensina nada.
-        Text(
-            text = stringResource(R.string.truco_manilhas),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            CardFan(
-                cards = mao,
+            Scoreboard(state = state, viewer = viewer)
+
+            RoundMarkers(state = state, viewer = viewer, palette = palette)
+
+            // Os adversários sentados ao redor, com a rodada corrente no meio.
+            CardTable(
+                seats = state.seats,
+                viewer = viewer,
+                names = names,
+                handSize = { seat -> state.handSize(seat) },
                 palette = palette,
                 animated = animated,
-                // Só a sugerida sai do leque. Marcar as manilhas aqui também seria tentador
-                // e erraria duas vezes: some com o realce da dica, e ensina pelo enfeite em
-                // vez de pela linha acima, que diz quais são e vale para a mesa inteira.
-                isRaised = { _, carta -> carta == sugerida },
-                // Com truco na mesa nenhuma carta se joga: primeiro a resposta.
-                isPlayable = { _, _ -> !minhaVez || !state.answering },
-                onClick = if (enabled && minhaVez && !state.answering) {
-                    { _, carta -> onMove(TrucoMove.Play(carta)) }
-                } else {
-                    null
-                },
+                scale = scale,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                TableArea(
+                    state = state,
+                    viewer = viewer,
+                    names = names,
+                    palette = palette,
+                    animated = animated,
+                    scale = scale,
+                )
+            }
+
+            if (state.answering) {
+                BetBanner(state = state, viewer = viewer, palette = palette)
+            } else {
+                Text(
+                    text = when {
+                        !minhaVez -> stringResource(R.string.truco_wait)
+                        else -> stringResource(R.string.truco_play_prompt)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Actions(
+                state = state,
+                legais = legais,
+                enabled = enabled && minhaVez,
+                onMove = onMove,
             )
+
+            // A referência das manilhas. Não é ajuda escondida: no truco mineiro elas são
+            // fixas e todo mundo à mesa sabe quais são. Quem está aprendendo é que não sabe,
+            // e descobrir isso perdendo a mão não ensina nada.
+            Text(
+                text = stringResource(R.string.truco_manilhas),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+            ) {
+                CardFan(
+                    cards = mao,
+                    palette = palette,
+                    animated = animated,
+                    scale = scale,
+                    // Só a sugerida sai do leque. Marcar as manilhas aqui também seria
+                    // tentador e erraria duas vezes: some com o realce da dica, e ensina
+                    // pelo enfeite em vez de pela linha acima, que diz quais são e vale
+                    // para a mesa inteira.
+                    isRaised = { _, carta -> carta == sugerida },
+                    // Com truco na mesa nenhuma carta se joga: primeiro a resposta.
+                    isPlayable = { _, _ -> !minhaVez || !state.answering },
+                    onClick = if (enabled && minhaVez && !state.answering) {
+                        { _, carta -> onMove(TrucoMove.Play(carta)) }
+                    } else {
+                        null
+                    },
+                )
+            }
         }
     }
 
@@ -300,13 +318,14 @@ private fun TableArea(
     names: List<String>,
     palette: BoardPalette,
     animated: Boolean,
+    scale: Float,
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(palette.darkSquare)
-            .heightIn(min = CARD_HEIGHT + 32.dp)
+            .heightIn(min = CARD_HEIGHT * scale + 32.dp)
             .padding(10.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -325,7 +344,12 @@ private fun TableArea(
                 // na fileira, porque cada cadeira joga no máximo uma carta por rodada.
                 key(jogada.seat) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CardFace(card = jogada.card, palette = palette, modifier = rememberLandAnimation(animated))
+                        CardFace(
+                            card = jogada.card,
+                            palette = palette,
+                            scale = scale,
+                            modifier = rememberLandAnimation(animated),
+                        )
                         Text(
                             text = seatLabel(jogada.seat, viewer, names),
                             style = MaterialTheme.typography.labelSmall,

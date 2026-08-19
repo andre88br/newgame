@@ -60,6 +60,28 @@ private val CARD_FAN_LIFT = 10.dp
 private val SUIT_RED = Color(0xFFC62828)
 private val SUIT_BLACK = Color(0xFF1B1B1B)
 
+/** Largura abaixo da qual a carta fica no tamanho de sempre — a de um celular em pé. */
+private const val CARD_SCALE_BASELINE_DP = 400
+
+/** Teto do crescimento: uma tela bem larga não estica a carta a ponto de parecer um pôster. */
+private const val CARD_SCALE_MAX = 1.4f
+
+/**
+ * Quanto ampliar o tamanho normal da carta, a partir da largura disponível na tela.
+ *
+ * Abaixo de [CARD_SCALE_BASELINE_DP] o resultado é sempre 1 — o tamanho de sempre, já
+ * ajustado para caber num celular em pé; a carta nunca fica *menor* que isso, porque
+ * legibilidade não é o que sobra quando a tela aperta. Acima disso — celular deitado,
+ * tablet — ela cresce junto com a largura, até o teto de [CARD_SCALE_MAX]: o mesmo espírito
+ * do teto que existe para a meia-peça do dominó, em [DominoesSurface], que impede a mesa de
+ * virar dois tijolos gigantes quando sobra espaço demais.
+ *
+ * Cada mesa de carta calcula isto uma vez, a partir do próprio `BoxWithConstraints`, e passa
+ * o resultado adiante como o parâmetro `scale` de [CardFan], [CardFace] e companhia.
+ */
+fun cardScaleFor(maxWidth: Dp): Float =
+    (maxWidth.value / CARD_SCALE_BASELINE_DP).coerceIn(1f, CARD_SCALE_MAX)
+
 /** Atraso entre uma carta e a seguinte começarem a deslizar, no efeito cascata de distribuir. */
 private const val DEAL_STAGGER_MS = 40L
 
@@ -153,12 +175,17 @@ fun rememberLandAnimation(animated: Boolean): Modifier {
  *
  * [animated] segue o ajuste de animações das Configurações: desligado, a mão inteira já
  * nasce na posição final, sem o efeito cascata.
+ *
+ * [scale] segue o espaço disponível na tela — veja [cardScaleFor]: em 1 (o padrão) a mão sai
+ * do mesmo tamanho de sempre; maior que 1, cada carta e o passo do leque crescem juntos, sem
+ * mudar a proporção entre eles.
  */
 @Composable
 fun CardFan(
     cards: List<Card>,
     palette: BoardPalette,
     animated: Boolean = true,
+    scale: Float = 1f,
     modifier: Modifier = Modifier,
     isRaised: (Int, Card) -> Boolean = { _, _ -> false },
     isPlayable: (Int, Card) -> Boolean = { _, _ -> true },
@@ -166,13 +193,18 @@ fun CardFan(
 ) {
     if (cards.isEmpty()) return
 
+    val cardWidth = CARD_WIDTH * scale
+    val cardHeight = CARD_HEIGHT * scale
+    val fanStep = CARD_FAN_STEP * scale
+    val fanLift = CARD_FAN_LIFT * scale
+
     // O tamanho total do leque é animado para a mão encolher e crescer suavemente.
     val largura by animateDpAsState(
-        targetValue = CARD_FAN_STEP * (cards.size - 1) + CARD_WIDTH,
+        targetValue = fanStep * (cards.size - 1) + cardWidth,
         animationSpec = tween(if (animated) DEAL_ANIM_DURATION_MS else 0),
         label = "fan_width",
     )
-    val altura = CARD_HEIGHT + CARD_FAN_LIFT
+    val altura = cardHeight + fanLift
 
     Box(modifier = modifier.size(largura, altura)) {
         cards.forEachIndexed { index, carta ->
@@ -185,10 +217,10 @@ fun CardFan(
                 val posicao = rememberDealAnimation(
                     index = index,
                     animated = animated,
-                    finalX = CARD_FAN_STEP * index,
-                    finalY = if (puxada) 0.dp else CARD_FAN_LIFT,
-                    startX = CARD_FAN_STEP * index - 30.dp,
-                    startY = CARD_HEIGHT / 2,
+                    finalX = fanStep * index,
+                    finalY = if (puxada) 0.dp else fanLift,
+                    startX = fanStep * index - 30.dp * scale,
+                    startY = cardHeight / 2,
                 )
 
                 CardFace(
@@ -196,6 +228,7 @@ fun CardFan(
                     palette = palette,
                     selected = puxada,
                     playable = isPlayable(index, carta),
+                    scale = scale,
                     onClick = onClick?.let { acao -> { acao(index, carta) } },
                     modifier = Modifier
                         .offset(x = posicao.x, y = posicao.y)
@@ -207,6 +240,13 @@ fun CardFan(
     }
 }
 
+/**
+ * Uma carta, virada para cima ou de costas.
+ *
+ * [scale] segue o espaço disponível na tela — veja [cardScaleFor]. O contorno fica com a
+ * mesma espessura em qualquer tamanho: linha fina precisa continuar fina para marcar
+ * seleção/dica sem virar moldura, e a diferença já é pequena demais para valer a conta.
+ */
 @Composable
 fun CardFace(
     card: Card,
@@ -215,10 +255,11 @@ fun CardFace(
     selected: Boolean = false,
     hinted: Boolean = false,
     playable: Boolean = true,
+    scale: Float = 1f,
     onClick: (() -> Unit)? = null,
 ) {
     if (card.isHidden) {
-        FaceDownCard(palette = palette, modifier = modifier)
+        FaceDownCard(palette = palette, modifier = modifier, width = CARD_WIDTH * scale, height = CARD_HEIGHT * scale)
         return
     }
 
@@ -232,7 +273,7 @@ fun CardFace(
 
     Box(
         modifier = modifier
-            .size(CARD_WIDTH, CARD_HEIGHT)
+            .size(CARD_WIDTH * scale, CARD_HEIGHT * scale)
             .clip(RoundedCornerShape(6.dp))
             .background(palette.firstPiece)
             .border(
@@ -252,16 +293,16 @@ fun CardFace(
             Text(
                 text = card.rank.short,
                 color = tinta,
-                fontSize = 13.sp,
+                fontSize = 13.sp * scale,
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.labelSmall,
             )
-            Text(text = card.suit.symbol, color = tinta, fontSize = 11.sp)
+            Text(text = card.suit.symbol, color = tinta, fontSize = 11.sp * scale)
         }
         Text(
             text = if (card.isJoker) "★" else card.suit.symbol,
             color = tinta,
-            fontSize = 24.sp,
+            fontSize = 24.sp * scale,
             modifier = Modifier
                 .align(Alignment.Center)
                 .padding(top = 8.dp),

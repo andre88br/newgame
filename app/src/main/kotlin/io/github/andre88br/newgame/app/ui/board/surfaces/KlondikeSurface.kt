@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -91,109 +92,119 @@ fun KlondikeSurface(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Progress(state = state)
+    // A largura disponível decide o quanto a carta cresce — veja [cardScaleFor]. Numa tela
+    // estreita o resultado é sempre 1 (o tamanho de sempre); numa tela deitada ou num
+    // tablet, a mesa inteira — monte, fundações e colunas — cresce junto.
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val scale = cardScaleFor(maxWidth)
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top,
-        ) {
-            StockAndWaste(
-                state = state,
-                palette = palette,
-                enabled = enabled,
-                animated = animated,
-                escolhido = pegada == Pegada.Descarte,
-                onStock = {
-                    pegada = null
-                    onMove(if (state.stock.isEmpty()) KlondikeMove.Recycle else KlondikeMove.Draw)
-                },
-                onWaste = { pegada = if (pegada == Pegada.Descarte) null else Pegada.Descarte },
-            )
-
-            Foundations(
-                state = state,
-                palette = palette,
-                onClick = if (enabled) {
-                    {
-                        when (val atual = pegada) {
-                            null -> Unit
-                            Pegada.Descarte -> onMove(KlondikeMove.WasteToFoundation)
-                            is Pegada.Coluna -> onMove(KlondikeMove.PileToFoundation(atual.pile))
-                        }
-                    }
-                } else {
-                    null
-                },
-            )
-        }
-
-        Text(
-            text = when {
-                !enabled -> stringResource(R.string.klondike_wait)
-                pegada == null -> stringResource(R.string.klondike_pick_prompt)
-                else -> stringResource(R.string.klondike_drop_prompt)
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        // A casa aceita uma carta de cada vez, e por isso ganha botão próprio: mirar na pilha
-        // certa entre quatro pilhas pequenas é o toque mais fácil de errar da tela.
-        Button(
-            onClick = {
-                when (val atual = pegada) {
-                    null -> Unit
-                    Pegada.Descarte -> onMove(KlondikeMove.WasteToFoundation)
-                    is Pegada.Coluna -> onMove(KlondikeMove.PileToFoundation(atual.pile))
-                }
-            },
-            enabled = enabled && pegada != null,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(stringResource(R.string.klondike_to_foundation))
-        }
-
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            for (coluna in 0 until KLONDIKE_PILES) {
-                PileColumn(
-                    downs = state.downs[coluna].size,
-                    ups = state.ups[coluna],
+            Progress(state = state)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top,
+            ) {
+                StockAndWaste(
+                    state = state,
                     palette = palette,
-                    escolhidas = (pegada as? Pegada.Coluna)
-                        ?.takeIf { it.pile == coluna }
-                        ?.count
-                        ?: 0,
-                    sugerida = sugeridaNaColuna(hinted, coluna),
-                    onEmpty = if (enabled) {
-                        { soltarEm(coluna) }
-                    } else {
-                        null
+                    enabled = enabled,
+                    animated = animated,
+                    scale = scale,
+                    escolhido = pegada == Pegada.Descarte,
+                    onStock = {
+                        pegada = null
+                        onMove(if (state.stock.isEmpty()) KlondikeMove.Recycle else KlondikeMove.Draw)
                     },
-                    onCard = if (enabled) {
-                        { indice ->
-                            if (pegada == null) {
-                                // Da carta tocada para cima: a sequência anda junto.
-                                pegada = Pegada.Coluna(coluna, state.ups[coluna].size - indice)
-                            } else {
-                                soltarEm(coluna)
+                    onWaste = { pegada = if (pegada == Pegada.Descarte) null else Pegada.Descarte },
+                )
+
+                Foundations(
+                    state = state,
+                    palette = palette,
+                    scale = scale,
+                    onClick = if (enabled) {
+                        {
+                            when (val atual = pegada) {
+                                null -> Unit
+                                Pegada.Descarte -> onMove(KlondikeMove.WasteToFoundation)
+                                is Pegada.Coluna -> onMove(KlondikeMove.PileToFoundation(atual.pile))
                             }
                         }
                     } else {
                         null
                     },
                 )
+            }
+
+            Text(
+                text = when {
+                    !enabled -> stringResource(R.string.klondike_wait)
+                    pegada == null -> stringResource(R.string.klondike_pick_prompt)
+                    else -> stringResource(R.string.klondike_drop_prompt)
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            // A casa aceita uma carta de cada vez, e por isso ganha botão próprio: mirar na
+            // pilha certa entre quatro pilhas pequenas é o toque mais fácil de errar da tela.
+            Button(
+                onClick = {
+                    when (val atual = pegada) {
+                        null -> Unit
+                        Pegada.Descarte -> onMove(KlondikeMove.WasteToFoundation)
+                        is Pegada.Coluna -> onMove(KlondikeMove.PileToFoundation(atual.pile))
+                    }
+                },
+                enabled = enabled && pegada != null,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.klondike_to_foundation))
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                for (coluna in 0 until KLONDIKE_PILES) {
+                    PileColumn(
+                        downs = state.downs[coluna].size,
+                        ups = state.ups[coluna],
+                        palette = palette,
+                        scale = scale,
+                        escolhidas = (pegada as? Pegada.Coluna)
+                            ?.takeIf { it.pile == coluna }
+                            ?.count
+                            ?: 0,
+                        sugerida = sugeridaNaColuna(hinted, coluna),
+                        onEmpty = if (enabled) {
+                            { soltarEm(coluna) }
+                        } else {
+                            null
+                        },
+                        onCard = if (enabled) {
+                            { indice ->
+                                if (pegada == null) {
+                                    // Da carta tocada para cima: a sequência anda junto.
+                                    pegada = Pegada.Coluna(coluna, state.ups[coluna].size - indice)
+                                } else {
+                                    soltarEm(coluna)
+                                }
+                            }
+                        } else {
+                            null
+                        },
+                    )
+                }
             }
         }
     }
@@ -235,6 +246,7 @@ private fun StockAndWaste(
     palette: BoardPalette,
     enabled: Boolean,
     animated: Boolean,
+    scale: Float,
     escolhido: Boolean,
     onStock: () -> Unit,
     onWaste: () -> Unit,
@@ -245,11 +257,14 @@ private fun StockAndWaste(
                 EmptySlot(
                     palette = palette,
                     label = "↻",
+                    scale = scale,
                     onClick = if (enabled && state.waste.isNotEmpty()) onStock else null,
                 )
             } else {
                 FaceDownCard(
                     palette = palette,
+                    width = CARD_WIDTH * scale,
+                    height = CARD_HEIGHT * scale,
                     modifier = if (enabled) Modifier.clickable { onStock() } else Modifier,
                 )
             }
@@ -262,7 +277,7 @@ private fun StockAndWaste(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             val topo = state.wasteTop
             if (topo == null) {
-                EmptySlot(palette = palette, label = "", onClick = null)
+                EmptySlot(palette = palette, label = "", scale = scale, onClick = null)
             } else {
                 // A carta que acabou de virar pousa uma vez: a chave é o tamanho do
                 // descarte, não a carta em si — duas cartas de mesmo valor em jogadas
@@ -273,6 +288,7 @@ private fun StockAndWaste(
                         card = topo,
                         palette = palette,
                         selected = escolhido,
+                        scale = scale,
                         onClick = if (enabled) onWaste else null,
                         modifier = rememberLandAnimation(animated),
                     )
@@ -289,16 +305,16 @@ private fun StockAndWaste(
 
 /** As quatro casas, uma por naipe, sempre nos mesmos lugares. */
 @Composable
-private fun Foundations(state: KlondikeState, palette: BoardPalette, onClick: (() -> Unit)?) {
+private fun Foundations(state: KlondikeState, palette: BoardPalette, scale: Float, onClick: (() -> Unit)?) {
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         for (naipe in Suit.entries) {
             val topo = state.foundationOf(naipe).lastOrNull()
             if (topo == null) {
                 // A casa vazia mostra o naipe dela: quem olha sabe onde o ás vai cair antes
                 // mesmo de ter o ás.
-                EmptySlot(palette = palette, label = naipe.symbol, onClick = onClick)
+                EmptySlot(palette = palette, label = naipe.symbol, scale = scale, onClick = onClick)
             } else {
-                CardFace(card = topo, palette = palette, onClick = onClick)
+                CardFace(card = topo, palette = palette, scale = scale, onClick = onClick)
             }
         }
     }
@@ -306,10 +322,10 @@ private fun Foundations(state: KlondikeState, palette: BoardPalette, onClick: ((
 
 /** Um lugar de carta sem carta: contorno tracejado não existe aqui, então é contorno fino. */
 @Composable
-private fun EmptySlot(palette: BoardPalette, label: String, onClick: (() -> Unit)?) {
+private fun EmptySlot(palette: BoardPalette, label: String, scale: Float, onClick: (() -> Unit)?) {
     Box(
         modifier = Modifier
-            .size(CARD_WIDTH, CARD_HEIGHT)
+            .size(CARD_WIDTH * scale, CARD_HEIGHT * scale)
             .clip(RoundedCornerShape(6.dp))
             // O verde da mesa: casa vazia é o pano, e não um buraco na tela.
             .background(palette.darkSquare)
@@ -338,6 +354,7 @@ private fun PileColumn(
     downs: Int,
     ups: List<Card>,
     palette: BoardPalette,
+    scale: Float,
     /** Quantas cartas do fim da coluna estão escolhidas. Zero quando nenhuma está. */
     escolhidas: Int,
     /** Quantas cartas do fim da coluna a dica aponta, ou `null`. */
@@ -346,13 +363,13 @@ private fun PileColumn(
     onCard: ((Int) -> Unit)?,
 ) {
     if (downs == 0 && ups.isEmpty()) {
-        EmptySlot(palette = palette, label = "", onClick = onEmpty)
+        EmptySlot(palette = palette, label = "", scale = scale, onClick = onEmpty)
         return
     }
 
     Layout(
         content = {
-            repeat(downs) { FaceDownCard(palette = palette) }
+            repeat(downs) { FaceDownCard(palette = palette, width = CARD_WIDTH * scale, height = CARD_HEIGHT * scale) }
             ups.forEachIndexed { index, carta ->
                 val doFim = ups.size - index
                 CardFace(
@@ -360,6 +377,7 @@ private fun PileColumn(
                     palette = palette,
                     selected = doFim <= escolhidas,
                     hinted = sugerida != null && doFim <= sugerida,
+                    scale = scale,
                     onClick = onCard?.let { acao -> { acao(index) } },
                 )
             }
@@ -367,8 +385,8 @@ private fun PileColumn(
     ) { measurables, constraints ->
         val soltos = constraints.copy(minWidth = 0, minHeight = 0)
         val postas = measurables.map { it.measure(soltos) }
-        val passoDorso = PILE_STEP_DOWN.roundToPx()
-        val passoCarta = PILE_STEP.roundToPx()
+        val passoDorso = (PILE_STEP_DOWN * scale).roundToPx()
+        val passoCarta = (PILE_STEP * scale).roundToPx()
 
         // A última carta aparece inteira; as de baixo, só a faixa do passo.
         val altura = passoDorso * downs +

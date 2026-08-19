@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -95,91 +96,101 @@ fun PokerSurface(
     var finalScoreDismissed by remember(state.handNumber) { mutableStateOf(false) }
     val showRoundDialog = state.lastResult != null && (roundJustEnded || (state.gameOver && !finalScoreDismissed))
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        CardTable(
-            seats = state.seats,
-            viewer = viewer,
-            names = names,
-            // Sempre duas cartas para quem segue no torneio, mesmo tendo desistido desta
-            // mão — só quem já foi eliminado (sem ficha e fora da mão) fica sem nenhuma. Um
-            // tamanho que mudasse a cada desistência faria a mesa inteira pular de lugar a
-            // cada rodada.
-            handSize = { seat -> if (state.isAlive(seat)) 2 else 0 },
-            palette = palette,
-            // Quem foi all-in já mostra a carta virada para cima assim que [PokerGame.redactFor]
-            // considera seguro revelar (a rodada em que ela foi all-in fechou) — o motor já
-            // manda a carta de verdade em vez de oculta, então basta reconhecer isso aqui e
-            // desenhar a face em vez do leque virado para baixo de sempre.
-            animated = animated,
-            handContent = { seat, count, vertical ->
-                val maoAdversario = state.hand(seat)
-                if (maoAdversario.isNotEmpty() && maoAdversario.none { it.isHidden }) {
-                    CardFan(cards = maoAdversario, palette = palette, animated = animated)
-                } else {
-                    OpponentFan(count = count, palette = palette, animated = animated, vertical = vertical)
+    // A largura disponível decide o quanto a carta cresce — veja [cardScaleFor]. Numa tela
+    // estreita o resultado é sempre 1 (o tamanho de sempre); numa tela deitada ou num
+    // tablet, a mesa inteira — mão, adversários, fichas e comunitárias — cresce junto.
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val scale = cardScaleFor(maxWidth)
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            CardTable(
+                seats = state.seats,
+                viewer = viewer,
+                names = names,
+                // Sempre duas cartas para quem segue no torneio, mesmo tendo desistido
+                // desta mão — só quem já foi eliminado (sem ficha e fora da mão) fica sem
+                // nenhuma. Um tamanho que mudasse a cada desistência faria a mesa inteira
+                // pular de lugar a cada rodada.
+                handSize = { seat -> if (state.isAlive(seat)) 2 else 0 },
+                palette = palette,
+                // Quem foi all-in já mostra a carta virada para cima assim que
+                // [PokerGame.redactFor] considera seguro revelar (a rodada em que ela foi
+                // all-in fechou) — o motor já manda a carta de verdade em vez de oculta,
+                // então basta reconhecer isso aqui e desenhar a face em vez do leque virado
+                // para baixo de sempre.
+                animated = animated,
+                scale = scale,
+                handContent = { seat, count, vertical ->
+                    val maoAdversario = state.hand(seat)
+                    if (maoAdversario.isNotEmpty() && maoAdversario.none { it.isHidden }) {
+                        CardFan(cards = maoAdversario, palette = palette, animated = animated, scale = scale)
+                    } else {
+                        OpponentFan(count = count, palette = palette, animated = animated, scale = scale, vertical = vertical)
+                    }
+                },
+                // As fichas de cada adversário aparecem junto do nome dela, embaixo da
+                // própria mão — não numa faixa à parte lá em cima, onde ficariam longe das
+                // cartas que decidem se vale a pena pagar aquela aposta.
+                seatExtra = { seat -> ChipStack(amount = state.stack(seat), scale = scale, destaque = seat == state.turn) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                TableArea(state = state, palette = palette, viewer = viewer, names = names, scale = scale)
+            }
+
+            Text(
+                text = when {
+                    eliminado -> stringResource(R.string.poker_eliminated)
+                    !state.isIn(viewer) -> stringResource(R.string.poker_folded_this_hand)
+                    minhaVez -> stringResource(R.string.poker_your_turn)
+                    else -> stringResource(R.string.poker_waiting_for, seatLabel(state.turn.index, viewer, names))
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // A própria pilha fica ao lado da própria mão, pelo mesmo motivo da de cada
+                // adversário: é olhando as fichas que se decide pagar ou desistir.
+                ChipStack(amount = state.stack(viewer), scale = scale, destaque = minhaVez)
+                CardFan(cards = mao, palette = palette, animated = animated, scale = scale)
+
+                // O resultado da mão anterior fica ao lado da própria mão, não lá em cima
+                // perto da mesa — é ali que os olhos já estão quando a mão termina e a
+                // próxima começa. O peso evita que uma frase longa empurre a mão para fora
+                // da tela.
+                state.lastResult?.let { resultado ->
+                    Text(
+                        text = lastResultText(resultado, viewer, names),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
-            },
-            // As fichas de cada adversário aparecem junto do nome dela, embaixo da própria
-            // mão — não numa faixa à parte lá em cima, onde ficariam longe das cartas que
-            // decidem se vale a pena pagar aquela aposta.
-            seatExtra = { seat -> ChipStack(amount = state.stack(seat), destaque = seat == state.turn) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            TableArea(state = state, palette = palette, viewer = viewer, names = names)
-        }
+            }
 
-        Text(
-            text = when {
-                eliminado -> stringResource(R.string.poker_eliminated)
-                !state.isIn(viewer) -> stringResource(R.string.poker_folded_this_hand)
-                minhaVez -> stringResource(R.string.poker_your_turn)
-                else -> stringResource(R.string.poker_waiting_for, seatLabel(state.turn.index, viewer, names))
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // A própria pilha fica ao lado da própria mão, pelo mesmo motivo da de cada
-            // adversário: é olhando as fichas que se decide pagar ou desistir.
-            ChipStack(amount = state.stack(viewer), destaque = minhaVez)
-            CardFan(cards = mao, palette = palette, animated = animated)
-
-            // O resultado da mão anterior fica ao lado da própria mão, não lá em cima perto
-            // da mesa — é ali que os olhos já estão quando a mão termina e a próxima começa.
-            // O peso evita que uma frase longa empurre a mão para fora da tela.
-            state.lastResult?.let { resultado ->
-                Text(
-                    text = lastResultText(resultado, viewer, names),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+            // Os botões de ação ficam embaixo da própria mão: é nela que se olha para
+            // decidir o lance, não antes de vê-la.
+            if (!eliminado) {
+                Actions(
+                    state = state,
+                    viewer = viewer,
+                    legais = legais,
+                    enabled = enabled && minhaVez,
+                    hinted = hinted,
+                    onMove = onMove,
                 )
             }
-        }
-
-        // Os botões de ação ficam embaixo da própria mão: é nela que se olha para decidir o
-        // lance, não antes de vê-la.
-        if (!eliminado) {
-            Actions(
-                state = state,
-                viewer = viewer,
-                legais = legais,
-                enabled = enabled && minhaVez,
-                hinted = hinted,
-                onMove = onMove,
-            )
         }
     }
 
@@ -238,10 +249,12 @@ private const val CHIP_STACK_LAYERS = 4
  * é por isso que aqui o tamanho já nasce reservado, pronto para qualquer valor.
  */
 @Composable
-private fun ChipStack(amount: Int, modifier: Modifier = Modifier, destaque: Boolean = false) {
+private fun ChipStack(amount: Int, scale: Float = 1f, modifier: Modifier = Modifier, destaque: Boolean = false) {
     val cor = chipColorFor(amount)
+    val chipSize = CHIP_SIZE * scale
+    val chipStep = CHIP_STACK_STEP * scale
     Box(
-        modifier = modifier.size(width = CHIP_SIZE, height = CHIP_SIZE + CHIP_STACK_STEP * (CHIP_STACK_LAYERS - 1)),
+        modifier = modifier.size(width = chipSize, height = chipSize + chipStep * (CHIP_STACK_LAYERS - 1)),
         contentAlignment = Alignment.BottomCenter,
     ) {
         if (amount <= 0) return@Box
@@ -249,8 +262,8 @@ private fun ChipStack(amount: Int, modifier: Modifier = Modifier, destaque: Bool
             val ehTopo = i == CHIP_STACK_LAYERS - 1
             Box(
                 modifier = Modifier
-                    .offset(y = -CHIP_STACK_STEP * i)
-                    .size(CHIP_SIZE)
+                    .offset(y = -chipStep * i)
+                    .size(chipSize)
                     .clip(CircleShape)
                     .background(cor.face)
                     .border(
@@ -263,7 +276,7 @@ private fun ChipStack(amount: Int, modifier: Modifier = Modifier, destaque: Bool
                 if (ehTopo) {
                     Text(
                         text = "$amount",
-                        fontSize = 8.sp,
+                        fontSize = 8.sp * scale,
                         fontWeight = FontWeight.Bold,
                         color = cor.text,
                         maxLines = 1,
@@ -303,7 +316,7 @@ private const val BOARD_CARD_REVEAL_DELAY_MS = 2_000L
 
 /** O centro da mesa: a rua, o pote e as cartas comunitárias já reveladas. */
 @Composable
-private fun TableArea(state: PokerState, palette: BoardPalette, viewer: Seat, names: List<String>) {
+private fun TableArea(state: PokerState, palette: BoardPalette, viewer: Seat, names: List<String>, scale: Float) {
     // O flop chega do motor como três cartas de uma vez só — e, num all-in, o turn e o river
     // podem chegar em sequência rápida logo atrás. Sem isto elas apareceriam todas juntas: a
     // contagem fica presa a esta mão (reseta quando [PokerState.handNumber] muda) e sobe uma
@@ -327,12 +340,12 @@ private fun TableArea(state: PokerState, palette: BoardPalette, viewer: Seat, na
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(palette.darkSquare)
-            .heightIn(min = CARD_HEIGHT + 48.dp)
+            .heightIn(min = CARD_HEIGHT * scale + 48.dp)
             .padding(10.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            ChipStack(amount = state.pot)
+            ChipStack(amount = state.pot, scale = scale)
             Text(
                 text = stringResource(R.string.poker_pot, state.pot),
                 style = MaterialTheme.typography.titleMedium,
@@ -354,7 +367,7 @@ private fun TableArea(state: PokerState, palette: BoardPalette, viewer: Seat, na
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (carta in cartasVisiveis) {
-                        CardFace(card = carta, palette = palette)
+                        CardFace(card = carta, palette = palette, scale = scale)
                     }
                 }
             }
