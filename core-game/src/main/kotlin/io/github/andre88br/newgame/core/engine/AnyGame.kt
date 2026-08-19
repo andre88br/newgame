@@ -34,6 +34,9 @@ interface AnyGame {
 
     fun outcome(state: GameState): Outcome
 
+    /** Veja [BoardGame.forcedMove]. */
+    fun forcedMove(state: GameState): Move?
+
     /** Veja [BoardGame.isCapture]. */
     fun isCapture(state: GameState, move: Move): Boolean
 
@@ -90,6 +93,8 @@ private class TypedFacade<S : GameState, M : Move>(
         }
 
     override fun outcome(state: GameState): Outcome = game.outcome(state.typed())
+
+    override fun forcedMove(state: GameState): Move? = game.forcedMove(state.typed())
 
     override fun isCapture(state: GameState, move: Move): Boolean =
         game.isCapture(state.typed(), move.typed())

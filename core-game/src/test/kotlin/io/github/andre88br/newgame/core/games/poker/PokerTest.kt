@@ -140,10 +140,10 @@ class PokerTest {
         assertEquals(depois.handNumber, meioDaProxima.handNumber, "ainda na mesma mão: o número não muda no meio dela")
     }
 
-    // -------- all-in trava aumento, e a mesa se revela sozinha até o showdown --------
+    // -------- all-in trava aumento, e a mesa se revela sozinha, uma rua de cada vez --------
 
     @Test
-    fun `com alguem all-in ninguem mais aumenta, e o resto da mesa sai de uma vez ate o showdown`() {
+    fun `com alguem all-in ninguem mais aumenta, e a mesa se revela sozinha uma rua de cada vez ate o showdown`() {
         // Pilhas curtas de propósito: o small blind já entra apostando quase tudo o que tem.
         var estado = novo(buyIn = 50, bigBlind = 20)
         assertEquals(40, estado.stack(Seat(1)))
@@ -159,9 +159,29 @@ class PokerTest {
         assertIs<MoveResult.Illegal>(PokerGame.applyMove(estado, PokerMove.Raise(to = 60)))
 
         // O big blind só tem trinta fichas: pagar aqui também é ir all-in. Ninguém mais decide
-        // nada depois disso — o motor revela sozinho flop, turn e river e faz o showdown.
+        // nada depois disso — mas a mesa não pula direto para o showdown: ela continua se
+        // revelando sozinha, uma rua de cada vez, exatamente como [PokerMove.AdvanceStreet]
+        // documenta.
         estado = PokerGame.applyOrThrow(estado, PokerMove.Call)
         assertEquals(0, estado.stack(Seat(0)))
+        assertEquals(PokerStreet.FLOP, estado.street, "só o flop sai no lance que fechou a rodada — não a mesa inteira")
+        assertEquals(3, estado.board.size)
+        assertEquals(100, estado.stacks.sum() + estado.pot, "as cem fichas da mesa não podem sumir nem duplicar")
+
+        // Ninguém mais tem lance de verdade: o único legal é a mesa se revelando sozinha.
+        assertEquals(listOf(PokerMove.AdvanceStreet), PokerGame.legalMoves(estado))
+        estado = PokerGame.applyOrThrow(estado, PokerMove.AdvanceStreet)
+        assertEquals(PokerStreet.TURN, estado.street)
+        assertEquals(4, estado.board.size, "uma carta de cada vez — não o resto inteiro")
+
+        assertEquals(listOf(PokerMove.AdvanceStreet), PokerGame.legalMoves(estado))
+        estado = PokerGame.applyOrThrow(estado, PokerMove.AdvanceStreet)
+        assertEquals(PokerStreet.RIVER, estado.street)
+        assertEquals(5, estado.board.size)
+
+        // Esta última chamada é que decide o showdown (ou o empate) e fecha a mão.
+        assertEquals(listOf(PokerMove.AdvanceStreet), PokerGame.legalMoves(estado))
+        estado = PokerGame.applyOrThrow(estado, PokerMove.AdvanceStreet)
         assertEquals(100, estado.stacks.sum() + estado.pot, "as cem fichas da mesa não podem sumir nem duplicar")
 
         val resultado = PokerGame.outcome(estado)

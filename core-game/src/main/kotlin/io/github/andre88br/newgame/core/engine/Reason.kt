@@ -166,6 +166,7 @@ enum class ReasonKey(
     POKER_RAISE_TOO_LOW("O aumento precisa ser de pelo menos o valor mínimo desta rodada"),
     POKER_RAISE_TOO_HIGH("Você não tem fichas suficientes para esse aumento"),
     POKER_NO_RAISE_AFTER_ALL_IN("Com alguém all-in, só dá para pagar ou desistir"),
+    POKER_NOT_AWAITING_REVEAL("Não há carta da mesa esperando para ser revelada agora"),
     ;
 
     /** `reason_game_over`, e assim por diante. */

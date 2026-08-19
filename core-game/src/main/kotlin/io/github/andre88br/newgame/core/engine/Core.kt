@@ -224,6 +224,19 @@ interface BoardGame<S : GameState, M : Move> {
     fun outcome(state: S): Outcome
 
     /**
+     * Um lance que a partida joga sozinha agora, sem decisão de ninguém — `null` quando não
+     * há nenhum.
+     *
+     * Existe pelo pôquer: com todo mundo all-in, a mesa continua sendo revelada uma carta de
+     * cada vez, no mesmo compasso que a IA já usa entre um lance e o seguinte, em vez de virar
+     * o resto da mesa de uma vez só. Quem dirige isso é a camada de aplicação — veja
+     * [io.github.andre88br.newgame.core.session.MatchSession.awaitingForcedMove] — chamando
+     * este lance como chamaria um lance da IA, só que sem escolha nenhuma envolvida. Nenhum
+     * outro jogo precisa disto hoje, por isso o padrão é não ter.
+     */
+    fun forcedMove(state: S): M? = null
+
+    /**
      * Se [move] tira peça do adversário do tabuleiro.
      *
      * Serve à camada de apresentação: captura merece som e destaque diferentes de um lance

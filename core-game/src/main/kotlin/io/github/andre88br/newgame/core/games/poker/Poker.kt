@@ -158,6 +158,20 @@ sealed interface PokerMove : Move {
     data class Raise(val to: Int) : PokerMove {
         override fun describe(): String = "aumento para $to"
     }
+
+    /**
+     * Revela a próxima carta da mesa sozinha, sem decisão de ninguém.
+     *
+     * Existe para o all-in: quando ninguém mais tem lance a fazer (todo mundo que segue na
+     * mão está all-in, ou só falta um com ficha), a mesa continua sendo revelada uma carta
+     * de cada vez — como numa mesa de verdade — em vez de pular direto para o showdown. Quem
+     * dirige esses lances é a camada de aplicação (veja [BoardGame.forcedMove]), no mesmo
+     * compasso que ela já usa para as jogadas da IA.
+     */
+    @Serializable
+    data object AdvanceStreet : PokerMove {
+        override fun describe(): String = "revela carta"
+    }
 }
 
 /**
@@ -303,6 +317,7 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
 
     override fun legalMoves(state: PokerState): List<PokerMove> {
         if (outcome(state).isOver) return emptyList()
+        if (awaitingAutoAdvance(state)) return listOf(PokerMove.AdvanceStreet)
         val seat = state.turn
         if (!state.isIn(seat)) return emptyList()
 
@@ -332,10 +347,15 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
 
     override fun applyMove(state: PokerState, move: PokerMove): MoveResult<PokerState> {
         if (outcome(state).isOver) return MoveResult.Illegal(ReasonKey.GAME_OVER)
+        if (move is PokerMove.AdvanceStreet) {
+            if (!awaitingAutoAdvance(state)) return MoveResult.Illegal(ReasonKey.POKER_NOT_AWAITING_REVEAL)
+            return MoveResult.Ok(applyKnownLegal(state, move))
+        }
         val seat = state.turn
         if (!state.isIn(seat)) return MoveResult.Illegal(ReasonKey.GAME_OVER)
 
         when (move) {
+            PokerMove.AdvanceStreet -> error("tratado antes do bloco when")
             PokerMove.Fold -> {
                 if (state.toCall(seat) == 0) return MoveResult.Illegal(ReasonKey.POKER_NOTHING_TO_CALL)
             }
@@ -360,8 +380,11 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
     }
 
     override fun applyKnownLegal(state: PokerState, move: PokerMove): PokerState {
+        if (move is PokerMove.AdvanceStreet) return avancarRua(state)
+
         val seat = state.turn
         val depois = when (move) {
+            PokerMove.AdvanceStreet -> error("tratado antes do bloco when")
             PokerMove.Fold -> state.copy(
                 folded = state.folded.toMutableList().also { it[seat.index] = true },
                 toAct = state.toAct.toMutableList().also { it[seat.index] = false },
@@ -418,13 +441,27 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
         (0 until state.seats).none { state.toAct[it] }
 
     /**
-     * Avança para a rua seguinte — ou, se ninguém mais pode decidir nada (todo mundo all-in
-     * menos no máximo um), revela o resto da mesa de uma vez e vai direto ao showdown.
+     * Ninguém mais tem lance a fazer nesta mão (todo mundo que segue all-in, ou só falta um
+     * com ficha) e a mesa ainda não chegou ao showdown.
+     *
+     * É a mesma condição que antes disparava revelar o resto da mesa de uma vez só; agora ela
+     * só diz que falta revelar — quem revela, uma carta de cada vez, é [PokerMove.AdvanceStreet],
+     * jogado sozinho pela camada de aplicação (veja [PokerGame.forcedMove]).
      */
-    private fun avancarRua(state: PokerState): PokerState {
+    private fun awaitingAutoAdvance(state: PokerState): Boolean {
+        if (outcome(state).isOver) return false
+        val emJogo = (0 until state.seats).count { !state.folded[it] }
+        if (emJogo < 2) return false
         val podemAgir = (0 until state.seats).count { !state.folded[it] && state.stacks[it] > 0 }
-        val semMaisAposta = podemAgir <= 1
+        val ninguemPrecisaAgir = (0 until state.seats).none { state.toAct[it] }
+        return podemAgir <= 1 && ninguemPrecisaAgir
+    }
 
+    override fun forcedMove(state: PokerState): PokerMove? =
+        if (awaitingAutoAdvance(state)) PokerMove.AdvanceStreet else null
+
+    /** Avança para a rua seguinte — uma só, mesmo que ninguém mais tenha lance a fazer. */
+    private fun avancarRua(state: PokerState): PokerState {
         if (state.street == PokerStreet.RIVER) return showdown(state)
 
         val cartas = when (state.street) {
@@ -444,7 +481,16 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
 
         val vivas = (0 until state.seats).filter { !state.folded[it] }
         val proximo = nextAlive(state.button, vivas, state.seats)
-        val novoToAct = List(state.seats) { !state.folded[it] && state.stacks[it] > 0 }
+        // Com no máximo uma cadeira ainda com ficha, não sobra decisão nenhuma para ninguém
+        // tomar nesta rua nova — nem para essa cadeira: ela não tem contra quem apostar, já
+        // que o resto está all-in. Sem isto, ela ganharia um "passo" vazio a cada carta
+        // revelada, em vez da mesa continuar sozinha até o showdown.
+        val podemAgir = (0 until state.seats).count { !state.folded[it] && state.stacks[it] > 0 }
+        val novoToAct = if (podemAgir <= 1) {
+            List(state.seats) { false }
+        } else {
+            List(state.seats) { !state.folded[it] && state.stacks[it] > 0 }
+        }
         val avancado = state.copy(
             board = novoBoard,
             deck = novoDeck,
@@ -458,7 +504,7 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
             turn = firstToAct(novoToAct, proximo),
         )
 
-        return if (semMaisAposta) avancarRua(avancado) else avancado
+        return avancado
     }
 
     /** Ninguém mais aposta: compara as mãos de quem sobrou e reparte o pote em camadas. */

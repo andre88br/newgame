@@ -47,6 +47,7 @@ import io.github.andre88br.newgame.core.games.poker.PokerMove
 import io.github.andre88br.newgame.core.games.poker.PokerPotShare
 import io.github.andre88br.newgame.core.games.poker.PokerState
 import io.github.andre88br.newgame.core.games.poker.PokerStreet
+import kotlin.math.roundToInt
 
 /**
  * A mesa do pôquer.
@@ -124,7 +125,7 @@ fun PokerSurface(
             seatExtra = { seat -> ChipStack(amount = state.stack(seat), destaque = seat == state.turn) },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            TableArea(state = state, palette = palette)
+            TableArea(state = state, palette = palette, viewer = viewer, names = names)
         }
 
         Text(
@@ -294,7 +295,12 @@ private fun potShareText(pote: PokerPotShare, viewer: Seat, names: List<String>)
 
 /** O centro da mesa: a rua, o pote e as cartas comunitárias já reveladas. */
 @Composable
-private fun TableArea(state: PokerState, palette: BoardPalette) {
+private fun TableArea(state: PokerState, palette: BoardPalette, viewer: Seat, names: List<String>) {
+    // Só existe num all-in — veja a nota em [pokerAllInEquities] sobre por que fora dele a
+    // conta nem tenta rodar. Recalculada a cada carta nova da mesa, é isso que faz a
+    // porcentagem de cada um mudar junto com o flop, o turn e o river.
+    val equities = rememberPokerAllInEquities(state)
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -328,6 +334,34 @@ private fun TableArea(state: PokerState, palette: BoardPalette) {
                         CardFace(card = carta, palette = palette)
                     }
                 }
+            }
+            if (equities != null) {
+                EquityRow(equities = equities, viewer = viewer, names = names)
+            }
+        }
+    }
+}
+
+/** A chance de vitória de cada cadeira ainda na mão, lado a lado — só aparece num all-in. */
+@Composable
+private fun EquityRow(equities: Map<Seat, Double>, viewer: Seat, names: List<String>) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = stringResource(R.string.poker_equity_title),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            equities.entries.sortedBy { it.key.index }.forEach { (seat, chance) ->
+                Text(
+                    text = stringResource(
+                        R.string.poker_equity_percent,
+                        seatLabel(seat.index, viewer, names),
+                        (chance * 100).roundToInt(),
+                    ),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                )
             }
         }
     }

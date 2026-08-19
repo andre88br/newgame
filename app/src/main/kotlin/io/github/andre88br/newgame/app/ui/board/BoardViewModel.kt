@@ -160,7 +160,7 @@ class BoardViewModel(
 
     fun onSquareTap(square: Int) {
         val interactor = entry.interactor ?: return
-        if (session.isOver || session.awaitingAi || _ui.value.status == BoardStatus.Thinking) return
+        if (session.isOver || session.awaitingAi || session.awaitingForcedMove || _ui.value.status == BoardStatus.Thinking) return
         if (_ui.value.roundJustEnded) return
         // Com o diálogo de promoção aberto, o tabuleiro não responde: o lance está no meio.
         if (_ui.value.promotion != null) return
@@ -191,7 +191,7 @@ class BoardViewModel(
      * esta porta não confia no que recebe, só encaminha.
      */
     fun onMoveChosen(move: Move) {
-        if (session.isOver || session.awaitingAi || _ui.value.status == BoardStatus.Thinking) return
+        if (session.isOver || session.awaitingAi || session.awaitingForcedMove || _ui.value.status == BoardStatus.Thinking) return
         if (_ui.value.roundJustEnded) return
         commitHumanMove(move)
     }
@@ -245,7 +245,7 @@ class BoardViewModel(
 
     /** Roda a busca no nível difícil e destaca o lance sugerido, sem jogá-lo. */
     fun onHint() {
-        if (session.isOver || session.awaitingAi || _ui.value.roundJustEnded) return
+        if (session.isOver || session.awaitingAi || session.awaitingForcedMove || _ui.value.roundJustEnded) return
         _ui.value = snapshot(selected = _ui.value.selected, status = BoardStatus.Thinking)
 
         viewModelScope.launch {
@@ -288,20 +288,24 @@ class BoardViewModel(
     }
 
     /**
-     * Joga a IA até a vez voltar para uma pessoa.
+     * Joga a IA, e qualquer lance automático da partida, até a vez voltar para uma pessoa.
      *
      * Um só [MatchSession.playAiTurn] joga um lance só. No ludo, tirar 6 dá o dado de novo
      * para quem tirou — inclusive a máquina —, e numa mesa de mais de duas cadeiras uma IA
      * pode jogar logo depois da outra. Chamar a busca uma única vez deixaria a tela presa em
      * "pensando" sem ninguém para tirar dali: nada dispara um novo lance sozinho.
+     *
+     * [MatchSession.awaitingForcedMove] entra no mesmo laço, e não num separado: é o mesmo
+     * compasso de espera entre lances que já existia para a IA, só que sem escolha nenhuma
+     * envolvida — a mesa do pôquer revelando uma carta de cada vez num all-in, por exemplo.
      */
     private fun maybePlayAiTurn() {
-        if (!session.awaitingAi) return
+        if (!session.awaitingAi && !session.awaitingForcedMove) return
         _ui.value = snapshot(status = BoardStatus.Thinking)
 
         viewModelScope.launch {
             try {
-                while (session.awaitingAi) {
+                while (session.awaitingAi || session.awaitingForcedMove) {
                     // A pausa vem **antes** do lance, e não depois, porque o que a tela
                     // precisa mostrar acontece antes dele: no ludo o dado da vez da máquina
                     // já está neste estado, e é rolando agora. Jogar na hora trocaria o
@@ -312,21 +316,25 @@ class BoardViewModel(
                     // A busca do nível difícil leva segundos: fora da thread da interface, sempre.
                     val before = session.state
                     val handBefore = entry.handOf?.invoke(before)
-                    val move = withContext(Dispatchers.Default) { session.playAiTurn() } ?: break
+                    val move = withContext(Dispatchers.Default) {
+                        if (session.awaitingForcedMove) session.playForcedMove() else session.playAiTurn()
+                    } ?: break
                     lastMoveSquares = entry.interactor?.squaresOf(move).orEmpty().toSet()
                     lastPlayedMove = move
                     noteEvent(before, move)
                     // Atualiza a cada lance, e não só no final: com várias jogadas da IA em
                     // fila — tirar 6 no ludo, ou três cadeiras de máquina numa mesa de
                     // quatro —, é assim que cada uma aparece na tela com seu som, em vez de
-                    // a partida pular direto para o resultado da última.
+                    // a partida pular direto para o resultado da última. No pôquer é isto
+                    // que faz a mesa de um all-in revelar carta por carta, em vez de virar
+                    // o resto da mesa de uma vez.
                     _ui.value = snapshot()
                     persist()
 
-                    // Esta jogada da IA fechou uma mão: para aqui, mesmo que a mão nova já
-                    // comece na vez da própria máquina. É o resumo da mão que acabou de
-                    // fechar que tem que aparecer agora, e só continua quando a pessoa
-                    // reconhecer — não antes, escondido atrás dele.
+                    // Esta jogada fechou uma mão: para aqui, mesmo que a mão nova já comece
+                    // na vez da própria máquina. É o resumo da mão que acabou de fechar que
+                    // tem que aparecer agora, e só continua quando a pessoa reconhecer — não
+                    // antes, escondido atrás dele.
                     val handAfter = entry.handOf?.invoke(session.state)
                     if (handAfter != null && handAfter != handBefore) break
                 }
@@ -405,7 +413,7 @@ class BoardViewModel(
             // Pausado esperando o aceno da mão: a máquina não está pensando, e dizer que
             // está enquanto o resumo cobre a tela ia contra o que se vê.
             roundJustEnded -> if (humanSeats.size > 1) BoardStatus.SeatTurn(session.turn) else BoardStatus.HumanTurn
-            session.awaitingAi -> BoardStatus.Thinking
+            session.awaitingAi || session.awaitingForcedMove -> BoardStatus.Thinking
             humanSeats.size > 1 -> BoardStatus.SeatTurn(session.turn)
             else -> BoardStatus.HumanTurn
         }

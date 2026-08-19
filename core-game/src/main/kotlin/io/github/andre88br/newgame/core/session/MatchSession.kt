@@ -100,6 +100,13 @@ class MatchSession(
     /** A vez é da máquina: a tela deve mostrar "pensando" e chamar [playAiTurn]. */
     val awaitingAi: Boolean get() = !isOver && currentPlayer is Player.Ai
 
+    /**
+     * Há um lance que a partida joga sozinha agora, sem decisão de ninguém — veja
+     * [io.github.andre88br.newgame.core.engine.BoardGame.forcedMove]. A tela deve chamar
+     * [playForcedMove], no mesmo compasso que já usa entre um lance da IA e o seguinte.
+     */
+    val awaitingForcedMove: Boolean get() = !isOver && entry.rules.forcedMove(state) != null
+
     /** Há lance humano para desfazer. */
     val canUndo: Boolean
         get() = record.ply > 0 && players.values.any { it is Player.Human }
@@ -142,6 +149,20 @@ class MatchSession(
     }
 
     /**
+     * Joga o lance automático, se houver — veja [awaitingForcedMove]. Devolve o lance jogado,
+     * ou `null` se não havia nenhum. Ao contrário de [playAiTurn], não depende de cadeira nem
+     * de quem a ocupa: joga mesmo que a vez nominal seja de uma pessoa.
+     */
+    fun playForcedMove(): Move? {
+        if (isOver) return null
+        val move = entry.rules.forcedMove(state) ?: return null
+        return when (commit(move)) {
+            is PlayResult.Ok -> move
+            else -> null
+        }
+    }
+
+    /**
      * Sugere um lance para a cadeira da vez, sempre no nível difícil — uma dica fraca não
      * ajudaria ninguém. Não joga: só devolve.
      */
@@ -167,14 +188,22 @@ class MatchSession(
      *
      * Contra a máquina isso significa desfazer dois lances, não um: voltar só o último
      * devolveria a vez para a IA, que jogaria de novo e daria a impressão de que o botão
-     * não fez nada.
+     * não fez nada. O mesmo vale para um lance automático (veja [awaitingForcedMove]): parar
+     * numa posição sem decisão nenhuma pendente — a mesa do pôquer no meio de um all-in,
+     * esperando a próxima carta — teria o mesmo efeito de "o botão não fez nada".
      */
     fun undo(): Boolean {
         if (!canUndo) return false
         var candidate = record
         do {
             candidate = Replay.undo(candidate, 1)
-        } while (candidate.ply > 0 && players[Replay.state(entry.rules, candidate).turn] !is Player.Human)
+        } while (
+            candidate.ply > 0 &&
+            run {
+                val posicao = Replay.state(entry.rules, candidate)
+                players[posicao.turn] !is Player.Human || entry.rules.forcedMove(posicao) != null
+            }
+        )
 
         adopt(candidate)
         return true

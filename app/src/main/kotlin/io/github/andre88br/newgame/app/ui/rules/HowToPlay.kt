@@ -17,6 +17,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.andre88br.newgame.app.R
 import io.github.andre88br.newgame.core.engine.GameEntry
+import io.github.andre88br.newgame.core.engine.GameId
 
 /**
  * As regras do jogo, em texto.
@@ -62,6 +63,11 @@ fun HowToPlayDialog(entry: GameEntry, onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                when (entry.id) {
+                    GameId.POKER -> PokerHandRankings()
+                    GameId.CANASTRA -> CanastraCardValues()
+                    else -> Unit
+                }
             }
         },
         confirmButton = {
