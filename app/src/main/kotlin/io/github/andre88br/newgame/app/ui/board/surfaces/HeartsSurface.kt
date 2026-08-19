@@ -161,9 +161,10 @@ fun HeartsSurface(
             title = { Text("Fim da Mão") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (resultado != null && resultado.moonShooter != null) {
+                    val moonShooter = resultado?.moonShooter
+                    if (moonShooter != null) {
                         Text(
-                            text = "${seatLabel(resultado.moonShooter.index, viewer, names)} correu com todas!",
+                            text = "${seatLabel(moonShooter.index, viewer, names)} correu com todas!",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
