@@ -12,10 +12,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +35,7 @@ import io.github.andre88br.newgame.core.engine.Move
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.games.hearts.HEARTS_PASS_SIZE
 import io.github.andre88br.newgame.core.games.hearts.HEARTS_SEATS
+import io.github.andre88br.newgame.core.games.hearts.HEARTS_TARGET_SCORE
 import io.github.andre88br.newgame.core.games.hearts.HeartsGame
 import io.github.andre88br.newgame.core.games.hearts.HeartsMove
 import io.github.andre88br.newgame.core.games.hearts.HeartsPhase
@@ -54,6 +60,8 @@ fun HeartsSurface(
     names: List<String>,
     enabled: Boolean,
     hinted: Move?,
+    roundJustEnded: Boolean,
+    onAcknowledgeRoundEnd: () -> Unit,
     modifier: Modifier = Modifier,
     onMove: (Move) -> Unit,
 ) {
@@ -66,6 +74,12 @@ fun HeartsSurface(
     }
     val sugerida = (hinted as? HeartsMove)?.card
     val minhaVez = state.turn == viewer
+
+    // Ver a nota equivalente na canastra: a mão que fecha a partida não reparte mão nova, e
+    // por isso o ViewModel não enxerga a mudança que dispararia [roundJustEnded] sozinho.
+    var finalScoreDismissed by remember(state.hand) { mutableStateOf(false) }
+    val isGameOver = state.scores.any { it >= HEARTS_TARGET_SCORE }
+    val showRoundDialog = state.lastHand != null && (roundJustEnded || (isGameOver && !finalScoreDismissed))
 
     Column(
         modifier = modifier
@@ -133,6 +147,37 @@ fun HeartsSurface(
                 },
             )
         }
+    }
+
+    if (showRoundDialog) {
+        val resultado = state.lastHand
+        AlertDialog(
+            onDismissRequest = { finalScoreDismissed = true; onAcknowledgeRoundEnd() },
+            confirmButton = {
+                TextButton(onClick = { finalScoreDismissed = true; onAcknowledgeRoundEnd() }) {
+                    Text("Continuar")
+                }
+            },
+            title = { Text("Fim da Mão") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (resultado != null && resultado.moonShooter != null) {
+                        Text(
+                            text = "${seatLabel(resultado.moonShooter.index, viewer, names)} correu com todas!",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    for (index in 0 until HEARTS_SEATS) {
+                        val seat = Seat(index)
+                        val pontos = resultado?.points?.getOrElse(index) { 0 } ?: 0
+                        Text(
+                            text = "${seatLabel(index, viewer, names)}: +$pontos nesta mão · ${state.score(seat)} no total",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            },
+        )
     }
 }
 

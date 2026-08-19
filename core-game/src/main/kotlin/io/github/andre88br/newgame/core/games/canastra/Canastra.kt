@@ -203,6 +203,8 @@ data class CanastraState(
     val rng: Rng = Rng(0),
     val wentOut: Int = -1,
     val startingSeat: Seat = Seat.FIRST,
+    /** Quantas mãos já foram repartidas nesta partida, contando do zero. Muda a cada mão nova. */
+    val handNumber: Int = 0,
     val lastScores: List<RoundScore> = emptyList(),
     val passedEnd: Boolean = false,
     val drawnCard: Card? = null,
@@ -262,7 +264,14 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         return dealHand(seats, List(if (seats == 4) 2 else seats) { 0 }, config.rng())
     }
 
-    private fun dealHand(seats: Int, scores: List<Int>, rng: Rng, startingSeat: Seat = Seat.FIRST, lastScores: List<RoundScore> = emptyList()): CanastraState {
+    private fun dealHand(
+        seats: Int,
+        scores: List<Int>,
+        rng: Rng,
+        startingSeat: Seat = Seat.FIRST,
+        handNumber: Int = 0,
+        lastScores: List<RoundScore> = emptyList(),
+    ): CanastraState {
         val teams = if (seats == 4) 2 else seats
         val embaralhado = rng.shuffle(deckOf(CANASTRA_DECKS, CANASTRA_JOKERS_PER_DECK))
         val cartas = embaralhado.value.toMutableList()
@@ -305,6 +314,7 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
             seats = seats,
             rng = embaralhado.rng,
             startingSeat = startingSeat,
+            handNumber = handNumber,
             lastScores = lastScores,
             passedEnd = false,
             drawnCard = null,
@@ -920,7 +930,14 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         if (somados.any { it >= CANASTRA_TARGET }) return state.copy(scores = somados, lastScores = ganhosDetalhes)
 
         val proximoComecar = Seat((state.startingSeat.index + 1) % state.seats)
-        return dealHand(state.seats, somados, state.rng, startingSeat = proximoComecar, lastScores = ganhosDetalhes).copy(ply = state.ply)
+        return dealHand(
+            state.seats,
+            somados,
+            state.rng,
+            startingSeat = proximoComecar,
+            handNumber = state.handNumber + 1,
+            lastScores = ganhosDetalhes,
+        ).copy(ply = state.ply)
     }
 
     private fun trocarMao(state: CanastraState, mao: List<Card>): List<List<Card>> =

@@ -3,6 +3,7 @@ package io.github.andre88br.newgame.app.ui.board
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import io.github.andre88br.newgame.app.data.GameSpeed
 import io.github.andre88br.newgame.app.data.MatchStore
 import io.github.andre88br.newgame.app.data.SavedMatch
 import io.github.andre88br.newgame.app.ui.feedback.GameEvent
@@ -103,6 +104,15 @@ data class BoardUiState(
     val event: GameEvent? = null,
     /** Cresce a cada evento, pelo mesmo motivo de [messageId]. */
     val eventId: Long = 0L,
+    /**
+     * Uma mão acabou de fechar e ainda não foi reconhecida.
+     *
+     * Só existe nos jogos de várias mãos por partida (canastra, truco, copas, pôquer — veja
+     * [GameEntry.handOf]). Enquanto isto for `true` o tabuleiro fica bloqueado e a IA não
+     * joga: a tela do jogo mostra o resumo da mão que fechou, e só [BoardViewModel.acknowledgeRoundEnd]
+     * destrava a partida, quando a pessoa aperta "continuar".
+     */
+    val roundJustEnded: Boolean = false,
 )
 
 /**
@@ -119,6 +129,8 @@ class BoardViewModel(
     private val session: MatchSession,
     /** O nome de cada cadeira, escolhido antes de começar ou lido da partida salva. */
     private val names: List<String> = emptyList(),
+    /** O ritmo escolhido nos ajustes, fixo pela partida inteira. */
+    private val gameSpeed: GameSpeed = GameSpeed.NORMAL,
 ) : ViewModel() {
 
     private var lastMoveSquares: Set<Int> = emptySet()
@@ -126,6 +138,17 @@ class BoardViewModel(
     private var messageCounter = 0L
     private var pendingEvent: GameEvent? = null
     private var eventCounter = 0L
+
+    /** Quanto a máquina espera entre lances, com o ritmo dos ajustes já aplicado. */
+    private val aiPaceMillis: Long = (entry.aiPaceMillis * gameSpeed.multiplier).toLong()
+
+    /**
+     * A última mão já reconhecida pela pessoa.
+     *
+     * Começa na mão em que a partida (ou a retomada) já está: a primeira mão de uma partida
+     * nova não é "o fim de mão anterior" — não há resumo nenhum para mostrar antes dela.
+     */
+    private var acknowledgedHand: Int = entry.handOf?.invoke(session.state) ?: 0
 
     private val _ui = MutableStateFlow(snapshot())
     val ui: StateFlow<BoardUiState> = _ui.asStateFlow()
@@ -138,6 +161,7 @@ class BoardViewModel(
     fun onSquareTap(square: Int) {
         val interactor = entry.interactor ?: return
         if (session.isOver || session.awaitingAi || _ui.value.status == BoardStatus.Thinking) return
+        if (_ui.value.roundJustEnded) return
         // Com o diálogo de promoção aberto, o tabuleiro não responde: o lance está no meio.
         if (_ui.value.promotion != null) return
 
@@ -168,6 +192,7 @@ class BoardViewModel(
      */
     fun onMoveChosen(move: Move) {
         if (session.isOver || session.awaitingAi || _ui.value.status == BoardStatus.Thinking) return
+        if (_ui.value.roundJustEnded) return
         commitHumanMove(move)
     }
 
@@ -183,7 +208,7 @@ class BoardViewModel(
     }
 
     fun onUndo() {
-        if (_ui.value.status == BoardStatus.Thinking) return
+        if (_ui.value.status == BoardStatus.Thinking || _ui.value.roundJustEnded) return
         if (session.undo()) {
             lastMoveSquares = emptySet()
             lastPlayedMove = null
@@ -197,14 +222,30 @@ class BoardViewModel(
         session.restart()
         lastMoveSquares = emptySet()
         lastPlayedMove = null
+        acknowledgedHand = entry.handOf?.invoke(session.state) ?: 0
         _ui.value = snapshot()
         persist()
         maybePlayAiTurn()
     }
 
+    /**
+     * A pessoa viu o resumo da mão que fechou e apertou "continuar".
+     *
+     * Destrava o tabuleiro e, se a mão nova começar na vez da máquina, retoma o loop da IA —
+     * que parou exatamente para esperar este aceno.
+     */
+    fun acknowledgeRoundEnd() {
+        val handOf = entry.handOf ?: return
+        val current = handOf(session.state)
+        if (current == acknowledgedHand) return
+        acknowledgedHand = current
+        _ui.value = snapshot()
+        maybePlayAiTurn()
+    }
+
     /** Roda a busca no nível difícil e destaca o lance sugerido, sem jogá-lo. */
     fun onHint() {
-        if (session.isOver || session.awaitingAi) return
+        if (session.isOver || session.awaitingAi || _ui.value.roundJustEnded) return
         _ui.value = snapshot(selected = _ui.value.selected, status = BoardStatus.Thinking)
 
         viewModelScope.launch {
@@ -223,6 +264,7 @@ class BoardViewModel(
 
     private fun commitHumanMove(move: Move) {
         val before = session.state
+        val handBefore = entry.handOf?.invoke(before)
         when (val result = session.play(move)) {
             is PlayResult.Ok -> {
                 lastMoveSquares = entry.interactor?.squaresOf(result.move).orEmpty().toSet()
@@ -230,7 +272,13 @@ class BoardViewModel(
                 noteEvent(before, result.move)
                 _ui.value = snapshot()
                 persist()
-                maybePlayAiTurn()
+                // Se o próprio lance da pessoa fechou a mão, a vez da IA espera: só depois
+                // que ela reconhecer o resumo é que faz sentido a máquina seguir para a
+                // próxima mão (que pode começar já na vez dela).
+                val handAfter = entry.handOf?.invoke(result.state)
+                if (handAfter == null || handAfter == handBefore) {
+                    maybePlayAiTurn()
+                }
             }
 
             is PlayResult.Rejected ->
@@ -259,10 +307,11 @@ class BoardViewModel(
                     // já está neste estado, e é rolando agora. Jogar na hora trocaria o
                     // tabuleiro no meio da rolagem, e ninguém chegaria a ver com quanto ela
                     // andou — que é exatamente o que parecia "a IA joga rápido demais".
-                    delay(entry.aiPaceMillis)
+                    delay(aiPaceMillis)
 
                     // A busca do nível difícil leva segundos: fora da thread da interface, sempre.
                     val before = session.state
+                    val handBefore = entry.handOf?.invoke(before)
                     val move = withContext(Dispatchers.Default) { session.playAiTurn() } ?: break
                     lastMoveSquares = entry.interactor?.squaresOf(move).orEmpty().toSet()
                     lastPlayedMove = move
@@ -273,6 +322,13 @@ class BoardViewModel(
                     // a partida pular direto para o resultado da última.
                     _ui.value = snapshot()
                     persist()
+
+                    // Esta jogada da IA fechou uma mão: para aqui, mesmo que a mão nova já
+                    // comece na vez da própria máquina. É o resumo da mão que acabou de
+                    // fechar que tem que aparecer agora, e só continua quando a pessoa
+                    // reconhecer — não antes, escondido atrás dele.
+                    val handAfter = entry.handOf?.invoke(session.state)
+                    if (handAfter != null && handAfter != handBefore) break
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -342,8 +398,13 @@ class BoardViewModel(
     ): BoardUiState {
         val humanSeats = session.players.filterValues { it is Player.Human }.keys
         val outcome = session.outcome
+        val currentHand = entry.handOf?.invoke(session.state)
+        val roundJustEnded = currentHand != null && currentHand != acknowledgedHand
         val resolvedStatus = status ?: when {
             outcome.isOver -> BoardStatus.Finished(outcome)
+            // Pausado esperando o aceno da mão: a máquina não está pensando, e dizer que
+            // está enquanto o resumo cobre a tela ia contra o que se vê.
+            roundJustEnded -> if (humanSeats.size > 1) BoardStatus.SeatTurn(session.turn) else BoardStatus.HumanTurn
             session.awaitingAi -> BoardStatus.Thinking
             humanSeats.size > 1 -> BoardStatus.SeatTurn(session.turn)
             else -> BoardStatus.HumanTurn
@@ -372,7 +433,8 @@ class BoardViewModel(
             names = names,
             humanSeats = humanSeats,
             canUndo = session.canUndo,
-            canPlay = !outcome.isOver && resolvedStatus != BoardStatus.Thinking,
+            canPlay = !outcome.isOver && resolvedStatus != BoardStatus.Thinking && !roundJustEnded,
+            roundJustEnded = roundJustEnded,
             againstPhone = humanSeats.size == 1,
             humanSeat = humanSeats.singleOrNull(),
             message = message,
@@ -401,10 +463,11 @@ class BoardViewModel(
         private val matchId: String,
         private val session: MatchSession,
         private val names: List<String> = emptyList(),
+        private val gameSpeed: GameSpeed = GameSpeed.NORMAL,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            BoardViewModel(entry, store, matchId, session, names) as T
+            BoardViewModel(entry, store, matchId, session, names, gameSpeed) as T
     }
 
     companion object {

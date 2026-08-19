@@ -92,6 +92,13 @@ enum class HeartsPhase {
 @Serializable
 data class PlayedCard(val seat: Seat, val card: Card)
 
+/**
+ * O resultado da última mão fechada: os pontos feitos por cadeira, e quem correu todas — ou
+ * `null` se ninguém correu.
+ */
+@Serializable
+data class HeartsHandResult(val points: List<Int>, val moonShooter: Seat? = null)
+
 @Serializable
 data class HeartsState(
     /** A mão de cada cadeira. Some para quem não é dono — veja [HeartsGame.redactFor]. */
@@ -113,6 +120,8 @@ data class HeartsState(
     val heartsBroken: Boolean = false,
     /** Gerador guardado no estado: é o que faz a partida salva repartir igual. */
     val rng: Rng = Rng(0),
+    /** O resultado da última mão fechada, ou `null` antes de a primeira mão terminar. */
+    val lastHand: HeartsHandResult? = null,
 ) : GameState {
 
     val seats: Int get() = hands.size.coerceAtLeast(HEARTS_SEATS)
@@ -395,12 +404,17 @@ object HeartsGame : BoardGame<HeartsState, HeartsMove> {
             List(HEARTS_SEATS) { index -> state.scores[index] + daMao[index] }
         }
 
+        val resultado = HeartsHandResult(
+            points = daMao,
+            moonShooter = correuTodas.takeIf { it >= 0 }?.let(::Seat),
+        )
+
         val acabou = somados.any { it >= HEARTS_TARGET_SCORE }
         if (acabou) {
-            return state.copy(scores = somados, handPoints = daMao, phase = HeartsPhase.PLAYING)
+            return state.copy(scores = somados, handPoints = daMao, phase = HeartsPhase.PLAYING, lastHand = resultado)
         }
         return dealHand(hand = state.hand + 1, scores = somados, rng = state.rng)
-            .copy(ply = state.ply)
+            .copy(ply = state.ply, lastHand = resultado)
     }
 
     /**

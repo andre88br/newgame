@@ -159,6 +159,8 @@ fun BoardScreen(
                     enabled = ui.canPlay,
                     hinted = ui.hintedMove,
                     animated = settings.animations,
+                    roundJustEnded = ui.roundJustEnded,
+                    onAcknowledgeRoundEnd = viewModel::acknowledgeRoundEnd,
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
@@ -174,7 +176,7 @@ fun BoardScreen(
             ) {
                 OutlinedButton(
                     onClick = viewModel::onUndo,
-                    enabled = ui.canUndo && ui.status != BoardStatus.Thinking,
+                    enabled = ui.canUndo && ui.status != BoardStatus.Thinking && !ui.roundJustEnded,
                     modifier = Modifier.weight(1f),
                 ) {
                     Text(stringResource(R.string.board_undo))

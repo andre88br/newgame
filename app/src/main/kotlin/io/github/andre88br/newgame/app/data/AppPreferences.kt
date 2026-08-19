@@ -10,11 +10,27 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/**
+ * Quanto tempo a máquina espera, de propósito, entre um lance dela e o seguinte — e quanto
+ * dura a pausa de fim de mão nos jogos de carta com rodada.
+ *
+ * O multiplicador anda sobre [io.github.andre88br.newgame.core.engine.GameEntry.aiPaceMillis],
+ * que já é o compasso pensado por jogo: dobrar aqui em cima dobra o de todos igual, em vez de
+ * fingir que um segundo vale o mesmo numa vaza de copas e numa jogada de xadrez.
+ */
+enum class GameSpeed(val multiplier: Double) {
+    SLOW(2.2),
+    NORMAL(1.6),
+    FAST(1.0),
+}
+
 data class Settings(
     val theme: ThemeChoice = ThemeChoice.SYSTEM,
     val defaultDifficulty: Difficulty = Difficulty.MEDIUM,
     val sound: Boolean = true,
     val haptics: Boolean = true,
+    /** O ritmo da máquina: quanto mais lento, mais dá para acompanhar o lance dela. */
+    val gameSpeed: GameSpeed = GameSpeed.NORMAL,
     /**
      * Ligadas por padrão, mas desligáveis.
      *
@@ -69,6 +85,11 @@ class AppPreferences(context: Context) {
         _settings.value = _settings.value.copy(haptics = enabled)
     }
 
+    fun setGameSpeed(speed: GameSpeed) {
+        prefs.edit().putString(KEY_GAME_SPEED, speed.name).apply()
+        _settings.value = _settings.value.copy(gameSpeed = speed)
+    }
+
     /** Guarda o nome digitado para a próxima partida já vir preenchida. */
     fun setPlayerName(name: String) {
         val clean = BotNames.sanitize(name)
@@ -91,6 +112,7 @@ class AppPreferences(context: Context) {
         defaultDifficulty = prefs.getString(KEY_DIFFICULTY, null).toEnum(Difficulty.MEDIUM),
         sound = prefs.getBoolean(KEY_SOUND, true),
         haptics = prefs.getBoolean(KEY_HAPTICS, true),
+        gameSpeed = prefs.getString(KEY_GAME_SPEED, null).toEnum(GameSpeed.NORMAL),
         animations = prefs.getBoolean(KEY_ANIMATIONS, true),
         playerName = prefs.getString(KEY_PLAYER_NAME, "").orEmpty(),
         deckColor = prefs.getString(KEY_DECK_COLOR, null).toEnum(DeckColorChoice.CLASSIC),
@@ -105,6 +127,7 @@ class AppPreferences(context: Context) {
         const val KEY_DIFFICULTY = "default_difficulty"
         const val KEY_SOUND = "sound"
         const val KEY_HAPTICS = "haptics"
+        const val KEY_GAME_SPEED = "game_speed"
         const val KEY_ANIMATIONS = "animations"
         const val KEY_PLAYER_NAME = "player_name"
         const val KEY_DECK_COLOR = "deck_color"

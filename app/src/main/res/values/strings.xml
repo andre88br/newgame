@@ -103,6 +103,10 @@
     <string name="settings_deck_color_red">Vermelha</string>
     <string name="settings_deck_color_blue">Azul</string>
     <string name="settings_deck_color_purple">Roxa</string>
+    <string name="settings_game_speed">Ritmo das partidas</string>
+    <string name="settings_game_speed_slow">Lento</string>
+    <string name="settings_game_speed_normal">Normal</string>
+    <string name="settings_game_speed_fast">Rápido</string>
     <string name="settings_about">newgame · jogos de tabuleiro offline</string>
 
     <!-- Geral -->

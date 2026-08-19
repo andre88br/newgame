@@ -10,17 +10,20 @@ import io.github.andre88br.newgame.core.games.chess.ChessGame
 import io.github.andre88br.newgame.core.games.chess.ChessInteractor
 import io.github.andre88br.newgame.core.games.canastra.CanastraAi
 import io.github.andre88br.newgame.core.games.canastra.CanastraGame
+import io.github.andre88br.newgame.core.games.canastra.CanastraState
 import io.github.andre88br.newgame.core.games.dominoes.DominoesAi
 import io.github.andre88br.newgame.core.games.dominoes.DominoesGame
 import io.github.andre88br.newgame.core.games.hearts.HEARTS_SEATS
 import io.github.andre88br.newgame.core.games.hearts.HeartsAi
 import io.github.andre88br.newgame.core.games.hearts.HeartsGame
+import io.github.andre88br.newgame.core.games.hearts.HeartsState
 import io.github.andre88br.newgame.core.games.klondike.KlondikeAi
 import io.github.andre88br.newgame.core.games.klondike.KlondikeGame
 import io.github.andre88br.newgame.core.games.pife.PifeAi
 import io.github.andre88br.newgame.core.games.pife.PifeGame
 import io.github.andre88br.newgame.core.games.poker.PokerAi
 import io.github.andre88br.newgame.core.games.poker.PokerGame
+import io.github.andre88br.newgame.core.games.poker.PokerState
 import io.github.andre88br.newgame.core.games.ludo.LudoAi
 import io.github.andre88br.newgame.core.games.ludo.LudoGame
 import io.github.andre88br.newgame.core.games.reversi.ReversiAi
@@ -31,6 +34,7 @@ import io.github.andre88br.newgame.core.games.tictactoe.TicTacToeGame
 import io.github.andre88br.newgame.core.games.tictactoe.TicTacToeInteractor
 import io.github.andre88br.newgame.core.games.truco.TrucoAi
 import io.github.andre88br.newgame.core.games.truco.TrucoGame
+import io.github.andre88br.newgame.core.games.truco.TrucoState
 import io.github.andre88br.newgame.core.session.BoardInteractor
 
 /** Um jogo pronto para a interface: as regras, o adversário do aparelho e como se chama. */
@@ -57,6 +61,15 @@ data class GameEntry(
      * cada um viraria dez segundos de tela parada escrito "pensando".
      */
     val aiPaceMillis: Long = 1_200L,
+    /**
+     * Para jogos de várias mãos por partida (canastra, truco, copas, pôquer): o número da
+     * mão atual. `null` nos jogos que não repartem mão nova no meio da partida.
+     *
+     * Muda exatamente quando uma mão termina e a próxima já é repartida — é o sinal que a
+     * tela usa para pausar ali e mostrar o que aconteceu, em vez de deixar a partida seguir
+     * para a mão seguinte por baixo do resumo.
+     */
+    val handOf: ((GameState) -> Int)? = null,
 ) {
     val id: GameId get() = rules.id
 }
@@ -113,6 +126,7 @@ object GameCatalog {
             nameKey = "game_hearts",
             players = HEARTS_SEATS,
             aiPaceMillis = 400L,
+            handOf = { state -> (state as HeartsState).hand },
         ),
         GameEntry(
             rules = CanastraGame.asAny(),
@@ -122,6 +136,7 @@ object GameCatalog {
             // A vez da canastra tem três tempos, e a máquina joga vários lances seguidos
             // antes de passar a vez: um compasso longo em cada um viraria espera demais.
             aiPaceMillis = 350L,
+            handOf = { state -> (state as CanastraState).handNumber },
         ),
         GameEntry(
             rules = PifeGame.asAny(),
@@ -148,6 +163,7 @@ object GameCatalog {
             // Trucar, responder e jogar carta são lances curtos e seguidos: o compasso longo
             // dos outros jogos deixaria a resposta a um truco parecendo travamento.
             aiPaceMillis = 450L,
+            handOf = { state -> (state as TrucoState).handNumber },
         ),
         GameEntry(
             rules = PokerGame.asAny(),
@@ -157,6 +173,7 @@ object GameCatalog {
             // Passar, pagar e as próprias cartas caindo são vários lances por mão: o mesmo
             // motivo do truco para um compasso curto.
             aiPaceMillis = 450L,
+            handOf = { state -> (state as PokerState).handNumber },
         ),
     )
 

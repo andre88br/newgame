@@ -184,6 +184,7 @@ fun NewgameNavHost(container: AppContainer) {
                         matchId = matchId,
                         session = session,
                         names = names,
+                        gameSpeed = settings.gameSpeed,
                     ),
                 ),
                 settings = settings,

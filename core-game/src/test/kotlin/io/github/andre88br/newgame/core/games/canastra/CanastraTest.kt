@@ -704,6 +704,10 @@ class CanastraTest {
             depois.phase != CanastraPhase.DRAW || CanastraGame.legalMoves(depois).isNotEmpty(),
             "a mão devia fechar sozinha, não travar sem lance nenhum: $depois",
         )
+        // O número da mão e o placar guardado são o sinal que a tela usa para pausar no fim
+        // de cada rodada — veja io.github.andre88br.newgame.core.engine.GameEntry.handOf.
+        assertEquals(state.handNumber + 1, depois.handNumber, "uma mão fechou: a próxima já é a seguinte")
+        assertTrue(depois.lastScores.isNotEmpty(), "o placar da mão que fechou fica guardado")
     }
 
     // -------- mínimo de abertura com 1500 pontos --------

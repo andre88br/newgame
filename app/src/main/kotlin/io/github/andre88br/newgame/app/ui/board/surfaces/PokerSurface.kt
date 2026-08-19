@@ -15,12 +15,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,6 +69,8 @@ fun PokerSurface(
     names: List<String>,
     enabled: Boolean,
     hinted: Move?,
+    roundJustEnded: Boolean,
+    onAcknowledgeRoundEnd: () -> Unit,
     modifier: Modifier = Modifier,
     onMove: (Move) -> Unit,
 ) {
@@ -77,6 +84,11 @@ fun PokerSurface(
     // com cartas guardadas para a próxima.
     val eliminado = state.stack(viewer) == 0 && state.hand(viewer).isEmpty()
     val mao = remember(state, viewer) { state.hand(viewer).sortedForHand() }
+
+    // Ver a nota equivalente na canastra: a mão que fecha o torneio não reparte mão nova, e
+    // por isso o ViewModel não enxerga a mudança que dispararia [roundJustEnded] sozinho.
+    var finalScoreDismissed by remember(state.handNumber) { mutableStateOf(false) }
+    val showRoundDialog = state.lastResult != null && (roundJustEnded || (state.gameOver && !finalScoreDismissed))
 
     Column(
         modifier = modifier
@@ -163,6 +175,25 @@ fun PokerSurface(
                 onMove = onMove,
             )
         }
+    }
+
+    if (showRoundDialog) {
+        val resultado = state.lastResult
+        AlertDialog(
+            onDismissRequest = { finalScoreDismissed = true; onAcknowledgeRoundEnd() },
+            confirmButton = {
+                TextButton(onClick = { finalScoreDismissed = true; onAcknowledgeRoundEnd() }) {
+                    Text("Continuar")
+                }
+            },
+            title = { Text("Fim da Mão") },
+            text = {
+                Text(
+                    text = resultado?.let { lastResultText(it, viewer, names) }.orEmpty(),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+        )
     }
 }
 

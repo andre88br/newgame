@@ -338,6 +338,35 @@ class TrucoTest {
         assertTrue(TrucoGame.legalMoves(correu).isEmpty(), "partida acabada não tem lance")
     }
 
+    /**
+     * O número da mão e o resultado guardado são o sinal que a tela usa para pausar no fim
+     * de cada mão — veja [io.github.andre88br.newgame.core.engine.GameEntry.handOf].
+     */
+    @Test
+    fun `fechar a mao avanca seu numero e guarda o resultado`() {
+        val state = novo()
+        assertEquals(0, state.handNumber, "a partida começa na mão zero")
+        assertNull(state.lastHand, "sem mão fechada ainda, sem resultado")
+
+        val trucou = TrucoGame.applyOrThrow(state, TrucoMove.Call)
+        val correu = TrucoGame.applyOrThrow(trucou, TrucoMove.Run)
+
+        assertEquals(1, correu.handNumber, "uma mão fechou: a próxima já é a de número um")
+        assertEquals(TrucoHandResult(winner = 0, points = 1), correu.lastHand)
+    }
+
+    /** A mão que fecha a partida não reparte a próxima: não há por que o número mudar. */
+    @Test
+    fun `a mao que fecha a partida nao reparte, e o numero da mao nao muda`() {
+        val quaseLa = novo().copy(scores = listOf(11, 0))
+        val trucou = TrucoGame.applyOrThrow(quaseLa, TrucoMove.Call)
+        val correu = TrucoGame.applyOrThrow(trucou, TrucoMove.Run)
+
+        assertEquals(12, correu.score(0))
+        assertEquals(quaseLa.handNumber, correu.handNumber, "a partida acabou: não há mão nova")
+        assertEquals(TrucoHandResult(winner = 0, points = 1), correu.lastHand)
+    }
+
     @Test
     fun `uma partida inteira termina sem travar`() {
         for (seats in listOf(2, 4)) {

@@ -26,6 +26,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import io.github.andre88br.newgame.app.R
 import io.github.andre88br.newgame.app.data.AppPreferences
+import io.github.andre88br.newgame.app.data.GameSpeed
 import io.github.andre88br.newgame.app.ui.components.ChoiceRow
 import io.github.andre88br.newgame.app.ui.difficultyName
 import io.github.andre88br.newgame.app.ui.theme.DeckColorChoice
@@ -94,6 +95,22 @@ fun SettingsScreen(preferences: AppPreferences, onBack: () -> Unit) {
                     )
                 },
                 onSelect = preferences::setDeckColor,
+            )
+
+            ChoiceRow(
+                label = stringResource(R.string.settings_game_speed),
+                options = GameSpeed.entries.toList(),
+                selected = settings.gameSpeed,
+                optionLabel = {
+                    stringResource(
+                        when (it) {
+                            GameSpeed.SLOW -> R.string.settings_game_speed_slow
+                            GameSpeed.NORMAL -> R.string.settings_game_speed_normal
+                            GameSpeed.FAST -> R.string.settings_game_speed_fast
+                        },
+                    )
+                },
+                onSelect = preferences::setGameSpeed,
             )
 
             SwitchRow(

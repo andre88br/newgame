@@ -39,6 +39,13 @@ fun MoveSurface(
     hinted: Move?,
     /** Segue o ajuste de animações: desligado, o dado do ludo revela sem chacoalhar. */
     animated: Boolean,
+    /**
+     * Uma mão acabou de fechar e ainda não foi reconhecida — só existe nos jogos de várias
+     * mãos por partida. As telas desses jogos mostram o resumo da mão e travam aqui até
+     * [onAcknowledgeRoundEnd] ser chamado.
+     */
+    roundJustEnded: Boolean,
+    onAcknowledgeRoundEnd: () -> Unit,
     modifier: Modifier = Modifier,
     onMove: (Move) -> Unit,
 ) {
@@ -50,10 +57,10 @@ fun MoveSurface(
             LudoSurface(state, viewer, enabled, hinted, animated, modifier, onMove)
 
         gameId == GameId.HEARTS && state is HeartsState ->
-            HeartsSurface(state, viewer, names, enabled, hinted, modifier, onMove)
+            HeartsSurface(state, viewer, names, enabled, hinted, roundJustEnded, onAcknowledgeRoundEnd, modifier, onMove)
 
         gameId == GameId.CANASTRA && state is CanastraState ->
-            CanastraSurface(state, viewer, names, enabled, hinted, modifier, onMove)
+            CanastraSurface(state, viewer, names, enabled, hinted, roundJustEnded, onAcknowledgeRoundEnd, modifier, onMove)
 
         gameId == GameId.PIFE && state is PifeState ->
             PifeSurface(state, viewer, names, enabled, hinted, modifier, onMove)
@@ -62,10 +69,10 @@ fun MoveSurface(
             KlondikeSurface(state, viewer, names, enabled, hinted, modifier, onMove)
 
         gameId == GameId.TRUCO && state is TrucoState ->
-            TrucoSurface(state, viewer, names, enabled, hinted, modifier, onMove)
+            TrucoSurface(state, viewer, names, enabled, hinted, roundJustEnded, onAcknowledgeRoundEnd, modifier, onMove)
 
         gameId == GameId.POKER && state is PokerState ->
-            PokerSurface(state, viewer, names, enabled, hinted, modifier, onMove)
+            PokerSurface(state, viewer, names, enabled, hinted, roundJustEnded, onAcknowledgeRoundEnd, modifier, onMove)
 
         // Jogo sem tela: dizer isso é melhor do que mostrar uma área em branco.
         else -> Text(stringResource(R.string.board_no_surface, gameId.name))

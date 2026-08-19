@@ -66,6 +66,8 @@ fun CanastraSurface(
     names: List<String>,
     enabled: Boolean,
     hinted: Move?,
+    roundJustEnded: Boolean,
+    onAcknowledgeRoundEnd: () -> Unit,
     modifier: Modifier = Modifier,
     onMove: (Move) -> Unit,
 ) {
@@ -103,8 +105,13 @@ fun CanastraSurface(
         if (customOrder != displayHand) customOrder = displayHand
     }
 
-    var roundScoreDismissed by remember(state.scores) { mutableStateOf(false) }
+    // A pausa de verdade — que também trava a IA — vem de [roundJustEnded], calculado pelo
+    // ViewModel. Este flag local só cobre o caso da mão que fecha a partida: aí o motor não
+    // reparte mão nova (o número da mão não muda), então o ViewModel nunca vê a mudança que
+    // dispara a pausa sozinho, e é este dismiss que segura o resumo na tela até o "Continuar".
+    var finalScoreDismissed by remember(state.handNumber) { mutableStateOf(false) }
     val isGameOver = state.scores.any { it >= CANASTRA_TARGET }
+    val showRoundDialog = state.lastScores.isNotEmpty() && (roundJustEnded || (isGameOver && !finalScoreDismissed))
 
     val meuTime = state.teamOf(viewer)
     val minhaVez = state.turn == viewer
@@ -272,11 +279,11 @@ fun CanastraSurface(
         }
 
         // Camada de Diálogos e Fim de Jogo
-        if (state.lastScores.isNotEmpty() && !roundScoreDismissed) {
+        if (showRoundDialog) {
             AlertDialog(
-                onDismissRequest = { roundScoreDismissed = true },
+                onDismissRequest = { finalScoreDismissed = true; onAcknowledgeRoundEnd() },
                 confirmButton = {
-                    TextButton(onClick = { roundScoreDismissed = true }) {
+                    TextButton(onClick = { finalScoreDismissed = true; onAcknowledgeRoundEnd() }) {
                         Text("Continuar")
                     }
                 },

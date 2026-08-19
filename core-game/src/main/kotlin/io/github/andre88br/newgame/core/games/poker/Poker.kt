@@ -97,6 +97,8 @@ data class PokerState(
     val gameOver: Boolean = false,
     /** O resultado da última mão fechada, ou `null` antes de a primeira mão terminar. */
     val lastResult: PokerHandResult? = null,
+    /** Quantas mãos já foram repartidas nesta partida, contando do zero. Muda a cada mão nova. */
+    val handNumber: Int = 0,
 ) : GameState {
 
     fun hand(seat: Seat): List<Card> = hands.getOrElse(seat.index) { emptyList() }
@@ -523,7 +525,7 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
             smallBlind = encerrado.smallBlind,
             bigBlind = encerrado.bigBlind,
             rng = encerrado.rng,
-        ).copy(ply = encerrado.ply, lastResult = resultado)
+        ).copy(ply = encerrado.ply, lastResult = resultado, handNumber = encerrado.handNumber + 1)
     }
 
     override fun outcome(state: PokerState): Outcome {

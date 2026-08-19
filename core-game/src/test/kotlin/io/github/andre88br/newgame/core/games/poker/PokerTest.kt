@@ -124,15 +124,20 @@ class PokerTest {
     fun `o resultado da mao anterior fica guardado depois que a proxima ja foi repartida`() {
         val primeira = novo(buyIn = 1000, bigBlind = 20)
         assertEquals(null, primeira.lastResult, "antes da primeira mão fechar não há resultado nenhum")
+        assertEquals(0, primeira.handNumber, "a partida começa na mão zero")
 
         val depois = PokerGame.applyOrThrow(primeira, PokerMove.Fold)
         assertEquals(PokerHandResult(pots = listOf(PokerPotShare(winners = listOf(0), amount = 30))), depois.lastResult)
+        // O número da mão é o sinal que a tela usa para pausar no fim de cada uma — veja
+        // io.github.andre88br.newgame.core.engine.GameEntry.handOf.
+        assertEquals(1, depois.handNumber, "uma mão fechou: a próxima já é a de número um")
 
         // A mão seguinte já está em andamento (outro pote, outra rodada) — paga em vez de
         // desistir de novo, só para não fechar esta segunda mão também — e o resultado da
         // anterior precisa continuar ali até esta fechar e sobrescrever.
         val meioDaProxima = PokerGame.applyOrThrow(depois, PokerMove.Call)
         assertEquals(depois.lastResult, meioDaProxima.lastResult)
+        assertEquals(depois.handNumber, meioDaProxima.handNumber, "ainda na mesma mão: o número não muda no meio dela")
     }
 
     // -------- all-in trava aumento, e a mesa se revela sozinha até o showdown --------

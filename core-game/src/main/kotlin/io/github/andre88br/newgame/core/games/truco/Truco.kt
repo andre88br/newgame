@@ -98,6 +98,10 @@ fun nextStake(stake: Int): Int? = when (stake) {
 @Serializable
 data class OnTable(val seat: Int, val card: Card)
 
+/** O resultado da última mão fechada: quem levou, e quanto valia. */
+@Serializable
+data class TrucoHandResult(val winner: Int, val points: Int)
+
 @Serializable
 data class TrucoState(
     /** A mão de cada cadeira. Some para quem não é dono — veja [TrucoGame.redactFor]. */
@@ -127,6 +131,10 @@ data class TrucoState(
     /** Duas cadeiras ou quatro. Três não divide em duplas. */
     val seats: Int = 2,
     val rng: Rng = Rng(0),
+    /** Quantas mãos já foram repartidas nesta partida, contando do zero. Muda a cada mão nova. */
+    val handNumber: Int = 0,
+    /** O resultado da última mão fechada, ou `null` antes de a primeira mão terminar. */
+    val lastHand: TrucoHandResult? = null,
 ) : GameState {
 
     /** Em quatro as duplas são as cadeiras opostas; a dois, cada um é o seu time. */
@@ -451,9 +459,10 @@ object TrucoGame : BoardGame<TrucoState, TrucoMove> {
         val somados = List(2) { time ->
             state.score(time) + if (time == winner) state.stake else 0
         }
-        if (somados.any { it >= TRUCO_TARGET }) return state.copy(scores = somados)
+        val resultado = TrucoHandResult(winner = winner, points = if (winner in 0..1) state.stake else 0)
+        if (somados.any { it >= TRUCO_TARGET }) return state.copy(scores = somados, lastHand = resultado)
         return dealHand(state.seats, somados, state.dealer.next(state.seats), state.rng)
-            .copy(ply = state.ply)
+            .copy(ply = state.ply, handNumber = state.handNumber + 1, lastHand = resultado)
     }
 
     override fun outcome(state: TrucoState): Outcome {

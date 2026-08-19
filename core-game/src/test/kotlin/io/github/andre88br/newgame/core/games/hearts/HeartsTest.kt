@@ -11,6 +11,7 @@ import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.applyOrThrow
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -236,6 +237,27 @@ class HeartsTest {
             (1 until HEARTS_SEATS).all { fechada.scores[it] == HEARTS_MOON },
             "os outros três levam 26 cada: ${fechada.scores}",
         )
+    }
+
+    /**
+     * A mão da mão e o resultado guardado são o sinal que a tela usa para pausar no fim de
+     * cada mão — veja [io.github.andre88br.newgame.core.engine.GameEntry.handOf].
+     */
+    @Test
+    fun `fechar a mao avanca seu numero, guarda o resultado e quem correu todas`() {
+        val state = novo().copy(
+            phase = HeartsPhase.PLAYING,
+            hands = List(HEARTS_SEATS) { emptyList() },
+            handPoints = listOf(HEARTS_MOON, 0, 0, 0),
+            scores = listOf(0, 0, 0, 0),
+        )
+        assertNull(state.lastHand, "sem mão fechada ainda, sem resultado")
+
+        val fechada = fecharMaoPor(state, quemCorreu = 0)
+
+        assertEquals(state.hand + 1, fechada.hand, "uma mão fechou: a próxima já é a seguinte")
+        assertEquals(listOf(HEARTS_MOON, 0, 0, 0), fechada.lastHand?.points, "os pontos da mão que fechou")
+        assertEquals(Seat.FIRST, fechada.lastHand?.moonShooter, "quem correu com todas")
     }
 
     /** Chama o fechamento de mão do próprio motor, sem duplicar a regra no teste. */
