@@ -22,6 +22,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +49,7 @@ import io.github.andre88br.newgame.core.games.poker.PokerPotShare
 import io.github.andre88br.newgame.core.games.poker.PokerState
 import io.github.andre88br.newgame.core.games.poker.PokerStreet
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 
 /**
  * A mesa do pôquer.
@@ -293,13 +295,29 @@ private fun potShareText(pote: PokerPotShare, viewer: Seat, names: List<String>)
     }
 }
 
+/** Quanto tempo, no mínimo, entre uma carta da mesa aparecer e a seguinte. */
+private const val BOARD_CARD_REVEAL_DELAY_MS = 2_000L
+
 /** O centro da mesa: a rua, o pote e as cartas comunitárias já reveladas. */
 @Composable
 private fun TableArea(state: PokerState, palette: BoardPalette, viewer: Seat, names: List<String>) {
+    // O flop chega do motor como três cartas de uma vez só — e, num all-in, o turn e o river
+    // podem chegar em sequência rápida logo atrás. Sem isto elas apareceriam todas juntas: a
+    // contagem fica presa a esta mão (reseta quando [PokerState.handNumber] muda) e sobe uma
+    // de cada vez, esperando ao menos [BOARD_CARD_REVEAL_DELAY_MS] entre uma carta e outra.
+    var reveladas by remember(state.handNumber) { mutableStateOf(0) }
+    LaunchedEffect(state.board.size) {
+        while (reveladas < state.board.size) {
+            if (reveladas > 0) delay(BOARD_CARD_REVEAL_DELAY_MS)
+            reveladas++
+        }
+    }
+    val cartasVisiveis = state.board.take(reveladas)
+
     // Só existe num all-in — veja a nota em [pokerAllInEquities] sobre por que fora dele a
-    // conta nem tenta rodar. Recalculada a cada carta nova da mesa, é isso que faz a
-    // porcentagem de cada um mudar junto com o flop, o turn e o river.
-    val equities = rememberPokerAllInEquities(state)
+    // conta nem tenta rodar. Calculada sobre [cartasVisiveis], e não sobre a mesa de verdade:
+    // senão a porcentagem entregaria a próxima carta antes dela aparecer na tela.
+    val equities = rememberPokerAllInEquities(state.copy(board = cartasVisiveis))
 
     Box(
         modifier = Modifier
@@ -318,11 +336,13 @@ private fun TableArea(state: PokerState, palette: BoardPalette, viewer: Seat, na
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = streetLabel(state.street),
+                // A rua mostrada segue o que já apareceu na mesa, não a rua de verdade do
+                // motor — senão o rótulo diria "river" com só o flop à vista.
+                text = streetLabel(streetForVisibleCount(cartasVisiveis.size)),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (state.board.isEmpty()) {
+            if (cartasVisiveis.isEmpty()) {
                 Text(
                     text = stringResource(R.string.poker_board_empty),
                     style = MaterialTheme.typography.bodySmall,
@@ -330,7 +350,7 @@ private fun TableArea(state: PokerState, palette: BoardPalette, viewer: Seat, na
                 )
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (carta in state.board) {
+                    for (carta in cartasVisiveis) {
                         CardFace(card = carta, palette = palette)
                     }
                 }
@@ -376,6 +396,14 @@ private fun streetLabel(street: PokerStreet): String = stringResource(
         PokerStreet.RIVER -> R.string.poker_street_river
     },
 )
+
+/** A rua que corresponde a quantas cartas da mesa já apareceram na tela. */
+private fun streetForVisibleCount(count: Int): PokerStreet = when {
+    count >= 5 -> PokerStreet.RIVER
+    count == 4 -> PokerStreet.TURN
+    count >= 1 -> PokerStreet.FLOP
+    else -> PokerStreet.PREFLOP
+}
 
 /** Desistir, passar ou pagar, e os aumentos que o motor considerou fazer sentido agora. */
 @Composable
