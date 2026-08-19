@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.andre88br.newgame.app.R
 import io.github.andre88br.newgame.app.ui.theme.BoardPalette
 import io.github.andre88br.newgame.app.ui.theme.LocalBoardPalette
@@ -86,12 +87,16 @@ fun PokerSurface(
             seats = state.seats,
             viewer = viewer,
             names = names,
-            handSize = { seat -> if (state.isIn(seat)) 2 else 0 },
+            // Sempre duas cartas para quem segue no torneio, mesmo tendo desistido desta
+            // mão — só quem já foi eliminado (sem ficha e fora da mão) fica sem nenhuma. Um
+            // tamanho que mudasse a cada desistência faria a mesa inteira pular de lugar a
+            // cada rodada.
+            handSize = { seat -> if (state.isAlive(seat)) 2 else 0 },
             palette = palette,
             // As fichas de cada adversário aparecem junto do nome dela, embaixo da própria
             // mão — não numa faixa à parte lá em cima, onde ficariam longe das cartas que
             // decidem se vale a pena pagar aquela aposta.
-            seatExtra = { seat -> PlayerChips(amount = state.stack(seat), destaque = seat == state.turn) },
+            seatExtra = { seat -> ChipStack(amount = state.stack(seat), destaque = seat == state.turn) },
             modifier = Modifier.fillMaxWidth(),
         ) {
             TableArea(state = state, palette = palette)
@@ -134,60 +139,80 @@ fun PokerSurface(
         ) {
             // A própria pilha fica ao lado da própria mão, pelo mesmo motivo da de cada
             // adversário: é olhando as fichas que se decide pagar ou desistir.
-            PlayerChips(amount = state.stack(viewer), destaque = minhaVez)
+            ChipStack(amount = state.stack(viewer), destaque = minhaVez)
             CardFan(cards = mao, palette = palette)
         }
     }
 }
 
-/** A pilha de fichas e o valor de uma cadeira — usado ao lado da mão dela, própria ou adversária. */
-@Composable
-private fun PlayerChips(amount: Int, destaque: Boolean, modifier: Modifier = Modifier) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
-        ChipStack(amount = amount)
-        Text(
-            text = "$amount",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = if (destaque) FontWeight.Bold else FontWeight.Normal,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
+/** Uma cor de ficha física — cara de cima e o texto do valor, como as fichas de uma maleta de verdade. */
+private data class ChipColor(val face: Color, val text: Color)
+
+// As cinco cores de uma maleta de fichas física, da mais baixa à mais alta — não seguem o
+// tema do app de propósito, porque uma ficha de pôquer não muda de cor com o modo claro/escuro.
+private val CHIP_5 = ChipColor(face = Color(0xFFF2ECD9), text = Color(0xFF1B2A4A))
+private val CHIP_10 = ChipColor(face = Color(0xFF8C1F2F), text = Color.White)
+private val CHIP_20 = ChipColor(face = Color(0xFF1E5631), text = Color.White)
+private val CHIP_50 = ChipColor(face = Color(0xFF17406B), text = Color.White)
+private val CHIP_100 = ChipColor(face = Color(0xFF1B1B1B), text = Color.White)
+
+/** A cor da ficha muda com a grandeza do valor — é só uma faixa, não uma troca exata por fichas. */
+private fun chipColorFor(amount: Int): ChipColor = when {
+    amount < 20 -> CHIP_5
+    amount < 100 -> CHIP_10
+    amount < 500 -> CHIP_20
+    amount < 2000 -> CHIP_50
+    else -> CHIP_100
 }
 
-/** Cores fixas de ficha de pôquer, como vêm numa maleta física — não seguem o tema do app. */
-private val CHIP_COLORS = listOf(Color(0xFFC62828), Color(0xFF2E7D32), Color(0xFF1565C0))
-private val CHIP_SIZE = 20.dp
-private val CHIP_STACK_STEP = 4.dp
+private val CHIP_SIZE = 30.dp
+private val CHIP_STACK_STEP = 5.dp
+
+/** Quantas fichas a pilha sempre mostra, tenha o valor uma ou quatro casas. */
+private const val CHIP_STACK_LAYERS = 4
 
 /**
- * Uma pilha de fichas.
+ * Uma pilha de fichas, com o valor desenhado na ficha de cima — como numa maleta física.
  *
- * Não é enfeite: é o que faz "quantas fichas" parecer dinheiro em jogo, e não só mais um
- * número ao lado do nome. A altura da pilha é só uma faixa grosseira de grandeza (pouco,
- * médio, muito) — não uma conta exata de fichas físicas, que ninguém ia contar de olho.
+ * O tamanho da pilha **nunca muda**: são sempre as mesmas [CHIP_STACK_LAYERS] fichas, o zero
+ * incluído (só a cor da ficha de cima muda com a grandeza do valor). Uma pilha que crescesse
+ * ou encolhesse a cada aposta faria a linha inteira de jogadores pular de lugar a cada lance —
+ * é por isso que aqui o tamanho já nasce reservado, pronto para qualquer valor.
  */
 @Composable
-private fun ChipStack(amount: Int, modifier: Modifier = Modifier) {
-    val camadas = when {
-        amount <= 0 -> 0
-        amount < 100 -> 1
-        amount < 500 -> 2
-        else -> 3
-    }
-    if (camadas == 0) return
+private fun ChipStack(amount: Int, modifier: Modifier = Modifier, destaque: Boolean = false) {
+    val cor = chipColorFor(amount)
     Box(
-        modifier = modifier.size(width = CHIP_SIZE, height = CHIP_SIZE + CHIP_STACK_STEP * (camadas - 1)),
+        modifier = modifier.size(width = CHIP_SIZE, height = CHIP_SIZE + CHIP_STACK_STEP * (CHIP_STACK_LAYERS - 1)),
         contentAlignment = Alignment.BottomCenter,
     ) {
-        for (i in 0 until camadas) {
+        if (amount <= 0) return@Box
+        for (i in 0 until CHIP_STACK_LAYERS) {
+            val ehTopo = i == CHIP_STACK_LAYERS - 1
             Box(
                 modifier = Modifier
                     .offset(y = -CHIP_STACK_STEP * i)
                     .size(CHIP_SIZE)
                     .clip(CircleShape)
-                    .background(CHIP_COLORS[i % CHIP_COLORS.size])
-                    .border(2.dp, Color.White.copy(alpha = 0.6f), CircleShape),
-            )
+                    .background(cor.face)
+                    .border(
+                        width = if (ehTopo && destaque) 2.5.dp else 1.5.dp,
+                        color = if (ehTopo && destaque) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.6f),
+                        shape = CircleShape,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (ehTopo) {
+                    Text(
+                        text = "$amount",
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = cor.text,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                }
+            }
         }
     }
 }
