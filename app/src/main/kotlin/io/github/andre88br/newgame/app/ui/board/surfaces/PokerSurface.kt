@@ -114,17 +114,6 @@ fun PokerSurface(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        if (!eliminado) {
-            Actions(
-                state = state,
-                viewer = viewer,
-                legais = legais,
-                enabled = enabled && minhaVez,
-                hinted = hinted,
-                onMove = onMove,
-            )
-        }
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -148,6 +137,19 @@ fun PokerSurface(
                     modifier = Modifier.weight(1f),
                 )
             }
+        }
+
+        // Os botões de ação ficam embaixo da própria mão: é nela que se olha para decidir o
+        // lance, não antes de vê-la.
+        if (!eliminado) {
+            Actions(
+                state = state,
+                viewer = viewer,
+                legais = legais,
+                enabled = enabled && minhaVez,
+                hinted = hinted,
+                onMove = onMove,
+            )
         }
     }
 }
