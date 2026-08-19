@@ -72,6 +72,8 @@ fun PokerSurface(
     names: List<String>,
     enabled: Boolean,
     hinted: Move?,
+    /** Segue o ajuste de animações das Configurações: desligado, mãos e leques já nascem prontos. */
+    animated: Boolean = true,
     roundJustEnded: Boolean,
     onAcknowledgeRoundEnd: () -> Unit,
     modifier: Modifier = Modifier,
@@ -113,12 +115,13 @@ fun PokerSurface(
             // considera seguro revelar (a rodada em que ela foi all-in fechou) — o motor já
             // manda a carta de verdade em vez de oculta, então basta reconhecer isso aqui e
             // desenhar a face em vez do leque virado para baixo de sempre.
+            animated = animated,
             handContent = { seat, count, vertical ->
                 val maoAdversario = state.hand(seat)
                 if (maoAdversario.isNotEmpty() && maoAdversario.none { it.isHidden }) {
-                    CardFan(cards = maoAdversario, palette = palette)
+                    CardFan(cards = maoAdversario, palette = palette, animated = animated)
                 } else {
-                    OpponentFan(count = count, palette = palette, vertical = vertical)
+                    OpponentFan(count = count, palette = palette, animated = animated, vertical = vertical)
                 }
             },
             // As fichas de cada adversário aparecem junto do nome dela, embaixo da própria
@@ -149,7 +152,7 @@ fun PokerSurface(
             // A própria pilha fica ao lado da própria mão, pelo mesmo motivo da de cada
             // adversário: é olhando as fichas que se decide pagar ou desistir.
             ChipStack(amount = state.stack(viewer), destaque = minhaVez)
-            CardFan(cards = mao, palette = palette)
+            CardFan(cards = mao, palette = palette, animated = animated)
 
             // O resultado da mão anterior fica ao lado da própria mão, não lá em cima perto
             // da mesa — é ali que os olhos já estão quando a mão termina e a próxima começa.

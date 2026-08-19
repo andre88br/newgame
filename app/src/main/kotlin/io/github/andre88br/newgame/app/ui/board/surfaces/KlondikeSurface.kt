@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -69,6 +70,8 @@ fun KlondikeSurface(
     names: List<String>,
     enabled: Boolean,
     hinted: Move?,
+    /** Segue o ajuste de animações das Configurações: desligado, o descarte já pousa pronto. */
+    animated: Boolean = true,
     modifier: Modifier = Modifier,
     onMove: (Move) -> Unit,
 ) {
@@ -105,6 +108,7 @@ fun KlondikeSurface(
                 state = state,
                 palette = palette,
                 enabled = enabled,
+                animated = animated,
                 escolhido = pegada == Pegada.Descarte,
                 onStock = {
                     pegada = null
@@ -230,6 +234,7 @@ private fun StockAndWaste(
     state: KlondikeState,
     palette: BoardPalette,
     enabled: Boolean,
+    animated: Boolean,
     escolhido: Boolean,
     onStock: () -> Unit,
     onWaste: () -> Unit,
@@ -259,12 +264,19 @@ private fun StockAndWaste(
             if (topo == null) {
                 EmptySlot(palette = palette, label = "", onClick = null)
             } else {
-                CardFace(
-                    card = topo,
-                    palette = palette,
-                    selected = escolhido,
-                    onClick = if (enabled) onWaste else null,
-                )
+                // A carta que acabou de virar pousa uma vez: a chave é o tamanho do
+                // descarte, não a carta em si — duas cartas de mesmo valor em jogadas
+                // seguidas (depois de um recycle, por exemplo) não podem ser confundidas
+                // com "a mesma carta parada".
+                key(state.waste.size) {
+                    CardFace(
+                        card = topo,
+                        palette = palette,
+                        selected = escolhido,
+                        onClick = if (enabled) onWaste else null,
+                        modifier = rememberLandAnimation(animated),
+                    )
+                }
             }
             Text(
                 text = state.waste.size.toString(),

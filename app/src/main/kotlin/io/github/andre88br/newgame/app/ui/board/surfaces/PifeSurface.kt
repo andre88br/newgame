@@ -15,6 +15,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,6 +52,8 @@ fun PifeSurface(
     names: List<String>,
     enabled: Boolean,
     hinted: Move?,
+    /** Segue o ajuste de animações das Configurações: desligado, cartas e descarte já nascem prontos. */
+    animated: Boolean = true,
     modifier: Modifier = Modifier,
     onMove: (Move) -> Unit,
 ) {
@@ -79,9 +82,10 @@ fun PifeSurface(
             names = names,
             handSize = { seat -> state.handSize(seat) },
             palette = palette,
+            animated = animated,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            TableInfo(state = state, palette = palette)
+            TableInfo(state = state, palette = palette, animated = animated)
         }
 
         Text(
@@ -132,6 +136,7 @@ fun PifeSurface(
             CardFan(
                 cards = mao,
                 palette = palette,
+                animated = animated,
                 isRaised = { index, atual -> index == escolhida || atual == sugerida },
                 onClick = if (enabled && minhaVez && state.phase == PifePhase.DISCARD) {
                     { index, _ -> escolhida = if (index == escolhida) null else index }
@@ -166,7 +171,7 @@ private fun HandCounts(state: PifeState, viewer: Seat) {
 
 /** De onde se compra: o monte virado para baixo e a carta de cima do lixo, à vista. */
 @Composable
-private fun TableInfo(state: PifeState, palette: BoardPalette) {
+private fun TableInfo(state: PifeState, palette: BoardPalette, animated: Boolean) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -189,7 +194,11 @@ private fun TableInfo(state: PifeState, palette: BoardPalette) {
             if (topo == null) {
                 Box(modifier = Modifier.padding(2.dp)) { Text("—") }
             } else {
-                CardFace(card = topo, palette = palette)
+                // A carta descartada pousa uma vez: a chave é o tamanho da pilha, não a
+                // carta em si, para não confundir duas cartas iguais em descartes seguidos.
+                key(state.discard.size) {
+                    CardFace(card = topo, palette = palette, modifier = rememberLandAnimation(animated))
+                }
             }
             Text(
                 text = stringResource(R.string.pife_pile, state.discard.size),

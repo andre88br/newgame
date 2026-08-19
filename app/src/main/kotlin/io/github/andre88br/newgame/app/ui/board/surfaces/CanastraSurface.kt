@@ -28,6 +28,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -66,6 +67,8 @@ fun CanastraSurface(
     names: List<String>,
     enabled: Boolean,
     hinted: Move?,
+    /** Segue o ajuste de animações das Configurações: desligado, cartas e descarte já nascem prontos. */
+    animated: Boolean = true,
     roundJustEnded: Boolean,
     onAcknowledgeRoundEnd: () -> Unit,
     modifier: Modifier = Modifier,
@@ -132,9 +135,10 @@ fun CanastraSurface(
                 names = names,
                 handSize = { seat -> state.handSize(seat) },
                 palette = palette,
+                animated = animated,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                TableInfo(state = state, palette = palette)
+                TableInfo(state = state, palette = palette, animated = animated)
             }
 
             val meusJogos = state.melds.getOrElse(meuTime) { emptyList() }
@@ -142,6 +146,7 @@ fun CanastraSurface(
                 title = stringResource(R.string.canastra_your_melds),
                 melds = meusJogos,
                 palette = palette,
+                animated = animated,
                 hasSelectedCards = cartasEscolhidas.isNotEmpty(),
                 onMeldClick = if (enabled && minhaVez && cartasEscolhidas.isNotEmpty()) {
                     { index ->
@@ -163,6 +168,7 @@ fun CanastraSurface(
                     title = stringResource(R.string.canastra_their_melds, teamLabel(state, time, viewer, names)),
                     melds = state.melds.getOrElse(time) { emptyList() },
                     palette = palette,
+                    animated = animated,
                     hasSelectedCards = cartasEscolhidas.isNotEmpty(),
                     onMeldClick = null,
                 )
@@ -199,7 +205,8 @@ fun CanastraSurface(
                 CardFan(
                     cards = displayHand,
                     palette = palette,
-                    isRaised = { index, _ -> 
+                    animated = animated,
+                    isRaised = { index, _ ->
                         index in escolhidas || index == drawnCardIndex || index == owedCardIndex 
                     },
                     onClick = if (enabled && minhaVez && state.phase == CanastraPhase.PLAY) {
@@ -450,7 +457,7 @@ private fun teamLabel(state: CanastraState, time: Int, viewer: Seat, names: List
 }
 
 @Composable
-private fun TableInfo(state: CanastraState, palette: BoardPalette) {
+private fun TableInfo(state: CanastraState, palette: BoardPalette, animated: Boolean) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -473,7 +480,12 @@ private fun TableInfo(state: CanastraState, palette: BoardPalette) {
             if (topo == null) {
                 Box(modifier = Modifier.padding(2.dp)) { Text("—") }
             } else {
-                CardFace(card = topo, palette = palette)
+                // A carta descartada pousa uma vez: a chave é o tamanho da pilha, não a carta
+                // em si — a canastra joga com dois baralhos, e duas cartas iguais em
+                // descartes seguidos não podem ser confundidas com "a mesma carta parada".
+                key(state.discard.size) {
+                    CardFace(card = topo, palette = palette, modifier = rememberLandAnimation(animated))
+                }
             }
             Text(
                 text = if (state.discardBlocked) {
@@ -570,6 +582,7 @@ private fun MeldRow(
     title: String,
     melds: List<Meld>,
     palette: BoardPalette,
+    animated: Boolean,
     hasSelectedCards: Boolean,
     onMeldClick: ((Int) -> Unit)?,
 ) {
@@ -619,7 +632,7 @@ private fun MeldRow(
                     if (jogo.isCanastra && !isExpanded) {
                         CompactCanastra(jogo = jogo, palette = palette)
                     } else {
-                        CardFan(cards = jogo.cards, palette = palette)
+                        CardFan(cards = jogo.cards, palette = palette, animated = animated)
                     }
                     
                     Text(
