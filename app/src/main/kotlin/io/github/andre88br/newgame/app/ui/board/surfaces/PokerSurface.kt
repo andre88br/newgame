@@ -16,14 +16,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,7 +47,6 @@ import io.github.andre88br.newgame.core.games.poker.PokerPotShare
 import io.github.andre88br.newgame.core.games.poker.PokerState
 import io.github.andre88br.newgame.core.games.poker.PokerStreet
 import kotlin.math.roundToInt
-import kotlinx.coroutines.delay
 
 /**
  * A mesa do pôquer.

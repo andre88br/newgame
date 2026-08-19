@@ -171,6 +171,27 @@ fun rememberLandAnimation(animated: Boolean): Modifier {
 }
 
 /**
+ * Quantos itens de uma sequência já foram revelados, um de cada vez, com pelo menos
+ * [delayMs] entre um e o seguinte — o padrão que o pôquer usa para o flop, o turn e o river
+ * não aparecerem todos de uma vez (três cartas juntas não dão tempo de olhar a primeira).
+ *
+ * Sobe até [count] e para lá — nunca volta sozinho. [resetKey] é o que reinicia a contagem do
+ * zero: no pôquer é o número da mão, para a próxima rodada de cartas comunitárias começar
+ * escondida de novo, e não já com as três primeiras da mão anterior à mostra.
+ */
+@Composable
+fun rememberSequentialReveal(count: Int, resetKey: Any?, delayMs: Long): Int {
+    var revealed by remember(resetKey) { mutableStateOf(0) }
+    LaunchedEffect(count) {
+        while (revealed < count) {
+            if (revealed > 0) delay(delayMs)
+            revealed++
+        }
+    }
+    return revealed
+}
+
+/**
  * Uma mão em leque com animações fluidas de Distribuição (Dealing) e Reordenação.
  *
  * [animated] segue o ajuste de animações das Configurações: desligado, a mão inteira já
