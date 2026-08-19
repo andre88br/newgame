@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.andre88br.newgame.app.R
@@ -102,14 +103,6 @@ fun PokerSurface(
             TableArea(state = state, palette = palette)
         }
 
-        state.lastResult?.let { resultado ->
-            Text(
-                text = lastResultText(resultado, viewer, names),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-
         Text(
             text = when {
                 eliminado -> stringResource(R.string.poker_eliminated)
@@ -141,6 +134,20 @@ fun PokerSurface(
             // adversário: é olhando as fichas que se decide pagar ou desistir.
             ChipStack(amount = state.stack(viewer), destaque = minhaVez)
             CardFan(cards = mao, palette = palette)
+
+            // O resultado da mão anterior fica ao lado da própria mão, não lá em cima perto
+            // da mesa — é ali que os olhos já estão quando a mão termina e a próxima começa.
+            // O peso evita que uma frase longa empurre a mão para fora da tela.
+            state.lastResult?.let { resultado ->
+                Text(
+                    text = lastResultText(resultado, viewer, names),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
