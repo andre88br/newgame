@@ -13,10 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -174,34 +172,28 @@ fun HeartsSurface(
 
     if (showRoundDialog) {
         val resultado = state.lastHand
-        AlertDialog(
-            onDismissRequest = { finalScoreDismissed = true; onAcknowledgeRoundEnd() },
-            confirmButton = {
-                TextButton(onClick = { finalScoreDismissed = true; onAcknowledgeRoundEnd() }) {
-                    Text("Continuar")
+        RoundEndDialog(
+            title = "Fim da Mão",
+            onDismiss = { finalScoreDismissed = true; onAcknowledgeRoundEnd() },
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                val moonShooter = resultado?.moonShooter
+                if (moonShooter != null) {
+                    Text(
+                        text = "${seatLabel(moonShooter.index, viewer, names)} correu com todas!",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
-            },
-            title = { Text("Fim da Mão") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val moonShooter = resultado?.moonShooter
-                    if (moonShooter != null) {
-                        Text(
-                            text = "${seatLabel(moonShooter.index, viewer, names)} correu com todas!",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    for (index in 0 until HEARTS_SEATS) {
-                        val seat = Seat(index)
-                        val pontos = resultado?.points?.getOrElse(index) { 0 } ?: 0
-                        Text(
-                            text = "${seatLabel(index, viewer, names)}: +$pontos nesta mão · ${state.score(seat)} no total",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
+                for (index in 0 until HEARTS_SEATS) {
+                    val seat = Seat(index)
+                    val pontos = resultado?.points?.getOrElse(index) { 0 } ?: 0
+                    Text(
+                        text = "${seatLabel(index, viewer, names)}: +$pontos nesta mão · ${state.score(seat)} no total",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
-            },
-        )
+            }
+        }
     }
 }
 

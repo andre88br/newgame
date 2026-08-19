@@ -19,13 +19,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -297,53 +295,60 @@ fun CanastraSurface(
 
         // Camada de Diálogos e Fim de Jogo
         if (showRoundDialog) {
-            AlertDialog(
-                onDismissRequest = { finalScoreDismissed = true; onAcknowledgeRoundEnd() },
-                confirmButton = {
-                    TextButton(onClick = { finalScoreDismissed = true; onAcknowledgeRoundEnd() }) {
-                        Text("Continuar")
-                    }
-                },
-                title = { Text("Fim da Rodada") },
-                text = {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.verticalScroll(rememberScrollState())
-                    ) {
-                        for (time in 0 until state.teams) {
-                            val detalhes = state.lastScores.getOrNull(time)
-                            if (detalhes != null) {
-                                Column {
-                                    Text(
-                                        text = teamLabel(state, time, viewer, names),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (time == meuTime) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text("Jogos na Mesa: +${detalhes.pontosMesa}")
-                                    Text("Cartas na Mão: -${detalhes.penalidadeMao}", color = MaterialTheme.colorScheme.error)
-                                    if (detalhes.vermelhos > 0) Text("Três Vermelhos: +${detalhes.vermelhos}")
-                                    if (detalhes.batida > 0) Text("Bônus de Batida/Morto: +${detalhes.batida}")
-                                    Text(
-                                        text = "Saldo da Rodada: ${if (detalhes.totalRodada > 0) "+" else ""}${detalhes.totalRodada}",
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                if (time < state.teams - 1) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            RoundEndDialog(
+                title = "Fim da Rodada",
+                onDismiss = { finalScoreDismissed = true; onAcknowledgeRoundEnd() },
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
+                    for (time in 0 until state.teams) {
+                        val detalhes = state.lastScores.getOrNull(time)
+                        if (detalhes != null) {
+                            Column {
+                                Text(
+                                    text = teamLabel(state, time, viewer, names),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (time == meuTime) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text("Jogos na Mesa: +${detalhes.pontosMesa}")
+                                Text("Cartas na Mão: -${detalhes.penalidadeMao}", color = MaterialTheme.colorScheme.error)
+                                if (detalhes.vermelhos > 0) Text("Três Vermelhos: +${detalhes.vermelhos}")
+                                if (detalhes.batida > 0) Text("Bônus de Batida/Morto: +${detalhes.batida}")
+                                Text(
+                                    text = "Saldo da Rodada: ${if (detalhes.totalRodada > 0) "+" else ""}${detalhes.totalRodada}",
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
+                            if (time < state.teams - 1) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                         }
                     }
                 }
-            )
+            }
         } else if (isGameOver) {
-            EpicVictoryOverlay(state = state, viewer = viewer, names = names)
+            EpicVictoryOverlay(state = state, viewer = viewer, names = names, palette = palette)
         }
     }
 }
 
-/** TELA ÉPICA DE FIM DE JOGO COM PÓDIO */
+/**
+ * TELA ÉPICA DE FIM DE JOGO COM PÓDIO
+ *
+ * O dourado do vencedor é [BoardPalette.crown] — o mesmo tom que já marca a canastra limpa
+ * em [CompactCanastra] —, não um hexadecimal à parte: é o mesmo "isto venceu" em dois
+ * lugares da mesma tela, e a paleta já tinha a cor certa para isso.
+ *
+ * O resto — texto branco, pódio cinza, sombra preta — fica fixo de propósito, como o verso
+ * das cartas: este painel é sempre um "modo noturno" de celebração, por cima de um fundo bem
+ * escuro, e por isso não segue `MaterialTheme.colorScheme` (que no tema claro deixaria o
+ * texto quase preto sobre o próprio fundo escuro). Só o preto do fundo vem de
+ * [MaterialTheme.colorScheme.scrim] — o token do Material para exatamente este uso, uma
+ * camada escurecendo o que está atrás.
+ */
 @Composable
-private fun EpicVictoryOverlay(state: CanastraState, viewer: Seat, names: List<String>) {
+private fun EpicVictoryOverlay(state: CanastraState, viewer: Seat, names: List<String>, palette: BoardPalette) {
     val maxScore = state.scores.maxOrNull() ?: 0
     val winnerTeam = state.scores.indexOf(maxScore)
     val isMe = state.teamOf(viewer) == winnerTeam
@@ -351,7 +356,7 @@ private fun EpicVictoryOverlay(state: CanastraState, viewer: Seat, names: List<S
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.85f))
+            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.85f))
             .clickable { /* Consome toques para bloquear o jogo no fundo */ },
         contentAlignment = Alignment.Center
     ) {
@@ -364,10 +369,10 @@ private fun EpicVictoryOverlay(state: CanastraState, viewer: Seat, names: List<S
                 text = if (isMe) "👑 VITÓRIA ÉPICA! 👑" else "FIM DE JOGO",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = if (isMe) Color(0xFFFFD700) else Color.White,
+                color = if (isMe) palette.crown else Color.White,
                 textAlign = TextAlign.Center
             )
-            
+
             Text(
                 text = "A pontuação final foi definida!",
                 color = Color.LightGray,
@@ -386,7 +391,7 @@ private fun EpicVictoryOverlay(state: CanastraState, viewer: Seat, names: List<S
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = teamLabel(state, time, viewer, names).take(12),
-                            color = if (isWinner) Color(0xFFFFD700) else Color.White,
+                            color = if (isWinner) palette.crown else Color.White,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1
                         )
@@ -400,14 +405,14 @@ private fun EpicVictoryOverlay(state: CanastraState, viewer: Seat, names: List<S
                             modifier = Modifier
                                 .size(width = 110.dp, height = if (isWinner) 150.dp else 100.dp)
                                 .background(
-                                    if (isWinner) Color(0xFFFFD700).copy(alpha = 0.9f)
+                                    if (isWinner) palette.crown.copy(alpha = 0.9f)
                                     else Color.DarkGray.copy(alpha = 0.8f),
                                     RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)
                                 ),
                             contentAlignment = Alignment.TopCenter
                         ) {
                             Text(
-                                text = if (isWinner) "1º" else "2º", 
+                                text = if (isWinner) "1º" else "2º",
                                 fontSize = if (isWinner) 48.sp else 36.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.Black,

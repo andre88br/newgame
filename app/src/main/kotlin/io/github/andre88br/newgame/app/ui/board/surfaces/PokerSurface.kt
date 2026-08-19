@@ -196,21 +196,15 @@ fun PokerSurface(
 
     if (showRoundDialog) {
         val resultado = state.lastResult
-        AlertDialog(
-            onDismissRequest = { finalScoreDismissed = true; onAcknowledgeRoundEnd() },
-            confirmButton = {
-                TextButton(onClick = { finalScoreDismissed = true; onAcknowledgeRoundEnd() }) {
-                    Text("Continuar")
-                }
-            },
-            title = { Text("Fim da Mão") },
-            text = {
-                Text(
-                    text = resultado?.let { lastResultText(it, viewer, names) }.orEmpty(),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            },
-        )
+        RoundEndDialog(
+            title = "Fim da Mão",
+            onDismiss = { finalScoreDismissed = true; onAcknowledgeRoundEnd() },
+        ) {
+            Text(
+                text = resultado?.let { lastResultText(it, viewer, names) }.orEmpty(),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
     }
 }
 
@@ -319,15 +313,14 @@ private const val BOARD_CARD_REVEAL_DELAY_MS = 2_000L
 private fun TableArea(state: PokerState, palette: BoardPalette, viewer: Seat, names: List<String>, scale: Float) {
     // O flop chega do motor como três cartas de uma vez só — e, num all-in, o turn e o river
     // podem chegar em sequência rápida logo atrás. Sem isto elas apareceriam todas juntas: a
-    // contagem fica presa a esta mão (reseta quando [PokerState.handNumber] muda) e sobe uma
-    // de cada vez, esperando ao menos [BOARD_CARD_REVEAL_DELAY_MS] entre uma carta e outra.
-    var reveladas by remember(state.handNumber) { mutableStateOf(0) }
-    LaunchedEffect(state.board.size) {
-        while (reveladas < state.board.size) {
-            if (reveladas > 0) delay(BOARD_CARD_REVEAL_DELAY_MS)
-            reveladas++
-        }
-    }
+    // contagem reseta quando [PokerState.handNumber] muda (mão nova, mesa escondida de novo)
+    // e sobe uma de cada vez, esperando ao menos [BOARD_CARD_REVEAL_DELAY_MS] entre uma carta
+    // e outra.
+    val reveladas = rememberSequentialReveal(
+        count = state.board.size,
+        resetKey = state.handNumber,
+        delayMs = BOARD_CARD_REVEAL_DELAY_MS,
+    )
     val cartasVisiveis = state.board.take(reveladas)
 
     // Só existe num all-in — veja a nota em [pokerAllInEquities] sobre por que fora dele a

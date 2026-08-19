@@ -15,13 +15,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -192,33 +190,27 @@ fun TrucoSurface(
     if (showRoundDialog) {
         val resultado = state.lastHand
         val meu = state.teamOf(viewer)
-        AlertDialog(
-            onDismissRequest = { finalScoreDismissed = true; onAcknowledgeRoundEnd() },
-            confirmButton = {
-                TextButton(onClick = { finalScoreDismissed = true; onAcknowledgeRoundEnd() }) {
-                    Text("Continuar")
-                }
-            },
-            title = { Text("Fim da Mão") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val winner = resultado?.winner ?: TRUCO_NOBODY
-                    val points = resultado?.points ?: 0
-                    Text(
-                        text = when {
-                            winner == TRUCO_NOBODY -> "Mão empatada: ninguém pontuou."
-                            winner == meu -> "Seu lado venceu a mão! +$points pontos."
-                            else -> "O outro lado venceu a mão. +$points pontos."
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Text(
-                        text = stringResource(R.string.truco_score_line, state.score(meu), state.score(1 - meu)),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                }
-            },
-        )
+        RoundEndDialog(
+            title = "Fim da Mão",
+            onDismiss = { finalScoreDismissed = true; onAcknowledgeRoundEnd() },
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                val winner = resultado?.winner ?: TRUCO_NOBODY
+                val points = resultado?.points ?: 0
+                Text(
+                    text = when {
+                        winner == TRUCO_NOBODY -> "Mão empatada: ninguém pontuou."
+                        winner == meu -> "Seu lado venceu a mão! +$points pontos."
+                        else -> "O outro lado venceu a mão. +$points pontos."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = stringResource(R.string.truco_score_line, state.score(meu), state.score(1 - meu)),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+        }
     }
 }
 
