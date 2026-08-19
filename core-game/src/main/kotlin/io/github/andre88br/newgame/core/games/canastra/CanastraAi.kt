@@ -187,6 +187,10 @@ val CanastraAi: GameAi<CanastraState, CanastraMove> = DeterminizedAi(
     // Pode alterar entre AGRESSIVO, ACUMULADOR ou BALANCEADO aqui para ver o comportamento a mudar:
     evaluator = CanastraEvaluatorImpl(AiPersonality.BALANCEADO),
     ordering = CanastraOrdering,
+    // Trocar o curinga de uma sequência já baixada pela carta exata é de graça — não custa
+    // carta nenhuma da mão que já não fosse gasta, e sempre melhora o jogo. Nem o nível fácil
+    // devia "esquecer" isso por sorteio de erro; ver a nota em [DeterminizedAi.neverMistaken].
+    neverMistaken = { it is CanastraMove.SwapWild },
     limits = { difficulty ->
         when (difficulty) {
             Difficulty.EASY -> SearchLimits(maxDepth = 1, timeBudgetMillis = 150)

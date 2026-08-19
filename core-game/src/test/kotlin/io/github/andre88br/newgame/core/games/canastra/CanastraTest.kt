@@ -1259,6 +1259,45 @@ class CanastraTest {
         )
     }
 
+    /**
+     * A dupla já tem canastra limpa de paus — sete ao ás, o curinga fazendo de dama — e a mão
+     * guarda a dama exata. Trocar o curinga não custa carta nenhuma que já não fosse gasta e
+     * sempre melhora o jogo: nem o sorteio de erro do nível fácil devia escolher outra coisa
+     * no lugar. Roda muitas sementes de propósito — antes da correção, cerca de trinta por
+     * cento delas escolhiam qualquer lance legal ao acaso, inclusive descartar a dama.
+     */
+    @Test
+    fun `a ia troca o curinga de graca em vez de descarta-lo, mesmo no nivel facil`() {
+        val naipe = Suit.CLUBS
+        val damaDePaus = carta(Rank.QUEEN, naipe)
+        val jogo = Meld(
+            listOf(
+                carta(Rank.SEVEN, naipe), carta(Rank.EIGHT, naipe), carta(Rank.NINE, naipe),
+                carta(Rank.TEN, naipe), carta(Rank.JACK, naipe), carta(Rank.JOKER, Suit.HEARTS),
+                carta(Rank.KING, naipe), carta(Rank.ACE, naipe),
+            ),
+        )
+        assertEquals(damaDePaus, wildRepresents(jogo), "o curinga está fazendo de dama")
+
+        val base = novo(seats = 2)
+        val state = base.copy(
+            phase = CanastraPhase.PLAY,
+            melds = listOf(listOf(jogo), emptyList()),
+            hands = base.hands.mapIndexed { index, mao ->
+                if (index == 0) listOf(damaDePaus, carta(Rank.FOUR, Suit.HEARTS), carta(Rank.FIVE, Suit.SPADES)) else mao
+            },
+        )
+
+        repeat(50) { semente ->
+            val escolhido = CanastraAi.chooseMove(state, Difficulty.EASY, seed = semente.toLong())
+            assertEquals(
+                CanastraMove.SwapWild(0, damaDePaus),
+                escolhido,
+                "semente $semente: a troca de graça não podia perder para outro lance",
+            )
+        }
+    }
+
     @Test
     fun `a maquina joga so com o que enxerga, e sempre lance legal`() {
         var state = novo(seed = 11)

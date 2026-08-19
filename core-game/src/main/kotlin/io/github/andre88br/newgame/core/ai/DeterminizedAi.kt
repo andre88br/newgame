@@ -28,6 +28,14 @@ class DeterminizedAi<S : GameState, M : Move>(
     private val limits: (Difficulty) -> SearchLimits,
     private val samples: (Difficulty) -> Int = ::defaultSampleCount,
     private val mistakeChance: (Difficulty) -> Int = ::defaultMistakeChance,
+    /**
+     * Lances óbvios demais para o sorteio de erro escolher outra coisa no lugar deles — como
+     * trocar de graça o curinga de uma sequência já baixada pela carta exata, na canastra.
+     * Ninguém que jogue, nem no nível fácil, "esquece" um upgrade sem custo nenhum; o que o
+     * nível fácil erra é o resto, não isto. Presente algum lance assim entre os legais, o
+     * sorteio nem roda — a busca de baixo segue normalmente, e ela já sabe valorizar o lance.
+     */
+    private val neverMistaken: (M) -> Boolean = { false },
     private val complete: (S, Rng) -> S,
 ) : GameAi<S, M> {
 
@@ -37,7 +45,7 @@ class DeterminizedAi<S : GameState, M : Move>(
         if (moves.size == 1) return moves.first()
 
         val chance = mistakeChance(difficulty)
-        if (chance > 0) {
+        if (chance > 0 && moves.none(neverMistaken)) {
             val roll = Rng.seeded(seed).nextInt(100)
             if (roll.value < chance) {
                 return moves[roll.rng.nextInt(moves.size).value]
