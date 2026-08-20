@@ -114,6 +114,16 @@ data class PokerState(
     /** Maior valor apostado nesta rua por qualquer cadeira, inclusive quem já desistiu. */
     val maxStreetBet: Int get() = streetBet.maxOrNull() ?: 0
 
+    /**
+     * A mão de [seat] já é pública de verdade: ela foi all-in e a rua em que isso aconteceu
+     * já fechou. Veja [PokerGame.redactFor] para o porquê da segunda condição.
+     *
+     * Existe como função da própria regra do jogo, e não como "a carta está virada?", porque
+     * [PokerAi] também precisa da mesma resposta — e uma cadeira ainda decidindo não vira
+     * pública só porque, por acaso, quem chamou a IA esqueceu de redigir o estado primeiro.
+     */
+    fun allInRevealed(seat: Seat): Boolean = isIn(seat) && stack(seat) == 0 && maxStreetBet == 0
+
     /** Quanto falta a [seat] para igualar a aposta da rua. */
     fun toCall(seat: Seat): Int = maxStreetBet - streetBet.getOrElse(seat.index) { 0 }
 
@@ -598,8 +608,7 @@ object PokerGame : BoardGame<PokerState, PokerMove> {
     override fun redactFor(state: PokerState, viewer: Seat): PokerState = state.copy(
         hands = state.hands.mapIndexed { index, mao ->
             val seat = Seat(index)
-            val allInRevelado = state.isIn(seat) && state.stack(seat) == 0 && state.maxStreetBet == 0
-            if (index == viewer.index || mao.isEmpty() || allInRevelado) mao else mao.hidden()
+            if (index == viewer.index || mao.isEmpty() || state.allInRevealed(seat)) mao else mao.hidden()
         },
     )
 

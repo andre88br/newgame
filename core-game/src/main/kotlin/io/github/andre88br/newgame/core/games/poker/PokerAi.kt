@@ -3,8 +3,10 @@ package io.github.andre88br.newgame.core.games.poker
 import io.github.andre88br.newgame.core.ai.Difficulty
 import io.github.andre88br.newgame.core.ai.GameAi
 import io.github.andre88br.newgame.core.ai.defaultMistakeChance
+import io.github.andre88br.newgame.core.cards.Card
 import io.github.andre88br.newgame.core.cards.standardDeck
 import io.github.andre88br.newgame.core.engine.Rng
+import io.github.andre88br.newgame.core.engine.Seat
 
 /**
  * O adversário do pôquer não pode ser [io.github.andre88br.newgame.core.ai.SearchBasedAi]: a
@@ -80,17 +82,27 @@ object PokerAi : GameAi<PokerState, PokerMove> {
 
     /**
      * A fração das [amostras] mãos aleatórias — completando o baralho para todo mundo que
-     * ainda está na mão — em que a cadeira da vez venceria o showdown. Empate soma fração de
-     * ponto igual à divisão do pote entre os empatados, e não um ponto inteiro: contar como
-     * vitória cheia inflaria a força de mãos que só empatam.
+     * ainda está na mão e ainda não mostrou carta — em que a cadeira da vez venceria o
+     * showdown. Empate soma fração de ponto igual à divisão do pote entre os empatados, e não
+     * um ponto inteiro: contar como vitória cheia inflaria a força de mãos que só empatam.
+     *
+     * `internal`, e não `private`: só para o teste poder cravar uma mão já revelada e conferir
+     * o número exato, em vez de inferir da decisão final.
      */
-    private fun estimateEquity(state: PokerState, rng: Rng, amostras: Int): Double {
+    internal fun estimateEquity(state: PokerState, rng: Rng, amostras: Int): Double {
         val seat = state.turn
         val minhaMao = state.hand(seat)
         val oponentes = (0 until state.seats).filter { it != seat.index && !state.folded[it] }
         if (oponentes.isEmpty()) return 1.0
 
-        val usadas = (minhaMao + state.board).toHashSet()
+        // Quem já foi all-in e mostrou a mão (ver PokerGame.redactFor) tem carta conhecida,
+        // não sorteada — mesa de verdade nenhuma esconde de novo uma carta que já virou. Sem
+        // isto, a mesma carta podia ser sorteada duas vezes: uma na mão dele, de fato, e outra
+        // por acidente na mão de outro oponente ou na mesa.
+        val conhecidas = oponentes.associateWith { indice -> maoConhecida(state, indice) }
+        val paraSortear = oponentes.filter { conhecidas[it] == null }
+
+        val usadas = (minhaMao + state.board + conhecidas.values.filterNotNull().flatten()).toHashSet()
         val remanescente = standardDeck().filterNot { it in usadas }
         val faltamNaMesa = 5 - state.board.size
 
@@ -102,7 +114,8 @@ object PokerAi : GameAi<PokerState, PokerMove> {
             val baralho = embaralhado.value
 
             var indice = 0
-            val maosOponentes = oponentes.map { baralho.subList(indice, indice + 2).also { indice += 2 } }
+            val sorteadas = paraSortear.associateWith { baralho.subList(indice, indice + 2).also { indice += 2 } }
+            val maosOponentes = oponentes.map { conhecidas.getValue(it) ?: sorteadas.getValue(it) }
             val mesaCompleta = state.board + baralho.subList(indice, indice + faltamNaMesa)
 
             val minhaForca = bestHand(minhaMao + mesaCompleta)
@@ -115,5 +128,19 @@ object PokerAi : GameAi<PokerState, PokerMove> {
             }
         }
         return pontos / amostras
+    }
+
+    /**
+     * A mão da cadeira [indice], se [PokerState.allInRevealed] diz que ela é pública; `null`
+     * se ainda é segredo.
+     *
+     * A pergunta é a mesma regra do jogo que [PokerGame.redactFor] usa para decidir o que
+     * mostrar — não "a carta que está neste [state] por acaso não é [Card.isHidden]". Quem
+     * ainda está decidindo não vira mão pública só porque, por algum motivo, chegou aqui um
+     * estado que ninguém redigiu.
+     */
+    private fun maoConhecida(state: PokerState, indice: Int): List<Card>? {
+        val seat = Seat(indice)
+        return state.hand(seat).takeIf { it.isNotEmpty() && state.allInRevealed(seat) }
     }
 }

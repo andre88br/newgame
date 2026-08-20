@@ -6,9 +6,11 @@ import io.github.andre88br.newgame.core.cards.Rank
 import io.github.andre88br.newgame.core.cards.Suit
 import io.github.andre88br.newgame.core.engine.MatchConfig
 import io.github.andre88br.newgame.core.engine.MoveResult
+import io.github.andre88br.newgame.core.engine.Rng
 import io.github.andre88br.newgame.core.engine.Seat
 import io.github.andre88br.newgame.core.engine.applyOrThrow
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -81,6 +83,46 @@ class PokerAiTest {
 
         val lance = PokerAi.chooseMove(estado, Difficulty.HARD, seed = 2)
         assertIs<PokerMove.Fold>(lance)
+    }
+
+    /**
+     * Quando o único adversário já mostrou a mão (all-in revelado, ver [PokerGame.redactFor])
+     * e a mesa está completa, não sobra carta nenhuma pra sortear: a equity é a comparação
+     * exata das duas mãos, sempre a mesma não importa a semente. Antes da correção,
+     * `estimateEquity` ignorava a mão revelada e sorteava duas cartas quaisquer para o
+     * adversário a cada amostra — a mesma mão dava um número diferente (e quase nunca 1.0)
+     * conforme a semente, mesmo com as duas mãos já conhecidas por inteiro.
+     */
+    @Test
+    fun `com a mao do unico adversario ja revelada, a equity e exata e nao varia por semente`() {
+        val base = novo(seats = 2, buyIn = 1000, bigBlind = 20)
+        val estado = base.copy(
+            // Par de ases contra sete-e-dois desacompanhados: vitória garantida no showdown,
+            // sem empate possível — não há carta comum entre as duas mãos e nenhuma delas
+            // combina com a mesa a ponto de gerar dúvida.
+            hands = listOf(
+                listOf(carta(Rank.ACE, Suit.SPADES), carta(Rank.ACE, Suit.DIAMONDS)),
+                listOf(carta(Rank.SEVEN, Suit.HEARTS), carta(Rank.THREE, Suit.CLUBS)),
+            ),
+            board = listOf(
+                carta(Rank.TWO, Suit.CLUBS), carta(Rank.FIVE, Suit.DIAMONDS), carta(Rank.NINE, Suit.SPADES),
+                carta(Rank.JACK, Suit.HEARTS), carta(Rank.FOUR, Suit.SPADES),
+            ),
+            street = PokerStreet.RIVER,
+            stacks = listOf(1000, 0),
+            // A rua precisa estar fechada (ninguém apostado) para a mão all-in ser pública —
+            // é a mesma condição de PokerState.allInRevealed usada por PokerGame.redactFor.
+            streetBet = listOf(0, 0),
+            toAct = listOf(true, false),
+            folded = listOf(false, false),
+            turn = Seat(0),
+        )
+        assertTrue(estado.allInRevealed(Seat(1)), "o teste depende da mão da cadeira 1 estar publica")
+
+        for (semente in listOf(1L, 2L, 3L, 999L)) {
+            val equity = PokerAi.estimateEquity(estado, Rng.seeded(semente), amostras = 50)
+            assertEquals(1.0, equity, "semente $semente: mão revelada e mesa completa não deixam nada ao acaso")
+        }
     }
 
     @Test
