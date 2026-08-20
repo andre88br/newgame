@@ -30,12 +30,15 @@ class DeterminizedAi<S : GameState, M : Move>(
     private val mistakeChance: (Difficulty) -> Int = ::defaultMistakeChance,
     /**
      * Lances óbvios demais para o sorteio de erro escolher outra coisa no lugar deles — como
-     * trocar de graça o curinga de uma sequência já baixada pela carta exata, na canastra.
-     * Ninguém que jogue, nem no nível fácil, "esquece" um upgrade sem custo nenhum; o que o
-     * nível fácil erra é o resto, não isto. Presente algum lance assim entre os legais, o
-     * sorteio nem roda — a busca de baixo segue normalmente, e ela já sabe valorizar o lance.
+     * trocar de graça o curinga de uma sequência já baixada pela carta exata, na canastra, ou
+     * descartar a carta que fecha a mão no pife. Ninguém que jogue, nem no nível fácil,
+     * "esquece" um lance destes; o que o nível fácil erra é o resto, não isto. Recebe o
+     * estado porque alguns lances só são óbvios à luz dele — fechar a mão depende do que mais
+     * está nela, por exemplo, e não dá para saber olhando só o lance. Presente algum lance
+     * assim entre os legais, o sorteio nem roda — a busca de baixo segue normalmente, e ela já
+     * sabe valorizar o lance.
      */
-    private val neverMistaken: (M) -> Boolean = { false },
+    private val neverMistaken: (S, M) -> Boolean = { _, _ -> false },
     private val complete: (S, Rng) -> S,
 ) : GameAi<S, M> {
 
@@ -45,7 +48,7 @@ class DeterminizedAi<S : GameState, M : Move>(
         if (moves.size == 1) return moves.first()
 
         val chance = mistakeChance(difficulty)
-        if (chance > 0 && moves.none(neverMistaken)) {
+        if (chance > 0 && moves.none { neverMistaken(state, it) }) {
             val roll = Rng.seeded(seed).nextInt(100)
             if (roll.value < chance) {
                 return moves[roll.rng.nextInt(moves.size).value]

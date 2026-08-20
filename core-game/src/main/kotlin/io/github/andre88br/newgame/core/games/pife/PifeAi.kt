@@ -119,6 +119,12 @@ val PifeAi: GameAi<PifeState, PifeMove> = DeterminizedAi(
     game = PifeGame,
     evaluator = PifeEvaluator,
     ordering = PifeOrdering,
+    // Descartar a carta que fecha os três grupos bate a mão na hora — é a vitória, não só uma
+    // avaliação melhor. Nem o nível fácil devia "esquecer" isso por sorteio de erro; ver a
+    // nota em [DeterminizedAi.neverMistaken].
+    neverMistaken = { state, move ->
+        move is PifeMove.Discard && formsWinningHand(state.hand(state.turn) - move.card)
+    },
     limits = { difficulty ->
         when (difficulty) {
             Difficulty.EASY -> SearchLimits(maxDepth = 1, timeBudgetMillis = 120)

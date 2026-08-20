@@ -357,4 +357,35 @@ class PifeTest {
             state = PifeGame.applyOrThrow(state, escolhido)
         }
     }
+
+    /**
+     * A mão já tem os três grupos escondidos entre dez cartas — só falta descartar a que
+     * sobra para bater. Descartar qualquer outra desfaz um grupo e não bate. Isto não é só a
+     * melhor avaliação: é a vitória imediata, e nem o sorteio de erro do nível fácil devia
+     * escolher outra coisa no lugar. Roda muitas sementes de propósito — antes da correção,
+     * cerca de trinta por cento delas jogavam fora uma carta qualquer, inclusive das trincas.
+     */
+    @Test
+    fun `a ia descarta a carta que bate, mesmo no nivel facil`() {
+        val fechada = listOf(
+            c(Rank.KING, Suit.CLUBS), c(Rank.KING, Suit.HEARTS), c(Rank.KING, Suit.SPADES),
+            c(Rank.FIVE, Suit.HEARTS), c(Rank.SIX, Suit.HEARTS), c(Rank.SEVEN, Suit.HEARTS),
+            c(Rank.TWO, Suit.CLUBS), c(Rank.THREE, Suit.CLUBS), c(Rank.FOUR, Suit.CLUBS),
+        )
+        val sobrando = c(Rank.NINE, Suit.DIAMONDS)
+        val state = novo().copy(
+            hands = listOf(fechada + sobrando, novo().hand(Seat(1))),
+            phase = PifePhase.DISCARD,
+            turn = Seat.FIRST,
+        )
+
+        repeat(50) { semente ->
+            val escolhido = PifeAi.chooseMove(state, Difficulty.EASY, seed = semente.toLong())
+            assertEquals(
+                PifeMove.Discard(sobrando),
+                escolhido,
+                "semente $semente: a batida não podia perder para outro descarte",
+            )
+        }
+    }
 }
