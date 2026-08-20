@@ -122,6 +122,33 @@ class LudoTest {
         assertEquals(null, absoluteSquare(Seat.SECOND, noCorredor, DOIS), "corredor não tem casa absoluta")
     }
 
+    /**
+     * A ordenação dizia, no comentário, priorizar captura acima de avanço comum — mas nunca
+     * chamava [LudoGame.isCapture], então um lance que captura pontuava igual a um que só
+     * anda o mesmo tanto. Este teste usa um peão que captura andando pouco contra outro que
+     * só avança mais: sem a correção, o avanço maior vinha primeiro.
+     */
+    @Test
+    fun `a ordenacao poe a captura antes de um avanco maior sem captura`() {
+        val alvo = 14
+        val absoluta = absoluteSquare(Seat.FIRST, alvo, DOIS)!!
+        assertTrue(!isSafeSquare(absoluta), "a casa do teste precisa ser comum, não segura")
+        val progressoAdversario = (absoluta - startSquare(Seat.SECOND, DOIS) + LUDO_TRACK) % LUDO_TRACK
+
+        val antes = state(
+            first = listOf(alvo - 4, 45, LUDO_YARD, LUDO_YARD),
+            second = listOf(progressoAdversario, LUDO_YARD, LUDO_YARD, LUDO_YARD),
+            die = 4,
+        )
+        val captura = LudoMove(0)
+        val semCaptura = LudoMove(1)
+        assertTrue(LudoGame.isCapture(antes, captura), "o teste depende do lance 0 capturar")
+        assertTrue(!LudoGame.isCapture(antes, semCaptura), "o teste depende do lance 1 não capturar")
+
+        val ordem = LudoOrdering.order(antes, listOf(semCaptura, captura))
+        assertEquals(captura, ordem.first(), "a captura devia vir antes, mesmo avançando menos casas")
+    }
+
     // -------- chegada --------
 
     @Test

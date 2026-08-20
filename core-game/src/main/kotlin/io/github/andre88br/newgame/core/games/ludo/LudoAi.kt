@@ -54,7 +54,13 @@ object LudoEvaluator : Evaluator<LudoState> {
     }
 }
 
-/** Chegar primeiro, capturar depois, tirar do curral por último. */
+/**
+ * Chegar primeiro, capturar depois, tirar do curral por último.
+ *
+ * A captura precisava de [LudoGame.isCapture] para ser reconhecida — sem isso, um lance que
+ * manda peão adversário pro curral pontuava igual a um lance qualquer do mesmo avanço, e a
+ * segunda prioridade do comentário nunca existiu de fato no código.
+ */
 val LudoOrdering: MoveOrdering<LudoState, LudoMove> =
     MoveOrdering<LudoState, LudoMove> { state, moves ->
         if (moves.size < 2) {
@@ -62,10 +68,12 @@ val LudoOrdering: MoveOrdering<LudoState, LudoMove> =
         } else {
             moves.sortedByDescending { move ->
                 val progress = state.tokensOf(state.turn)[move.token]
+                val passo = progress + state.die
                 when {
                     progress == LUDO_YARD -> 0
-                    progress + state.die >= LUDO_GOAL -> 100
-                    else -> progress + state.die
+                    passo >= LUDO_GOAL -> 300
+                    LudoGame.isCapture(state, move) -> 200 + passo
+                    else -> passo
                 }
             }
         }
