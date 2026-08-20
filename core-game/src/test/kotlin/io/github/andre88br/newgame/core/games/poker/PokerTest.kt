@@ -93,6 +93,39 @@ class PokerTest {
         assertIs<MoveResult.Illegal>(resultado)
     }
 
+    /**
+     * Fichas, aposta da rua, contribuição da mão inteira e o aumento mínimo seguinte — os
+     * quatro campos que o ramo `Raise` de `applyKnownLegal` atualiza juntos, e que a extração
+     * do helper `replacing()` não podia mudar. Dois aumentos seguidos, nenhum all-in, para
+     * também confirmar que `minRaise` acompanha o tamanho do **último** aumento (quarenta,
+     * depois noventa), e não soma os aumentos entre si.
+     */
+    @Test
+    fun `aumentar atualiza fichas, aposta da rua, contribuicao da mao e o aumento minimo seguinte`() {
+        var estado = novo(buyIn = 1000, bigBlind = 20)
+        val totalDeFichas = estado.stacks.sum() + estado.pot
+
+        // O botão (small blind, dez já postados) aumenta para sessenta: paga cinquenta a mais.
+        estado = PokerGame.applyOrThrow(estado, PokerMove.Raise(to = 60))
+        assertEquals(940, estado.stack(Seat(1)))
+        assertEquals(60, estado.streetBet[1])
+        assertEquals(60, estado.contrib[1], "contrib soma o blind mais o aumento: dez mais cinquenta")
+        assertEquals(80, estado.pot)
+        assertEquals(40, estado.minRaise, "o aumento foi de vinte para sessenta: quarenta a mais")
+        assertEquals(Seat(0), estado.turn)
+
+        // O big blind (vinte já postados) re-aumenta para cento e cinquenta: paga 130 a mais.
+        estado = PokerGame.applyOrThrow(estado, PokerMove.Raise(to = 150))
+        assertEquals(850, estado.stack(Seat(0)))
+        assertEquals(150, estado.streetBet[0])
+        assertEquals(150, estado.contrib[0], "contrib soma o blind mais o aumento: vinte mais cento e trinta")
+        assertEquals(210, estado.pot)
+        assertEquals(90, estado.minRaise, "o novo aumento (de sessenta para cento e cinquenta) é maior: passa a valer ele")
+        assertEquals(Seat(1), estado.turn, "só quem re-aumentou decide de novo")
+
+        assertEquals(totalDeFichas, estado.stacks.sum() + estado.pot, "fichas não podem sumir nem duplicar")
+    }
+
     // -------- desistência, pote e rotação do botão --------
 
     @Test
