@@ -113,6 +113,9 @@ fun completeHearts(state: HeartsState, rng: Rng): HeartsState {
         state.hands.forEach { mao -> mao.filterNot { it.isHidden }.forEach { add(it) } }
         state.trick.forEach { add(it.card) }
         state.passing.forEach { cartas -> cartas.filterNot { it.isHidden }.forEach { add(it) } }
+        // Vazas já fechadas nesta mão foram jogadas com a face para cima: são tão públicas
+        // quanto a vaza em andamento, e sem isto o sorteio as devolveria à mão de alguém.
+        state.playedTricks.forEach { add(it) }
     }
     // Só as que ninguém viu ainda. As já jogadas em vazas fechadas não voltam ao baralho,
     // mas também não estão em mão nenhuma — e é por isso que a conta usa o tamanho da mão.

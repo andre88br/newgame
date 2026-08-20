@@ -107,6 +107,12 @@ data class HeartsState(
     val passing: List<List<Card>> = List(HEARTS_SEATS) { emptyList() },
     /** A vaza em andamento, na ordem em que foi jogada. */
     val trick: List<PlayedCard> = emptyList(),
+    /**
+     * As cartas de vazas já fechadas nesta mão — jogadas com a face para cima, então é
+     * informação pública, igual à vaza em andamento. Sem isto, [completeHearts] as trataria
+     * como se pudessem voltar à mão de alguém: veja a nota lá.
+     */
+    val playedTricks: List<Card> = emptyList(),
     override val turn: Seat = Seat.FIRST,
     override val ply: Int = 0,
     val phase: HeartsPhase = HeartsPhase.PASSING,
@@ -205,6 +211,7 @@ object HeartsGame : BoardGame<HeartsState, HeartsMove> {
             hands = maos,
             passing = List(HEARTS_SEATS) { emptyList() },
             trick = emptyList(),
+            playedTricks = emptyList(),
             turn = if (semPasse) seatWithTwoOfClubs(maos) else Seat.FIRST,
             ply = 0,
             phase = if (semPasse) HeartsPhase.PLAYING else HeartsPhase.PASSING,
@@ -378,7 +385,12 @@ object HeartsGame : BoardGame<HeartsState, HeartsMove> {
         val daMao = comCarta.handPoints.toMutableList()
         daMao[vencedor.index] = daMao[vencedor.index] + pontos
 
-        val fechada = comCarta.copy(trick = emptyList(), turn = vencedor, handPoints = daMao)
+        val fechada = comCarta.copy(
+            trick = emptyList(),
+            playedTricks = comCarta.playedTricks + vaza.map { it.card },
+            turn = vencedor,
+            handPoints = daMao,
+        )
         if (maos.any { it.isNotEmpty() }) return fechada
 
         return closeHand(fechada)

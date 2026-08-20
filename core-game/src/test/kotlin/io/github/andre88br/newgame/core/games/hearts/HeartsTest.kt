@@ -337,6 +337,14 @@ class HeartsTest {
     }
 
     @Test
+    fun `as vazas ja fechadas continuam publicas apos a redacao`() {
+        val jogada = Card(Rank.SEVEN, Suit.CLUBS)
+        val state = depoisDoPasse().copy(playedTricks = listOf(jogada))
+        val visto = HeartsGame.redactFor(state, Seat.FIRST)
+        assertEquals(listOf(jogada), visto.playedTricks, "vaza fechada é pública, igual à vaza em andamento")
+    }
+
+    @Test
     fun `a maquina joga so com o que enxerga`() {
         var state = depoisDoPasse(seed = 11)
         var guard = 0
@@ -377,5 +385,32 @@ class HeartsTest {
             mundo.hand(Seat.FIRST),
             "o mundo não pode mexer na mão de quem está olhando",
         )
+    }
+
+    /**
+     * Antes desta correção, `completeHearts` só marcava como "vistas" as cartas da vaza em
+     * andamento — as de vazas já fechadas nesta mão sumiam do estado sem deixar rastro em
+     * lugar nenhum (`applyPlay` zera `trick` ao fechar), e por isso caíam de volta no balaio
+     * de "desconhecidas": o sorteio podia devolver, para a mão de um adversário, uma carta
+     * que todo mundo já viu cair na mesa há duas vazas. `playedTricks` fecha esse buraco —
+     * é tão pública quanto a vaza em andamento, só que fechada.
+     */
+    @Test
+    fun `o mundo sorteado nunca ressuscita carta de vaza ja fechada`() {
+        var state = depoisDoPasse(seed = 13)
+        var guard = 0
+        // Anda até fechar pelo menos duas vazas, para o teste ter o que verificar.
+        while (state.playedTricks.size < 2 * HEARTS_SEATS && !HeartsGame.outcome(state).isOver && guard++ < 60) {
+            state = HeartsGame.applyOrThrow(state, HeartsGame.legalMoves(state).first())
+        }
+        assertTrue(state.playedTricks.isNotEmpty(), "o teste precisa de pelo menos uma vaza fechada")
+
+        val visto = HeartsGame.redactFor(state, state.turn)
+        repeat(20) { semente ->
+            val mundo = completeHearts(visto, io.github.andre88br.newgame.core.engine.Rng.seeded(semente.toLong()))
+            val naMao = mundo.hands.flatten().toSet()
+            val ressuscitada = state.playedTricks.firstOrNull { it in naMao }
+            assertTrue(ressuscitada == null, "carta $ressuscitada de vaza fechada voltou para uma mão")
+        }
     }
 }
