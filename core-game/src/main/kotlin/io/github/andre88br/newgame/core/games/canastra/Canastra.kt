@@ -1018,7 +1018,8 @@ object CanastraGame : BoardGame<CanastraState, CanastraMove> {
         },
         stock = state.stock.hidden(),
         mortos = state.mortos.map { it.hidden() },
-        knownOpponentCards = emptyMap()
+        // knownOpponentCards fica: registra só cartas pegas do lixo, que já era visível a
+        // todos antes de ser pega — não é segredo de ninguém, é igual à mesa e ao lixo.
     )
 
     override val stateSerializer: KSerializer<CanastraState> = serializer()

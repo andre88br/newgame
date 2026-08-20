@@ -1173,6 +1173,26 @@ class CanastraTest {
         assertEquals(state.discard, visto.discard, "o lixo é público")
     }
 
+    /**
+     * `knownOpponentCards` só guarda cartas que alguém pegou do lixo — e o lixo já era
+     * visível a todos antes de ser pego, então isso nunca foi segredo de ninguém. Redigir
+     * essa memória para vazio (como o código fazia) não protegia informação nenhuma: só
+     * apagava, da visão da própria IA, uma pista pública que ela tinha todo o direito de
+     * usar — e derrubava de vez a heurística "não descarta perto do que o adversário pegou"
+     * em [CanastraOrdering], que nunca via outra coisa que não fosse mapa vazio.
+     */
+    @Test
+    fun `knownOpponentCards e publico e sobrevive a redacao`() {
+        val carta = carta(Rank.SEVEN, Suit.DIAMONDS)
+        val state = novo().copy(knownOpponentCards = mapOf(1 to listOf(carta)))
+        val visto = CanastraGame.redactFor(state, Seat.FIRST)
+        assertEquals(
+            mapOf(1 to listOf(carta)),
+            visto.knownOpponentCards,
+            "cartas pegas do lixo já eram públicas antes de serem pegas",
+        )
+    }
+
     @Test
     fun `o mundo sorteado respeita as contagens`() {
         val state = novo(seed = 9)
@@ -1231,6 +1251,41 @@ class CanastraTest {
             CanastraMove.Discard(rei),
             ordemExcesso.first(),
             "mesmo com excesso, um descarte comum ainda vem na frente do curinga",
+        )
+    }
+
+    /**
+     * "Próximo a jogar" é quem vai ter a chance de aproveitar o descarte, e por regra do
+     * jogo isso é sempre `turn + 1` (ver `proximoTurno` em `Canastra.kt`) — nunca `turn - 1`,
+     * que é quem *já jogou*. Com quatro cadeiras a fórmula errada ainda acertava a dupla
+     * certa por acidente (times alternam e ambas as vizinhas são inimigas), mas mirava no
+     * jogador errado dentro dela; com uma mesa de três, cada cadeira é seu próprio time e o
+     * erro troca de inimigo de vez. Este teste usa três cadeiras exatamente para expor isso:
+     * só a cadeira 1 (a que joga a seguir) tem memória de lixo; a cadeira 2 (a anterior) tem
+     * memória de uma carta que bateria na regra se fosse ela a considerada.
+     */
+    @Test
+    fun `a ordenacao evita o descarte perto do que o PROXIMO adversario pegou, nao o anterior`() {
+        val descartada = carta(Rank.EIGHT, Suit.HEARTS)
+        val longe = carta(Rank.KING, Suit.CLUBS)
+        val base = novo(seats = 3)
+        val state = base.copy(
+            turn = Seat.FIRST,
+            phase = CanastraPhase.PLAY,
+            hands = base.hands.mapIndexed { index, mao -> if (index == 0) listOf(descartada, longe) else mao },
+            // cadeira 1 é quem joga a seguir; pegou uma carta pertinho da que está para ser
+            // descartada. Cadeira 2 (a anterior) pegou a mesma carta — se a ordenação ainda
+            // mirasse nela por engano, o teste não distinguiria os dois casos.
+            knownOpponentCards = mapOf(1 to listOf(carta(Rank.SEVEN, Suit.HEARTS))),
+        )
+        val ordem = CanastraOrdering.order(
+            state,
+            listOf(CanastraMove.Discard(descartada), CanastraMove.Discard(longe)),
+        )
+        assertEquals(
+            CanastraMove.Discard(longe),
+            ordem.first(),
+            "a carta perto do que a cadeira 1 pegou devia vir por último, não primeiro",
         )
     }
 

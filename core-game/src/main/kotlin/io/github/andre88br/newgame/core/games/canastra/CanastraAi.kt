@@ -115,7 +115,7 @@ val CanastraOrdering: MoveOrdering<CanastraState, CanastraMove> =
                     
                     is CanastraMove.Discard -> {
                         // MEMÓRIA DA IA: Identifica se o próximo a jogar é o adversário
-                        val proximoJogador = (state.turn.index + state.seats - 1) % state.seats
+                        val proximoJogador = (state.turn.index + 1) % state.seats
                         val timeProximo = state.teamOf(Seat(proximoJogador))
                         val meuTime = state.teamOf(state.turn)
                         val isProximoInimigo = timeProximo != meuTime
