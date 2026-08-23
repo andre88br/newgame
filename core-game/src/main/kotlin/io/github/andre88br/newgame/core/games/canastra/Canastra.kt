@@ -60,6 +60,13 @@ data class Meld(val cards: List<Card> = emptyList()) {
     val naturals: List<Card> get() = cards.filterNot { isWild(it) }
     val rank: Rank? get() = naturals.firstOrNull()?.rank
     val isCanastra: Boolean get() = cards.size >= CANASTRA_SIZE
+
+    /**
+     * Limpa é a canastra sem nenhum dois dentro — o coringa físico (joker) não suja, só o
+     * dois usado como curinga. A canastra deste jogo nunca aceita o dois como carta natural
+     * de sequência (o dois nem está em [CANASTRA_SEQUENCE_RANKS]), então todo dois presente
+     * aqui é, por força, um curinga.
+     */
     val isClean: Boolean get() = isCanastra && cards.none { it.rank == Rank.TWO }
 
     val kind: MeldKind
