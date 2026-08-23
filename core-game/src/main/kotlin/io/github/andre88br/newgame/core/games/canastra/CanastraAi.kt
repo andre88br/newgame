@@ -21,6 +21,37 @@ class CanastraEvaluatorImpl(private val personality: AiPersonality = AiPersonali
     private val CLEAN_BONUS = 150
     private val MORTO_WEIGHT = 120
 
+    /**
+     * Cada carta além da sétima numa canastra **limpa** vale mais cem pontos no placar de
+     * verdade — veja [Meld.score], que é o que [CanastraGame.scoreHand] soma no fim da mão.
+     *
+     * Está aqui porque o avaliador reimplementava a pontuação em vez de acompanhá-la, e tinha
+     * esquecido justamente esta parcela: crescer uma canastra já pronta valia, para a IA, só o
+     * valor solto da carta (dez pontos por uma dama) em vez dos cento e dez de verdade.
+     */
+    private val CLEAN_EXTRA_CARD = 100
+
+    /**
+     * Quanto vale a promessa de uma carta que ainda está na mão do time mas já encaixa num
+     * jogo baixado. Não é ponto no placar — é ponto provável na próxima vez —, então entra
+     * descontado; numa canastra limpa vale mais, porque lá cada carta nova rende os cem de
+     * [CLEAN_EXTRA_CARD].
+     */
+    private val GROWTH_PROMISE = 25
+    private val CLEAN_GROWTH_PROMISE = 55
+
+    /**
+     * O custo de deixar o mesmo naipe repartido em duas sequências em vez de uma só.
+     *
+     * Em duplas o custo é maior: o parceiro pode estar segurando exatamente as cartas que
+     * ligariam as duas pontas num jogo só, e a mão dele é oculta — a IA não tem como
+     * conferir antes de decidir, então trata a possibilidade como custo em vez de apostar
+     * contra ela. Jogando individual não há parceiro para esperar, e o que sobra é só a
+     * perda de ter duas sequências curtas onde cabia uma longa.
+     */
+    private val SPLIT_SUIT_PENALTY = 1_000
+    private val SPLIT_SUIT_PENALTY_DUPLAS = 1_600
+
     override fun evaluate(state: CanastraState, seat: Seat): Int {
         val meu = state.teamOf(seat)
         val meus = teamScore(state, meu)
@@ -43,18 +74,28 @@ class CanastraEvaluatorImpl(private val personality: AiPersonality = AiPersonali
         val sequenceSuits = mutableSetOf<Suit>()
         var duplicateSuitPenalty = 0
 
+        // A mão do time inteiro, lida uma vez só: [potencialDeCrescimento] pergunta dela a
+        // cada jogo, e remontá-la por jogo sairia caro dentro da busca.
+        val maoDoTime = (0 until state.seats)
+            .filter { state.teamOf(Seat(it)) == team }
+            .flatMap { state.hand(Seat(it)) }
+            .distinct()
+
+        val splitPenalty = if (state.seats == 4) SPLIT_SUIT_PENALTY_DUPLAS else SPLIT_SUIT_PENALTY
+
         for (jogo in jogos) {
             total += jogo.cards.sumOf { cardValue(it) }
             if (jogo.isCanastra) total += CANASTRA_WEIGHT
-            if (jogo.isClean) total += CLEAN_BONUS
+            if (jogo.isClean) total += CLEAN_BONUS + (jogo.cards.size - CANASTRA_SIZE) * CLEAN_EXTRA_CARD
             if (!jogo.isCanastra) total += (jogo.cards.size - CANASTRA_MIN_MELD) * progressWeight
+            total += potencialDeCrescimento(jogo, maoDoTime)
 
             if (jogo.kind == MeldKind.SEQUENCE) {
                 val naipe = jogo.naturals.firstOrNull()?.suit
                 if (naipe != null) {
                     // Se a IA tentar fazer uma segunda sequência do mesmo naipe, aplica punição severa
                     if (sequenceSuits.contains(naipe)) {
-                        duplicateSuitPenalty += 1000 
+                        duplicateSuitPenalty += splitPenalty
                     }
                     sequenceSuits.add(naipe)
                 }
@@ -91,6 +132,26 @@ class CanastraEvaluatorImpl(private val personality: AiPersonality = AiPersonali
         }
 
         return total - penalidade - duplicateSuitPenalty
+    }
+
+    /**
+     * O que as cartas que o time ainda segura na mão prometem somar a [jogo] mais adiante.
+     *
+     * É o que faz a IA enxergar que trocar o curinga não vale só a carta que entrou: o
+     * curinga sai do buraco que tapava, vai para uma ponta e passa a representar **outro**
+     * valor — e esse valor novo pode ser trocado de novo, crescendo a canastra mais uma vez.
+     * Como a conta é refeita sobre o jogo **depois** da troca, a segunda troca já aparece
+     * aqui como promessa, sem precisar de regra especial nem de mais um nível de busca.
+     *
+     * A pergunta "esta carta cabe?" é feita a [extendMeld] e [wildRepresents], que são as
+     * mesmas funções que o motor usa para gerar os lances legais — reimplementá-las aqui
+     * seria repetir o erro que este avaliador já cometeu com a pontuação da canastra limpa.
+     */
+    private fun potencialDeCrescimento(jogo: Meld, maoDoTime: List<Card>): Int {
+        if (maoDoTime.isEmpty()) return 0
+        val exata = wildRepresents(jogo)
+        val cabem = maoDoTime.count { carta -> carta == exata || extendMeld(jogo, carta) != null }
+        return cabem * if (jogo.isClean) CLEAN_GROWTH_PROMISE else GROWTH_PROMISE
     }
 }
 
@@ -187,9 +248,12 @@ val CanastraAi: GameAi<CanastraState, CanastraMove> = DeterminizedAi(
     // Pode alterar entre AGRESSIVO, ACUMULADOR ou BALANCEADO aqui para ver o comportamento a mudar:
     evaluator = CanastraEvaluatorImpl(AiPersonality.BALANCEADO),
     ordering = CanastraOrdering,
-    // Trocar o curinga de uma sequência já baixada pela carta exata é de graça — não custa
-    // carta nenhuma da mão que já não fosse gasta, e sempre melhora o jogo. Nem o nível fácil
-    // devia "esquecer" isso por sorteio de erro; ver a nota em [DeterminizedAi.neverMistaken].
+    // Trocar o curinga pela carta exata gasta uma carta da mão, mas devolve mais do que
+    // tira: o jogo cresce em uma carta (cem pontos, numa canastra limpa), o curinga vai
+    // para a ponta e pode abrir posição para outra carta entrar depois. Qual das duas
+    // pontas compensa mais é conta da busca, que enxerga tudo isso — o que não pode é o
+    // sorteio de erro atropelar a decisão e descartar a carta sem ninguém ter avaliado
+    // nada. Ver a nota em [DeterminizedAi.neverMistaken].
     neverMistaken = { _, move -> move is CanastraMove.SwapWild },
     limits = { difficulty ->
         when (difficulty) {

@@ -1344,15 +1344,132 @@ class CanastraTest {
             },
         )
 
-        repeat(50) { semente ->
-            val escolhido = CanastraAi.chooseMove(state, Difficulty.EASY, seed = semente.toLong())
-            assertEquals(
-                CanastraMove.SwapWild(0, damaDePaus),
-                escolhido,
-                "semente $semente: a troca de graça não podia perder para outro lance",
-            )
+        for (dificuldade in listOf(Difficulty.EASY, Difficulty.MEDIUM, Difficulty.HARD)) {
+            repeat(20) { semente ->
+                val escolhido = CanastraAi.chooseMove(state, dificuldade, seed = semente.toLong())
+                assertEquals(
+                    CanastraMove.SwapWild(0, damaDePaus),
+                    escolhido,
+                    "$dificuldade, semente $semente: a troca não podia perder para outro lance",
+                )
+            }
         }
     }
+
+    /**
+     * A regra da casa: cada carta além da sétima numa canastra **limpa** rende mais cem
+     * pontos ([Meld.score], somado por `scoreHand` no fim da mão). O avaliador da IA
+     * reimplementava a pontuação em vez de acompanhá-la e tinha esquecido justamente esta
+     * parcela — crescer uma canastra já pronta valia, para ela, só o valor solto da carta
+     * (dez pontos por uma dama). Era a raiz de a IA descartar uma carta que encaixava: a
+     * diferença entre encaixar e jogar fora ficava pequena demais para sobreviver ao ruído
+     * da amostragem.
+     */
+    @Test
+    fun `o avaliador paga os cem por carta alem da setima numa canastra limpa`() {
+        val naipe = Suit.CLUBS
+        val naturais = listOf(Rank.SEVEN, Rank.EIGHT, Rank.NINE, Rank.TEN, Rank.JACK, Rank.KING, Rank.ACE)
+            .map { carta(it, naipe) }
+        val curinga = carta(Rank.JOKER, Suit.HEARTS)
+        val dama = carta(Rank.QUEEN, naipe)
+
+        val comOito = Meld(checkNotNull(asSequence(naturais + curinga)))
+        val comNove = Meld(checkNotNull(asSequence(naturais + dama + curinga)))
+        assertTrue(comOito.isClean && comNove.isClean, "coringa não suja canastra")
+        assertEquals(8, comOito.cards.size)
+        assertEquals(9, comNove.cards.size)
+
+        // Mãos vazias de propósito: isola o ganho de crescer o jogo do bônus de promessa
+        // que as cartas ainda na mão dariam.
+        val avaliador = CanastraEvaluatorImpl()
+        val base = novo(seats = 2).copy(hands = listOf(emptyList(), emptyList()))
+        val antes = avaliador.evaluate(base.copy(melds = listOf(listOf(comOito), emptyList())), Seat.FIRST)
+        val depois = avaliador.evaluate(base.copy(melds = listOf(listOf(comNove), emptyList())), Seat.FIRST)
+
+        assertTrue(
+            depois - antes >= 100 + cardValue(dama),
+            "crescer a canastra limpa tem que valer os cem da regra mais a carta, e valeu ${depois - antes}",
+        )
+    }
+
+    /**
+     * Tirar o curinga do meio não vale só a carta que entrou: ele sai do buraco que estava
+     * tapando, vai para uma ponta e passa a representar **outro** valor — e é esse valor novo
+     * que pode ser trocado de novo, fazendo a canastra crescer mais uma vez.
+     *
+     * Aqui a sequência vai do sete ao ás com o curinga fazendo de dama. Não há ponta livre
+     * por cima (o ás fecha a escala), então ao entrar a dama de verdade o curinga desce para
+     * **antes** do sete e vira um seis; com o seis natural na mão, uma segunda troca leva o
+     * jogo a dez cartas. É essa cadeia que a IA precisa enxergar para não largar a primeira
+     * carta no lixo.
+     */
+    @Test
+    fun `trocar o curinga o reposiciona e abre uma segunda troca, crescendo a canastra de novo`() {
+        val naipe = Suit.CLUBS
+        val naturais = listOf(Rank.SEVEN, Rank.EIGHT, Rank.NINE, Rank.TEN, Rank.JACK, Rank.KING, Rank.ACE)
+            .map { carta(it, naipe) }
+        val curinga = carta(Rank.JOKER, Suit.HEARTS)
+        val dama = carta(Rank.QUEEN, naipe)
+        val seis = carta(Rank.SIX, naipe)
+
+        val antes = Meld(checkNotNull(asSequence(naturais + curinga)))
+        assertEquals(8, antes.cards.size)
+        assertEquals(dama, wildRepresents(antes), "antes da troca o curinga faz de dama")
+
+        val state = novo(seats = 2).copy(
+            phase = CanastraPhase.PLAY,
+            melds = listOf(listOf(antes), emptyList()),
+            hands = listOf(listOf(dama, seis), emptyList()),
+        )
+        val depoisDaPrimeira = CanastraGame.applyOrThrow(state, CanastraMove.SwapWild(0, dama))
+        val comNove = depoisDaPrimeira.meldsOf(Seat.FIRST).first()
+
+        assertEquals(9, comNove.cards.size, "o jogo cresceu com a dama")
+        assertEquals(seis, wildRepresents(comNove), "o curinga desceu para a outra ponta e agora faz de seis")
+
+        // E é isto que a primeira troca destravou: o curinga virou um seis, então o seis
+        // natural da mão pode tomar o lugar dele e o jogo cresce outra vez.
+        val comDez = CanastraGame.applyOrThrow(depoisDaPrimeira, CanastraMove.SwapWild(0, seis))
+            .meldsOf(Seat.FIRST).first()
+        assertEquals(10, comDez.cards.size, "a segunda troca leva a canastra a dez cartas")
+        assertTrue(comDez.isClean, "coringa dentro não suja: a canastra segue limpa em dez cartas")
+    }
+
+    /**
+     * Repartir o mesmo naipe em duas sequências é pior em duplas do que jogando individual:
+     * o parceiro pode estar segurando exatamente as cartas que ligariam as duas pontas num
+     * jogo só, e a mão dele é oculta — a IA não tem como conferir antes de decidir. Sozinha
+     * não há parceiro para esperar, e o que sobra é só a perda de ter duas sequências curtas
+     * onde cabia uma longa.
+     */
+    @Test
+    fun `separar o naipe custa mais em duplas do que jogando individual`() {
+        val naipe = Suit.CLUBS
+        val seguidas = listOf(Rank.FOUR, Rank.FIVE, Rank.SIX, Rank.SEVEN, Rank.EIGHT, Rank.NINE)
+            .map { carta(it, naipe) }
+        val juntas = listOf(Meld(seguidas))
+        val separadas = listOf(Meld(seguidas.take(3)), Meld(seguidas.drop(3)))
+
+        val avaliador = CanastraEvaluatorImpl()
+        fun folga(seats: Int): Int {
+            val base = novo(seats = seats).copy(hands = List(seats) { emptyList() })
+            val vazio = List(base.teams) { emptyList<Meld>() }
+            val comJuntas = avaliador.evaluate(base.copy(melds = vazio.updatedFirst(juntas)), Seat.FIRST)
+            val comSeparadas = avaliador.evaluate(base.copy(melds = vazio.updatedFirst(separadas)), Seat.FIRST)
+            return comJuntas - comSeparadas
+        }
+
+        val emDuplas = folga(seats = 4)
+        val individual = folga(seats = 3)
+        assertTrue(individual > 0, "separar o naipe já é ruim sozinho, e custou $individual")
+        assertTrue(
+            emDuplas > individual,
+            "em duplas devia custar mais caro que individual: $emDuplas contra $individual",
+        )
+    }
+
+    private fun List<List<Meld>>.updatedFirst(jogos: List<Meld>): List<List<Meld>> =
+        mapIndexed { index, atual -> if (index == 0) jogos else atual }
 
     @Test
     fun `a maquina joga so com o que enxerga, e sempre lance legal`() {
