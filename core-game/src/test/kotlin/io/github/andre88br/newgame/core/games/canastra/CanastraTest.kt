@@ -2,6 +2,7 @@ package io.github.andre88br.newgame.core.games.canastra
 
 import io.github.andre88br.newgame.core.ai.Difficulty
 import io.github.andre88br.newgame.core.cards.Card
+import io.github.andre88br.newgame.core.cards.deckOf
 import io.github.andre88br.newgame.core.cards.Rank
 import io.github.andre88br.newgame.core.cards.Suit
 import io.github.andre88br.newgame.core.engine.MatchConfig
@@ -1580,6 +1581,51 @@ class CanastraTest {
             acertosNoFacil >= 15,
             "no fácil o oito devia entrar na maioria das sementes, e entrou em $acertosNoFacil de 30",
         )
+    }
+
+    /**
+     * O atalho de [extendMeld] para sequências recusa carta de outro naipe e valor repetido
+     * sem chamar `asSequence`. É otimização, não regra: se ele discordasse do motor em um
+     * único caso, a IA passaria a enxergar um jogo diferente do que se joga na tela.
+     *
+     * Aqui o baralho inteiro é oferecido a sequências de todo tipo — limpa, com curinga no
+     * meio, com curinga na ponta, trinca — e o que o atalho responde tem que bater com o que
+     * `asSequence` responde sozinho.
+     */
+    @Test
+    fun `o atalho de extendSequence nunca discorda de asSequence`() {
+        val jogos = listOf(
+            Meld(listOf(Rank.FOUR, Rank.FIVE, Rank.SIX).map { carta(it, Suit.CLUBS) }),
+            Meld(listOf(Rank.SEVEN, Rank.EIGHT, Rank.NINE, Rank.TEN).map { carta(it, Suit.HEARTS) }),
+            Meld(listOf(carta(Rank.FOUR, Suit.SPADES), carta(Rank.TWO, Suit.HEARTS), carta(Rank.SIX, Suit.SPADES))),
+            Meld(listOf(carta(Rank.JACK, Suit.DIAMONDS), carta(Rank.QUEEN, Suit.DIAMONDS), carta(Rank.JOKER, Suit.CLUBS))),
+            Meld(
+                listOf(Rank.SIX, Rank.SEVEN, Rank.EIGHT, Rank.NINE, Rank.TEN, Rank.JACK, Rank.QUEEN)
+                    .map { carta(it, Suit.CLUBS) },
+            ),
+            Meld(listOf(carta(Rank.KING, Suit.HEARTS), carta(Rank.KING, Suit.SPADES), carta(Rank.KING, Suit.CLUBS))),
+        )
+        val baralho = deckOf(CANASTRA_DECKS, CANASTRA_JOKERS_PER_DECK).distinct()
+        assertTrue(baralho.size > 50, "o baralho de teste precisa cobrir o jogo todo")
+
+        var conferidos = 0
+        for (jogo in jogos) {
+            for (carta in baralho) {
+                val peloMotor = extendMeld(jogo, carta)
+                val semAtalho = when {
+                    isRedThree(carta) || isBlackThree(carta) -> null
+                    jogo.kind == MeldKind.SET -> peloMotor
+                    else -> asSequence(jogo.cards + carta)?.let { Meld(it) }
+                }
+                assertEquals(
+                    semAtalho,
+                    peloMotor,
+                    "o atalho discordou para $carta em $jogo",
+                )
+                conferidos++
+            }
+        }
+        println("atalho conferido em $conferidos combinações de jogo e carta")
     }
 
     @Test

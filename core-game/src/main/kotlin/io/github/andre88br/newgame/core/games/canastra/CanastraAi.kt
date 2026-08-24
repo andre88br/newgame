@@ -86,11 +86,14 @@ class CanastraEvaluatorImpl(private val personality: AiPersonality = AiPersonali
     private fun avaliarTime(state: CanastraState, time: Int): Int {
         val jogos = state.melds.getOrElse(time) { emptyList() }
         val maoDoTime = cadeirasDoTime(state, time).flatMap { state.hand(it) }
+        // Uma vez só: com dois baralhos a mão repete carta, e [potencialDeCrescimento] roda
+        // uma vez por jogo na mesa. Recalcular isto lá dentro era o grosso do custo da busca.
+        val maoSemRepetidas = maoDoTime.distinct()
 
         var total = state.scores.getOrElse(time) { 0 }
         total += jogos.sumOf { it.score }
         total += jogos.count { it.isCanastra } * UTILIDADE_DA_CANASTRA
-        total += jogos.sumOf { potencialDeCrescimento(it, maoDoTime.distinct()) }
+        total += jogos.sumOf { potencialDeCrescimento(it, maoSemRepetidas) }
         total += progressoDosJogosParciais(jogos)
         total -= custoDeNaipeRepartido(jogos, state.seats)
 
@@ -148,7 +151,7 @@ class CanastraEvaluatorImpl(private val personality: AiPersonality = AiPersonali
         var repeticoes = 0
         for (jogo in jogos) {
             if (jogo.kind != MeldKind.SEQUENCE) continue
-            val naipe = jogo.naturals.firstOrNull()?.suit ?: continue
+            val naipe = jogo.primeiraNatural?.suit ?: continue
             if (!naipesVistos.add(naipe)) repeticoes++
         }
         return repeticoes * custo

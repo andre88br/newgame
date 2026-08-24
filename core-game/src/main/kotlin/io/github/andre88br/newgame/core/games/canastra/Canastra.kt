@@ -58,7 +58,17 @@ enum class MeldKind { SEQUENCE, SET }
 data class Meld(val cards: List<Card> = emptyList()) {
     val wilds: List<Card> get() = cards.filter { isWild(it) }
     val naturals: List<Card> get() = cards.filterNot { isWild(it) }
-    val rank: Rank? get() = naturals.firstOrNull()?.rank
+
+    /**
+     * A primeira carta que não é curinga, sem construir a lista de [naturals].
+     *
+     * Parece detalhe, mas não é: a busca da IA pergunta o naipe e o valor de um jogo
+     * centenas de vezes por posição, e cada leitura de [naturals] alocava uma lista nova só
+     * para jogar fora em seguida.
+     */
+    val primeiraNatural: Card? get() = cards.firstOrNull { !isWild(it) }
+
+    val rank: Rank? get() = primeiraNatural?.rank
     val isCanastra: Boolean get() = cards.size >= CANASTRA_SIZE
 
     /**
@@ -69,11 +79,22 @@ data class Meld(val cards: List<Card> = emptyList()) {
      */
     val isClean: Boolean get() = isCanastra && cards.none { it.rank == Rank.TWO }
 
+    /**
+     * Trinca é o jogo com duas ou mais naturais, todas do mesmo valor; o resto é sequência.
+     *
+     * Escrito em laço, e não com `map`/`distinct`, porque [extendMeld] consulta isto a cada
+     * pergunta "esta carta cabe?" — e a versão anterior alocava três listas por leitura.
+     */
     val kind: MeldKind
-        get() = if (naturals.size >= 2 && naturals.map { it.rank }.distinct().size == 1) {
-            MeldKind.SET
-        } else {
-            MeldKind.SEQUENCE
+        get() {
+            var valor: Rank? = null
+            var naturais = 0
+            for (carta in cards) {
+                if (isWild(carta)) continue
+                naturais++
+                if (valor == null) valor = carta.rank else if (carta.rank != valor) return MeldKind.SEQUENCE
+            }
+            return if (naturais >= 2) MeldKind.SET else MeldKind.SEQUENCE
         }
 
     fun sequenceSpan(): IntRange {
@@ -164,19 +185,39 @@ fun extendMeld(meld: Meld, card: Card): Meld? {
 }
 
 private fun extendSet(meld: Meld, card: Card): Meld? = when {
-    isWild(card) -> if (meld.wilds.size < CANASTRA_MAX_WILDS) Meld(meld.cards + card) else null
+    isWild(card) -> if (meld.cards.count { isWild(it) } < CANASTRA_MAX_WILDS) Meld(meld.cards + card) else null
     meld.rank == card.rank -> Meld(meld.cards + card)
     else -> null
 }
 
-private fun extendSequence(meld: Meld, card: Card): Meld? = asSequence(meld.cards + card)?.let { Meld(it) }
+/**
+ * Quem manda continua sendo [asSequence]; o que vem antes é só um atalho.
+ *
+ * [asSequence] refaz a sequência inteira — filtra curingas, ordena, mapeia — e devolve nulo
+ * no fim se a carta não servia. O avaliador da IA pergunta "esta carta cabe?" para cada
+ * carta da mão contra cada jogo da mesa, centenas de vezes por posição, e a esmagadora
+ * maioria dessas perguntas tem resposta óbvia: carta de outro naipe nunca entra numa
+ * sequência, e um valor que já está lá também não (as ordens teriam repetido).
+ *
+ * As duas guardas abaixo recusam **só** o que [asSequence] recusaria de qualquer jeito, e o
+ * teste `o atalho de extendSequence nunca discorda de asSequence` percorre o baralho inteiro
+ * contra sequências de todo tipo para garantir que continua assim.
+ */
+private fun extendSequence(meld: Meld, card: Card): Meld? {
+    if (!isWild(card)) {
+        val naipe = meld.primeiraNatural?.suit
+        if (naipe != null && card.suit != naipe) return null
+        if (meld.cards.any { !isWild(it) && it.rank == card.rank }) return null
+    }
+    return asSequence(meld.cards + card)?.let { Meld(it) }
+}
 
 fun wildRepresents(meld: Meld): Card? {
     if (meld.kind != MeldKind.SEQUENCE || meld.wilds.isEmpty()) return null
     val indice = meld.cards.indexOfFirst { isWild(it) }
     val posicao = meld.sequenceSpan().first + indice
     val rank = CANASTRA_SEQUENCE_RANKS.getOrNull(posicao) ?: return null
-    return Card(rank, meld.naturals.first().suit)
+    return Card(rank, (meld.primeiraNatural ?: return null).suit)
 }
 
 @Serializable
