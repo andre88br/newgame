@@ -31,4 +31,7 @@ tasks.test {
     testLogging {
         events("failed")
     }
+    // Campanhas de afinação da IA são longas demais para a suíte de sempre, então rodam só
+    // quando pedidas: `-Pnewgame.campanha=rodadas,sementes`. Sem isso, a bancada roda curta.
+    systemProperty("newgame.campanha", (project.findProperty("newgame.campanha") ?: "").toString())
 }

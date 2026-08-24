@@ -1,6 +1,8 @@
 package io.github.andre88br.newgame.core.games.canastra
 
 import io.github.andre88br.newgame.core.ai.DeterminizedAi
+import io.github.andre88br.newgame.core.ai.defaultMistakeChance
+import io.github.andre88br.newgame.core.ai.defaultSampleCount
 import io.github.andre88br.newgame.core.ai.Difficulty
 import io.github.andre88br.newgame.core.ai.Evaluator
 import io.github.andre88br.newgame.core.ai.GameAi
@@ -20,36 +22,36 @@ import kotlin.math.abs
 enum class AiPersonality { AGRESSIVO, ACUMULADOR, BALANCEADO }
 
 /**
- * Avaliação de uma posição de canastra do ponto de vista de uma cadeira.
+ * Os pesos do avaliador da canastra, reunidos num lugar só para poderem ser variados.
  *
- * A régua é [CanastraGame.scoreHand]: pontos de mesa vêm de [Meld.score] (nunca recalculados
- * à mão aqui — ver a nota na própria classe sobre a canastra limpa render cem por carta além
- * da sétima), cartas na mão pesam contra e os três vermelhos só contam com canastra na mesa.
- * Por cima disso entram termos que não aparecem no placar de verdade, mas preveem o que ele
- * vai valer daqui a um lance ou dois: o que a mão do time promete completar, o risco de
- * repartir um naipe em duas sequências, a utilidade extra de já ter uma canastra (destrava
- * trinca e a batida) e a urgência de fechar a própria quando o adversário já pode bater a
- * qualquer momento.
+ * Estavam soltos dentro do avaliador como constantes privadas, o que impedia medir se um
+ * número era melhor do que outro: para testar uma mudança era preciso editar o código,
+ * recompilar e confiar no olho. Reunidos aqui, uma campanha de afinação consegue propor
+ * variações e a arena consegue dizer, com barra de erro, se a variação ganhou de verdade.
+ *
+ * O que **não** entra aqui é regra: [Meld.score], [cardValue] e os limiares do motor não são
+ * parâmetro nenhum. Afiná-los faria a IA avaliar um jogo diferente do que se joga na tela.
+ * Só entra o que é palpite estratégico — e todo palpite aqui é chute educado até a arena
+ * dizer o contrário.
  */
-class CanastraEvaluatorImpl(private val personality: AiPersonality = AiPersonality.BALANCEADO) : Evaluator<CanastraState> {
-
+data class PesosCanastra(
     /**
      * Ter uma canastra vale mais do que os pontos que ela soma sozinha: é o que libera a
-     * trinca ([CanastraGame] só aceita `MeldKind.SET` depois da primeira canastra do time,
-     * veja `CANASTRA_TRINCA_NEEDS_CANASTRA`) e o que permite zerar a mão de vez sem o morto
-     * (veja `podeZerar`/`encurrala`). Fica de fora de [Meld.score] de propósito: aquele
-     * número é o placar de verdade, este é o valor estratégico de tê-la, e somar os dois
-     * separados evita que um vire reimplementação disfarçada do outro.
+     * trinca ([CanastraGame] só aceita `MeldKind.SET` depois da primeira canastra do time) e
+     * o que permite zerar a mão de vez sem o morto (veja `podeZerar`/`encurrala`). Fica de
+     * fora de [Meld.score] de propósito: aquele número é o placar de verdade, este é o valor
+     * estratégico de tê-la, e somar os dois separados evita que um vire reimplementação
+     * disfarçada do outro.
      */
-    private val UTILIDADE_DA_CANASTRA = 200
+    val utilidadeDaCanastra: Int = 200,
 
     /**
      * Quanto vale a promessa de uma carta que o time ainda segura mas já encaixa num jogo
      * baixado — não é ponto de placar, é ponto provável na próxima vez. Numa canastra limpa
      * pesa mais porque, ali, cada carta nova rende os cem extras de [Meld.score].
      */
-    private val PROMESSA_DE_CRESCIMENTO = 25
-    private val PROMESSA_DE_CRESCIMENTO_LIMPA = 55
+    val promessaDeCrescimento: Int = 25,
+    val promessaDeCrescimentoLimpa: Int = 55,
 
     /**
      * Custo de repartir o mesmo naipe em duas sequências em vez de uma só. Em duplas custa
@@ -58,21 +60,52 @@ class CanastraEvaluatorImpl(private val personality: AiPersonality = AiPersonali
      * risco vira custo. Jogando individual não existe parceiro para esperar, e o que sobra é
      * só a perda de ter duas sequências curtas onde cabia uma longa.
      */
-    private val CUSTO_NAIPE_REPARTIDO = 1_000
-    private val CUSTO_NAIPE_REPARTIDO_DUPLAS = 1_600
+    val custoNaipeRepartido: Int = 1_000,
+    val custoNaipeRepartidoDuplas: Int = 1_600,
 
-    /** O quanto guardar um curinga/dois na mão pesa contra o time — barato de propósito: ele raramente fica parado até o fim, é recurso, não lixo. */
-    private val CUSTO_CURINGA_NA_MAO = 3
+    /**
+     * O quanto guardar um curinga ou um dois na mão pesa contra o time — barato de propósito:
+     * ele raramente fica parado até o fim, é recurso, não lixo.
+     */
+    val custoCuringaNaMao: Int = 3,
 
     /**
      * Quão perto um time rival já está de poder fechar a rodada de vez. Só existe se o rival
      * já tem canastra ([CanastraGame.hasCanastra] — sem ela, `encurrala` nem deixa zerar a
-     * mão) e não tem mais morto para amortecer ([CanastraState.mortos] vazio ou
-     * [CanastraState.tookMorto] já verdadeiro para ele — pegar o morto só recicla a mão, não
-     * fecha nada). Com as duas condições, quanto menor a mão do rival, mais perto a rodada
-     * está de acabar sem o meu time ter tido tempo de terminar a própria.
+     * mão) e não tem mais morto para amortecer (pegar o morto só recicla a mão, não fecha
+     * nada). Com as duas condições, quanto menor a mão do rival, mais perto a rodada está de
+     * acabar sem o meu time ter terminado a própria.
      */
-    private val PESO_AMEACA_DE_BATIDA = 8
+    val pesoAmeacaDeBatida: Int = 8,
+
+    /**
+     * Incentivo a baixar jogo mesmo sem canastra fechada, por carta além do mínimo de três.
+     * É onde a personalidade se separa: o agressivo quer material na mesa logo, o acumulador
+     * prefere esperar um jogo maior ou mais seguro.
+     */
+    val progressoAgressivo: Int = 25,
+    val progressoAcumulador: Int = 2,
+    val progressoBalanceado: Int = 12,
+) {
+    companion object {
+        /** Os números que o aplicativo usa. Trocados só quando a arena mostra que vale. */
+        val PADRAO = PesosCanastra()
+    }
+}
+
+/**
+ * Avaliação de uma posição de canastra do ponto de vista de uma cadeira.
+ *
+ * A régua é [CanastraGame.scoreHand]: pontos de mesa vêm de [Meld.score] (nunca recalculados
+ * à mão aqui — ver a nota na própria classe sobre a canastra limpa render cem por carta além
+ * da sétima), cartas na mão pesam contra e os três vermelhos só contam com canastra na mesa.
+ * Por cima disso entram os termos de [PesosCanastra], que não aparecem no placar de verdade
+ * mas preveem o que ele vai valer daqui a um lance ou dois.
+ */
+class CanastraEvaluatorImpl(
+    private val personality: AiPersonality = AiPersonality.BALANCEADO,
+    private val pesos: PesosCanastra = PesosCanastra.PADRAO,
+) : Evaluator<CanastraState> {
 
     override fun evaluate(state: CanastraState, seat: Seat): Int {
         val meuTime = state.teamOf(seat)
@@ -92,7 +125,7 @@ class CanastraEvaluatorImpl(private val personality: AiPersonality = AiPersonali
 
         var total = state.scores.getOrElse(time) { 0 }
         total += jogos.sumOf { it.score }
-        total += jogos.count { it.isCanastra } * UTILIDADE_DA_CANASTRA
+        total += jogos.count { it.isCanastra } * pesos.utilidadeDaCanastra
         total += jogos.sumOf { potencialDeCrescimento(it, maoSemRepetidas) }
         total += progressoDosJogosParciais(jogos)
         total -= custoDeNaipeRepartido(jogos, state.seats)
@@ -128,25 +161,21 @@ class CanastraEvaluatorImpl(private val personality: AiPersonality = AiPersonali
         if (maoDoTime.isEmpty()) return 0
         val exata = wildRepresents(jogo)
         val cabem = maoDoTime.count { carta -> carta == exata || extendMeld(jogo, carta) != null }
-        return cabem * if (jogo.isClean) PROMESSA_DE_CRESCIMENTO_LIMPA else PROMESSA_DE_CRESCIMENTO
+        return cabem * if (jogo.isClean) pesos.promessaDeCrescimentoLimpa else pesos.promessaDeCrescimento
     }
 
-    /**
-     * Incentivo a baixar jogo mesmo sem canastra fechada — cada carta além do mínimo de três
-     * pesa a favor, e o quanto pesa é a própria personalidade: o agressivo quer material na
-     * mesa logo, o acumulador prefere esperar um jogo maior ou mais seguro.
-     */
+    /** Ver [PesosCanastra.progressoBalanceado]. */
     private fun progressoDosJogosParciais(jogos: List<Meld>): Int {
         val peso = when (personality) {
-            AiPersonality.AGRESSIVO -> 25
-            AiPersonality.ACUMULADOR -> 2
-            AiPersonality.BALANCEADO -> 12
+            AiPersonality.AGRESSIVO -> pesos.progressoAgressivo
+            AiPersonality.ACUMULADOR -> pesos.progressoAcumulador
+            AiPersonality.BALANCEADO -> pesos.progressoBalanceado
         }
         return jogos.filterNot { it.isCanastra }.sumOf { (it.cards.size - CANASTRA_MIN_MELD) * peso }
     }
 
     private fun custoDeNaipeRepartido(jogos: List<Meld>, seats: Int): Int {
-        val custo = if (seats == 4) CUSTO_NAIPE_REPARTIDO_DUPLAS else CUSTO_NAIPE_REPARTIDO
+        val custo = if (seats == 4) pesos.custoNaipeRepartidoDuplas else pesos.custoNaipeRepartido
         val naipesVistos = mutableSetOf<Suit>()
         var repeticoes = 0
         for (jogo in jogos) {
@@ -160,7 +189,7 @@ class CanastraEvaluatorImpl(private val personality: AiPersonality = AiPersonali
     /**
      * O peso das cartas ainda na mão. Parte da conta de `scoreHand` (que cobra `cardValue` de
      * tudo o que sobrar na mão no fim), com **uma diferença deliberada**: aqui o curinga e o
-     * dois custam só [CUSTO_CURINGA_NA_MAO] em vez dos vinte/cinquenta que o placar cobraria.
+     * dois custam só [PesosCanastra.custoCuringaNaMao] em vez dos vinte/cinquenta que o placar cobraria.
      * Não é descuido nem cópia errada da fórmula — é estratégia: seguir `scoreHand` ao pé da
      * letra faria a IA se desfazer de curinga cedo para aliviar a mão, e curinga na mão é
      * recurso, não dívida. Quem cobra o preço de verdade é o placar, no fim da mão.
@@ -171,7 +200,7 @@ class CanastraEvaluatorImpl(private val personality: AiPersonality = AiPersonali
      * evita punir por uma obrigação que o motor não considera dívida real).
      */
     private fun penalidadeDaMao(state: CanastraState, time: Int, maoDoTime: List<Card>): Int {
-        val bruto = maoDoTime.sumOf { carta -> if (isWild(carta)) CUSTO_CURINGA_NA_MAO else cardValue(carta) }
+        val bruto = maoDoTime.sumOf { carta -> if (isWild(carta)) pesos.custoCuringaNaMao else cardValue(carta) }
         val multiplicador = when (personality) {
             AiPersonality.AGRESSIVO -> 1.5
             AiPersonality.ACUMULADOR -> 0.5
@@ -188,7 +217,7 @@ class CanastraEvaluatorImpl(private val personality: AiPersonality = AiPersonali
         }
     }
 
-    /** A ameaça que os times rivais impõem a [time] — ver [PESO_AMEACA_DE_BATIDA]. */
+    /** A ameaça que os times rivais impõem a [time] — ver [PesosCanastra.pesoAmeacaDeBatida]. */
     private fun ameacaSofrida(state: CanastraState, time: Int): Int =
         (0 until state.teams).filter { it != time }.maxOfOrNull { rival -> ameacaDeBatida(state, rival) } ?: 0
 
@@ -199,7 +228,7 @@ class CanastraEvaluatorImpl(private val personality: AiPersonality = AiPersonali
 
         val menorMao = cadeirasDoTime(state, time).minOfOrNull { state.handSize(it) } ?: return 0
         val cartasQueFaltam = (CANASTRA_HAND_SIZE - menorMao).coerceIn(0, CANASTRA_HAND_SIZE)
-        return PESO_AMEACA_DE_BATIDA * cartasQueFaltam
+        return pesos.pesoAmeacaDeBatida * cartasQueFaltam
     }
 }
 
@@ -313,26 +342,45 @@ fun completeCanastra(state: CanastraState, rng: Rng): CanastraState {
     return state.copy(hands = maos, stock = monte, mortos = mortos)
 }
 
-val CanastraAi: GameAi<CanastraState, CanastraMove> = DeterminizedAi(
+/**
+ * Limites de busca por dificuldade.
+ *
+ * Com `completeTurns` a profundidade conta turnos inteiros, não lances soltos: profundidade
+ * três aqui já enxerga mais longe do que os antigos quatro lances, que muitas vezes nem
+ * terminavam o turno de quem começou. O tempo é o teto do lance inteiro, somando os mundos.
+ */
+fun limitesDaCanastra(difficulty: Difficulty): SearchLimits = when (difficulty) {
+    Difficulty.EASY -> SearchLimits(maxDepth = 1, timeBudgetMillis = 300)
+    Difficulty.MEDIUM -> SearchLimits(maxDepth = 2, timeBudgetMillis = 800)
+    Difficulty.HARD -> SearchLimits(maxDepth = 3, timeBudgetMillis = 1_500)
+}
+
+/**
+ * Monta uma IA de canastra.
+ *
+ * Existe como função, e não só como o valor pronto [CanastraAi], para que a arena consiga
+ * pôr duas versões frente a frente: uma campanha de afinação precisa criar dezenas de IAs
+ * que diferem só nos [PesosCanastra], e uma medição justa precisa poder fixar a busca em
+ * profundidade em vez de em relógio, para não medir a velocidade da máquina.
+ */
+fun canastraAi(
+    pesos: PesosCanastra = PesosCanastra.PADRAO,
+    personalidade: AiPersonality = AiPersonality.BALANCEADO,
+    limites: (Difficulty) -> SearchLimits = ::limitesDaCanastra,
+    mundos: (Difficulty) -> Int = ::defaultSampleCount,
+    chanceDeErro: (Difficulty) -> Int = ::defaultMistakeChance,
+): GameAi<CanastraState, CanastraMove> = DeterminizedAi(
     game = CanastraGame,
-    // Pode trocar entre AGRESSIVO, ACUMULADOR ou BALANCEADO aqui para ver o comportamento mudar.
-    evaluator = CanastraEvaluatorImpl(AiPersonality.BALANCEADO),
+    evaluator = CanastraEvaluatorImpl(personalidade, pesos),
     ordering = CanastraOrdering,
     // Trocar o curinga pela carta exata gasta uma carta da mão mas sempre devolve mais do que
     // tira (ver [CanastraEvaluatorImpl.potencialDeCrescimento] e a nota em
     // [DeterminizedAi.neverMistaken]): nunca é o sorteio de erro que deve decidir isso, e sim
     // a busca, que já enxerga o jogo crescendo e o curinga se reposicionando.
     neverMistaken = { _, move -> move is CanastraMove.SwapWild },
-    // Com [completeTurns] a profundidade conta turnos inteiros, não lances soltos: profundidade
-    // 3 aqui já enxerga mais longe do que os antigos quatro lances, que muitas vezes nem
-    // terminavam o turno de quem começou. O tempo é o teto do lance inteiro, somando os mundos.
-    limits = { difficulty ->
-        when (difficulty) {
-            Difficulty.EASY -> SearchLimits(maxDepth = 1, timeBudgetMillis = 300)
-            Difficulty.MEDIUM -> SearchLimits(maxDepth = 2, timeBudgetMillis = 800)
-            Difficulty.HARD -> SearchLimits(maxDepth = 3, timeBudgetMillis = 1_500)
-        }
-    },
+    limits = limites,
+    samples = mundos,
+    mistakeChance = chanceDeErro,
     // Na canastra a vez só passa no descarte: baixar jogo e trocar curinga são de graça. Sem
     // isto, a busca compara "descartar agora" com "baixar agora" como se fossem alternativas,
     // quando na verdade o turno certo é baixar tudo o que vale e só então descartar — e o
@@ -340,3 +388,6 @@ val CanastraAi: GameAi<CanastraState, CanastraMove> = DeterminizedAi(
     completeTurns = true,
     complete = ::completeCanastra,
 )
+
+/** A IA que o aplicativo usa. */
+val CanastraAi: GameAi<CanastraState, CanastraMove> = canastraAi()
