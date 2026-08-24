@@ -1471,6 +1471,43 @@ class CanastraTest {
     private fun List<List<Meld>>.updatedFirst(jogos: List<Meld>): List<List<Meld>> =
         mapIndexed { index, atual -> if (index == 0) jogos else atual }
 
+    /**
+     * Melhoria desta reescrita: o avaliador passa a enxergar a ameaça de o adversário fechar
+     * a rodada antes que o meu time termine a própria canastra. A ameaça só existe quando o
+     * rival já tem canastra — sem ela, `encurrala` nem deixa zerar a mão — **e** não tem mais
+     * morto para amortecer, porque pegar o morto só recicla a mão dele, não fecha a rodada
+     * (ver `podeZerar`/`temMortoParaPegar` em `Canastra.kt`). Com o morto ainda em jogo, o
+     * mesmo rival com a mesma mão pequena não é urgência nenhuma para mim: ele só vai reciclar.
+     */
+    @Test
+    fun `a ameaca de batida do adversario so pesa quando ele nao tem mais morto para recorrer`() {
+        val rei = carta(Rank.KING, Suit.HEARTS)
+        val canastraDoRival = Meld(List(7) { rei })
+        val maoPequenaDoRival = listOf(carta(Rank.FOUR, Suit.CLUBS), carta(Rank.FIVE, Suit.CLUBS))
+        val fillerDoMorto = List(CANASTRA_HAND_SIZE) { carta(Rank.QUEEN, Suit.DIAMONDS) }
+
+        fun estado(mortos: List<List<Card>>) = novo(seats = 2).copy(
+            hands = listOf(emptyList(), maoPequenaDoRival),
+            melds = listOf(emptyList(), listOf(canastraDoRival)),
+            mortos = mortos,
+            tookMorto = listOf(false, false),
+            scores = listOf(0, 0),
+        )
+
+        val comMortoDisponivel = estado(listOf(fillerDoMorto))
+        val semMortoNenhum = estado(emptyList())
+
+        val avaliador = CanastraEvaluatorImpl()
+        val comMorto = avaliador.evaluate(comMortoDisponivel, Seat.FIRST)
+        val semMorto = avaliador.evaluate(semMortoNenhum, Seat.FIRST)
+
+        assertTrue(
+            comMorto > semMorto,
+            "com morto ainda disponivel a mesma mao pequena do rival nao devia pesar tanto: " +
+                "com morto=$comMorto, sem morto=$semMorto",
+        )
+    }
+
     @Test
     fun `a maquina joga so com o que enxerga, e sempre lance legal`() {
         var state = novo(seed = 11)
