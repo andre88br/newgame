@@ -1508,6 +1508,80 @@ class CanastraTest {
         )
     }
 
+    /**
+     * O bug relatado: com jogo na mesa e carta na mão que encaixava nele, a IA encaixava uma
+     * (ou nenhuma) e passava a vez.
+     *
+     * A causa não era o avaliador, era a **forma de contar profundidade**. Na canastra a vez
+     * só passa no descarte: baixar jogo é de graça e o turno continua. A busca parava depois
+     * de **um lance**, então comparava "descartar agora" com "baixar agora" como se fossem
+     * alternativas excludentes — quando o turno certo é baixar tudo o que vale e só então
+     * descartar. E o descarte ganhava quase sempre, porque três preto vale cem na mão
+     * ([cardValue]) e largá-lo rendia mais, num lance só, do que qualquer jogo baixado.
+     *
+     * Aqui o oito de copas encaixa numa sequência de copas que ainda não é canastra (rende
+     * vinte: dez na mesa e dez a menos na mão), e a mão carrega um três preto (cem). Antes da
+     * correção a IA descartava o três e deixava o oito na mão. Agora ela faz as duas coisas,
+     * na ordem certa, porque a busca enxerga o turno inteiro.
+     */
+    @Test
+    fun `a ia baixa o que encaixa antes de descartar, e nao troca um pelo outro`() {
+        val canastraDePaus = Meld(
+            listOf(Rank.SIX, Rank.SEVEN, Rank.EIGHT, Rank.NINE, Rank.TEN, Rank.JACK, Rank.QUEEN)
+                .map { carta(it, Suit.CLUBS) },
+        )
+        val copas = Meld(listOf(Rank.FIVE, Rank.SIX, Rank.SEVEN).map { carta(it, Suit.HEARTS) })
+        val oitoDeCopas = carta(Rank.EIGHT, Suit.HEARTS)
+        val tresPreto = carta(Rank.THREE, Suit.CLUBS)
+        assertTrue(canastraDePaus.isCanastra, "a de paus precisa ser canastra")
+        assertEquals(100, cardValue(tresPreto), "o três preto pesa cem na mão")
+        assertTrue(extendMeld(copas, oitoDeCopas) != null, "o oito de copas encaixa na sequência")
+
+        val base = novo(seats = 4)
+        val state = base.copy(
+            phase = CanastraPhase.PLAY,
+            melds = listOf(listOf(canastraDePaus, copas), emptyList()),
+            hands = base.hands.mapIndexed { index, mao ->
+                if (index == 0) {
+                    listOf(tresPreto, oitoDeCopas, carta(Rank.FOUR, Suit.SPADES), carta(Rank.NINE, Suit.SPADES))
+                } else {
+                    mao
+                }
+            },
+            firstMeldDone = listOf(true, false),
+        )
+
+        // Joga o turno inteiro da máquina e diz se o oito acabou na mesa e o três no lixo.
+        fun turnoInteiro(dificuldade: Difficulty, semente: Long): Boolean {
+            var atual = state
+            var passos = 0
+            while (atual.turn == Seat.FIRST && passos < 6) {
+                val move = CanastraAi.chooseMove(atual, dificuldade, semente) ?: break
+                atual = (CanastraGame.applyMove(atual, move) as? MoveResult.Ok)?.state ?: break
+                passos++
+            }
+            return atual.melds[0].any { oitoDeCopas in it.cards } && tresPreto !in atual.hand(Seat.FIRST)
+        }
+
+        // No médio e no difícil a busca já ia fundo o bastante para enxergar os dois lances.
+        for (dificuldade in listOf(Difficulty.MEDIUM, Difficulty.HARD)) {
+            assertTrue(
+                turnoInteiro(dificuldade, semente = 3L),
+                "$dificuldade: o oito tinha que entrar na sequência e o três ir para o lixo, no mesmo turno",
+            )
+        }
+
+        // O fácil é onde o bug morava: profundidade um enxergava um lance só. Ele erra trinta
+        // por cento das vezes de propósito ([defaultMistakeChance]), então o que se cobra aqui
+        // é que, fora o erro sorteado, ele acerte — e não que acerte sempre. Antes da correção
+        // acertava quatro em trinta; o sorteio de erro nem chegava a ser o problema.
+        val acertosNoFacil = (0L until 30L).count { turnoInteiro(Difficulty.EASY, it) }
+        assertTrue(
+            acertosNoFacil >= 15,
+            "no fácil o oito devia entrar na maioria das sementes, e entrou em $acertosNoFacil de 30",
+        )
+    }
+
     @Test
     fun `a maquina joga so com o que enxerga, e sempre lance legal`() {
         var state = novo(seed = 11)

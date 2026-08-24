@@ -320,12 +320,20 @@ val CanastraAi: GameAi<CanastraState, CanastraMove> = DeterminizedAi(
     // [DeterminizedAi.neverMistaken]): nunca é o sorteio de erro que deve decidir isso, e sim
     // a busca, que já enxerga o jogo crescendo e o curinga se reposicionando.
     neverMistaken = { _, move -> move is CanastraMove.SwapWild },
+    // Com [completeTurns] a profundidade conta turnos inteiros, não lances soltos: profundidade
+    // 3 aqui já enxerga mais longe do que os antigos quatro lances, que muitas vezes nem
+    // terminavam o turno de quem começou. O tempo é o teto do lance inteiro, somando os mundos.
     limits = { difficulty ->
         when (difficulty) {
-            Difficulty.EASY -> SearchLimits(maxDepth = 1, timeBudgetMillis = 150)
-            Difficulty.MEDIUM -> SearchLimits(maxDepth = 2, timeBudgetMillis = 400)
-            Difficulty.HARD -> SearchLimits(maxDepth = 4, timeBudgetMillis = 1_000)
+            Difficulty.EASY -> SearchLimits(maxDepth = 1, timeBudgetMillis = 300)
+            Difficulty.MEDIUM -> SearchLimits(maxDepth = 2, timeBudgetMillis = 800)
+            Difficulty.HARD -> SearchLimits(maxDepth = 3, timeBudgetMillis = 1_500)
         }
     },
+    // Na canastra a vez só passa no descarte: baixar jogo e trocar curinga são de graça. Sem
+    // isto, a busca compara "descartar agora" com "baixar agora" como se fossem alternativas,
+    // quando na verdade o turno certo é baixar tudo o que vale e só então descartar — e o
+    // descarte de um três preto, que sozinho tira cem pontos da mão, ganhava sempre.
+    completeTurns = true,
     complete = ::completeCanastra,
 )

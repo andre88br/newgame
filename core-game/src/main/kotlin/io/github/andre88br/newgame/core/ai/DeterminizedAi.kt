@@ -39,6 +39,12 @@ class DeterminizedAi<S : GameState, M : Move>(
      * sabe valorizar o lance.
      */
     private val neverMistaken: (S, M) -> Boolean = { _, _ -> false },
+    /**
+     * Se a profundidade deve contar turnos em vez de ações — ver
+     * [AlphaBetaSearch.completeTurns]. Só faz diferença nos jogos em que a vez não passa a
+     * cada lance; nos outros, o filho já muda de cadeira e nada muda.
+     */
+    private val completeTurns: Boolean = false,
     private val complete: (S, Rng) -> S,
 ) : GameAi<S, M> {
 
@@ -60,10 +66,17 @@ class DeterminizedAi<S : GameState, M : Move>(
         val votes = LinkedHashMap<M, Int>()
         moves.forEach { votes[it] = 0 }
 
-        val searchLimits = limits(difficulty)
-        repeat(samples(difficulty)) { sample ->
+        // O orçamento de [limits] é o teto do **lance inteiro**, não de cada mundo: quem espera
+        // é o jogador, e ele espera uma vez só. Dividi-lo entre os mundos é o que mantém a
+        // espera igual quando se sorteia mais mundos para decidir melhor.
+        val quantosMundos = samples(difficulty)
+        val searchLimits = limits(difficulty).let { total ->
+            total.copy(timeBudgetMillis = maxOf(MIN_BUDGET_MS, total.timeBudgetMillis / quantosMundos))
+        }
+        repeat(quantosMundos) { sample ->
             val world = complete(state, Rng.seeded(seed + sample * PRIME))
-            val best = AlphaBetaSearch(game, evaluator, ordering).search(world, searchLimits).move
+            val best = AlphaBetaSearch(game, evaluator, ordering, completeTurns = completeTurns)
+                .search(world, searchLimits).move
             // O mundo sorteado pode oferecer um lance que a mão real não tem; ignora-se.
             if (best != null && best in votes) votes[best] = (votes[best] ?: 0) + 1
         }
@@ -74,6 +87,9 @@ class DeterminizedAi<S : GameState, M : Move>(
     private companion object {
         /** Espaça as sementes dos mundos para eles não saírem parecidos. */
         const val PRIME = 7_919L
+
+        /** Piso por mundo: abaixo disto a busca nem termina a primeira profundidade. */
+        const val MIN_BUDGET_MS = 15L
     }
 }
 

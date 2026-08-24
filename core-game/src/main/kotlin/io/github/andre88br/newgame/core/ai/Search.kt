@@ -82,6 +82,20 @@ class AlphaBetaSearch<S : GameState, M : Move>(
      * horizonte*, que no xadrez faz a IA entregar peça atrás de peça.
      */
     private val isTactical: ((S, M) -> Boolean)? = null,
+    /**
+     * Se a profundidade deve contar **turnos** em vez de ações isoladas.
+     *
+     * Em jogos onde a vez só passa quando o jogador quer, um lance não é o mesmo que um
+     * turno: na canastra baixar jogo é de graça e o turno continua, mas descartar o encerra.
+     * Parar a busca no meio do turno compara coisas diferentes — um turno inteiro contra
+     * meio turno — e o descarte ganha só por chegar primeiro ao que interessa. Com isto
+     * ligado, seguir com o mesmo jogador não consome profundidade: a folha da busca cai
+     * sempre no fim de um turno, que é onde as alternativas ficam comparáveis.
+     *
+     * O custo é pequeno porque só os lances que **mantêm a vez** se ramificam de graça (na
+     * canastra, os poucos jogos possíveis), e [MAX_LANCES_LIVRES] limita a extensão.
+     */
+    private val completeTurns: Boolean = false,
     private val nanoTime: () -> Long = System::nanoTime,
 ) {
 
@@ -110,7 +124,7 @@ class AlphaBetaSearch<S : GameState, M : Move>(
 
             for (move in candidates) {
                 val child = game.applyKnownLegal(state, move)
-                val score = value(child, depth - 1, alpha, INFINITY, root)
+                val score = descer(state, child, depth, MAX_LANCES_LIVRES, alpha, INFINITY, root)
                 if (aborted) break
                 if (iterationBest == null || score > alpha) {
                     alpha = score
@@ -133,7 +147,35 @@ class AlphaBetaSearch<S : GameState, M : Move>(
         return SearchResult(best, bestScore, depthReached, nodes, aborted)
     }
 
-    private fun value(state: S, depth: Int, alphaIn: Int, betaIn: Int, root: Seat): Int {
+    /**
+     * Desce para [child] gastando profundidade só quando a vez muda de mão — ver
+     * [completeTurns]. Sem a opção ligada, é o desconto de sempre.
+     */
+    private fun descer(
+        pai: S,
+        child: S,
+        depth: Int,
+        livresRestantes: Int,
+        alpha: Int,
+        beta: Int,
+        root: Seat,
+    ): Int {
+        val mesmaVez = completeTurns && child.turn == pai.turn && livresRestantes > 0
+        return if (mesmaVez) {
+            value(child, depth, alpha, beta, root, livresRestantes - 1)
+        } else {
+            value(child, depth - 1, alpha, beta, root, MAX_LANCES_LIVRES)
+        }
+    }
+
+    private fun value(
+        state: S,
+        depth: Int,
+        alphaIn: Int,
+        betaIn: Int,
+        root: Seat,
+        livresRestantes: Int = MAX_LANCES_LIVRES,
+    ): Int {
         nodes++
         if (nodes and TIME_CHECK_MASK == 0L && nanoTime() > deadline) {
             aborted = true
@@ -162,7 +204,7 @@ class AlphaBetaSearch<S : GameState, M : Move>(
             var best = -INFINITY
             for (move in moves) {
                 val child = game.applyKnownLegal(state, move)
-                val score = value(child, depth - 1, alpha, beta, root)
+                val score = descer(state, child, depth, livresRestantes, alpha, beta, root)
                 if (aborted) return if (best == -INFINITY) alpha else best
                 if (score > best) best = score
                 if (best > alpha) alpha = best
@@ -173,7 +215,7 @@ class AlphaBetaSearch<S : GameState, M : Move>(
             var best = INFINITY
             for (move in moves) {
                 val child = game.applyKnownLegal(state, move)
-                val score = value(child, depth - 1, alpha, beta, root)
+                val score = descer(state, child, depth, livresRestantes, alpha, beta, root)
                 if (aborted) return if (best == INFINITY) beta else best
                 if (score < best) best = score
                 if (best < beta) beta = best
@@ -256,5 +298,12 @@ class AlphaBetaSearch<S : GameState, M : Move>(
 
         /** Teto de meios-lances da busca de quiescência, para trocas longas não escaparem. */
         const val QUIESCENCE_DEPTH = 6
+
+        /**
+         * Teto de lances seguidos do mesmo jogador que [completeTurns] deixa passar sem
+         * gastar profundidade. Cobre um turno de canastra inteiro (baixar vários jogos e
+         * descartar) sem deixar um turno patológico crescer sem fim.
+         */
+        const val MAX_LANCES_LIVRES = 6
     }
 }
