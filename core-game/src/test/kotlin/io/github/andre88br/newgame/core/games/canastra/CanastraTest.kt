@@ -1487,12 +1487,17 @@ class CanastraTest {
         val maoPequenaDoRival = listOf(carta(Rank.FOUR, Suit.CLUBS), carta(Rank.FIVE, Suit.CLUBS))
         val fillerDoMorto = List(CANASTRA_HAND_SIZE) { carta(Rank.QUEEN, Suit.DIAMONDS) }
 
+        // O monte vazio está aqui de propósito: com ele, a rodada já está fechando nos dois
+        // estados e `proximidadeDoFim` vale um nos dois. Sem isso, tirar o morto mexeria em
+        // dois termos ao mesmo tempo — a ameaça e o desconto das promessas — e o teste não
+        // saberia dizer qual dos dois respondeu. Assim sobra só a ameaça, que é o que ele mede.
         fun estado(mortos: List<List<Card>>) = novo(seats = 2).copy(
             hands = listOf(emptyList(), maoPequenaDoRival),
             melds = listOf(emptyList(), listOf(canastraDoRival)),
             mortos = mortos,
             tookMorto = listOf(false, false),
             scores = listOf(0, 0),
+            stock = emptyList(),
         )
 
         val comMortoDisponivel = estado(listOf(fillerDoMorto))
@@ -1626,6 +1631,63 @@ class CanastraTest {
             }
         }
         println("atalho conferido em $conferidos combinações de jogo e carta")
+    }
+
+    /**
+     * O bug relatado: a IA encaixava várias cartas para poder bater e então descartava em vez
+     * de fechar a rodada.
+     *
+     * A causa era o avaliador tratar como já ganho o que ainda era promessa. Enquanto a
+     * rodada corre, `scoreHand` não rodou: a mão cheia do adversário não é prejuízo dele
+     * ainda, e a mesa do meu time ainda promete crescer. O avaliador contava as duas coisas
+     * pelo valor cheio, e aí **bater não rendia quase nada** — o troco do adversário já
+     * estava contabilizado antes de ir buscá-lo, e fechar a rodada ainda apagava as promessas
+     * da própria mesa. Descartar parecia melhor do que ganhar.
+     *
+     * Aqui o curinga da sequência de ouros faz de sete. Trocar o sete põe o curinga na ponta
+     * de baixo, onde ele passa a fazer de seis, e a segunda troca esvazia a mão e fecha a
+     * rodada. Antes da correção a IA descartava justamente o sete.
+     */
+    @Test
+    fun `a ia fecha a rodada em vez de descartar a carta que encaixa`() {
+        val ouros = Suit.DIAMONDS
+        val sequencia = Meld(
+            listOf(carta(Rank.TWO, Suit.CLUBS)) +
+                listOf(Rank.EIGHT, Rank.NINE, Rank.TEN, Rank.JACK, Rank.QUEEN, Rank.KING, Rank.ACE)
+                    .map { carta(it, ouros) },
+        )
+        assertTrue(sequencia.isCanastra, "a sequência precisa já ser canastra para a batida ser legal")
+        assertEquals(carta(Rank.SEVEN, ouros), wildRepresents(sequencia), "o curinga está fazendo de sete")
+
+        val base = novo(seats = 4)
+        val estado = base.copy(
+            phase = CanastraPhase.PLAY,
+            melds = listOf(listOf(sequencia), emptyList()),
+            hands = base.hands.mapIndexed { indice, mao ->
+                when (indice) {
+                    0 -> listOf(carta(Rank.SEVEN, ouros), carta(Rank.SIX, ouros))
+                    2 -> mao.take(3)
+                    else -> mao
+                }
+            },
+            firstMeldDone = listOf(true, false),
+        )
+
+        for (dificuldade in listOf(Difficulty.MEDIUM, Difficulty.HARD)) {
+            var atual = estado
+            var passos = 0
+            val trilha = mutableListOf<CanastraMove>()
+            while (atual.turn == Seat.FIRST && atual.handNumber == estado.handNumber && passos < 8) {
+                val move = CanastraAi.chooseMove(CanastraGame.redactFor(atual, atual.turn), dificuldade, seed = 1L) ?: break
+                trilha += move
+                atual = (CanastraGame.applyMove(atual, move) as? MoveResult.Ok)?.state ?: break
+                passos++
+            }
+            assertTrue(
+                atual.handNumber != estado.handNumber,
+                "$dificuldade: a rodada tinha que ter fechado, e a máquina jogou $trilha",
+            )
+        }
     }
 
     @Test

@@ -86,6 +86,27 @@ data class PesosCanastra(
     val progressoAgressivo: Int = 25,
     val progressoAcumulador: Int = 2,
     val progressoBalanceado: Int = 12,
+
+    /**
+     * Quanto do peso da mão vale mesmo com a rodada recém-começada, em porcentagem.
+     *
+     * O resto do peso só entra conforme a rodada caminha para o fim — ver
+     * `CanastraEvaluatorImpl.proximidadeDoFim`. O piso existe para que segurar carta alta
+     * custe alguma coisa desde cedo, senão a IA não teria motivo para preferir descartar o
+     * rei ao quatro.
+     */
+    val pisoDoPesoDaMaoPorCento: Int = 25,
+
+    /**
+     * Quanto de uma promessa ainda vale quando a rodada está fechando, em porcentagem.
+     *
+     * Promessa é o que a mesa ainda pode render — canastra que destrava batida, jogo que
+     * pode crescer, jogo parcial que pode virar canastra. Com a rodada acabando não sobra
+     * tempo de cumpri-la, então ela vale menos. Em cem por cento a promessa nunca decai, que
+     * é como o avaliador se comportava antes; é esse valor que a arena usa para pôr as duas
+     * versões frente a frente.
+     */
+    val promessaNoFimPorCento: Int = 0,
 ) {
     companion object {
         /** Os números que o aplicativo usa. Trocados só quando a arena mostra que vale. */
@@ -123,19 +144,28 @@ class CanastraEvaluatorImpl(
         // uma vez por jogo na mesa. Recalcular isto lá dentro era o grosso do custo da busca.
         val maoSemRepetidas = maoDoTime.distinct()
 
+        // O que já é ponto vale inteiro; o que ainda é promessa vale menos conforme a rodada
+        // se aproxima do fim, porque sobra menos tempo para cumpri-la. Ver [proximidadeDoFim].
+        val fim = proximidadeDoFim(state)
+        val sobraNoFim = pesos.promessaNoFimPorCento / 100.0
+        val promessa = 1.0 - fim * (1.0 - sobraNoFim)
+
         var total = state.scores.getOrElse(time) { 0 }
         total += jogos.sumOf { it.score }
-        total += jogos.count { it.isCanastra } * pesos.utilidadeDaCanastra
-        total += jogos.sumOf { potencialDeCrescimento(it, maoSemRepetidas) }
-        total += progressoDosJogosParciais(jogos)
         total -= custoDeNaipeRepartido(jogos, state.seats)
+
+        val aPrazo = jogos.count { it.isCanastra } * pesos.utilidadeDaCanastra +
+            jogos.sumOf { potencialDeCrescimento(it, maoSemRepetidas) } +
+            progressoDosJogosParciais(jogos)
+        total += (aPrazo * promessa).toInt()
 
         val vermelhos = state.redThrees.getOrElse(time) { 0 } * RED_THREE_VALUE
         if (jogos.any { it.isCanastra }) total += vermelhos
 
         total += CANASTRA_GOING_OUT_BONUS * state.batidas.getOrElse(time) { 0 }
 
-        total -= penalidadeDaMao(state, time, maoDoTime)
+        val piso = pesos.pisoDoPesoDaMaoPorCento / 100.0
+        total -= (penalidadeDaMao(state, time, maoDoTime) * (piso + (1.0 - piso) * fim)).toInt()
         total -= ameacaSofrida(state, time)
 
         return total
@@ -215,6 +245,35 @@ class CanastraEvaluatorImpl(
         } else {
             comMultiplicador
         }
+    }
+
+    /**
+     * Quão perto a rodada está de acabar, de 0 (mão recém-repartida) a 1 (fecha agora).
+     *
+     * Existe para separar o que já é ponto do que ainda é promessa. `scoreHand` só roda
+     * quando a rodada fecha (ver `settle` em `Canastra.kt`): até lá, carta na mão não é
+     * dívida de ninguém — é material para baixar — e jogo na mesa ainda pode crescer.
+     *
+     * Sem essa distinção o avaliador tratava a mão cheia do adversário como prejuízo dele já
+     * consumado, e aí **bater não valia quase nada**: a IA já contabilizava o troco antes de
+     * ir buscá-lo, e ainda perdia as promessas da própria mesa ao fechar a rodada. Bater é
+     * justamente o lance que transforma a mão do adversário em prejuízo de verdade.
+     *
+     * Quem manda no relógio é a batida: um time com canastra e sem morto para pegar pode
+     * zerar a mão quando quiser (`podeZerar`), e quanto menor a mão dele, mais perto está.
+     * Monte vazio também fecha a rodada (ver o `travou` de `settle`).
+     */
+    private fun proximidadeDoFim(state: CanastraState): Double {
+        if (state.stock.isEmpty()) return 1.0
+        return (0 until state.teams).maxOfOrNull { prontidaoParaBater(state, it) } ?: 0.0
+    }
+
+    private fun prontidaoParaBater(state: CanastraState, time: Int): Double {
+        if (!state.hasCanastra(time)) return 0.0
+        val aindaTemMorto = state.mortos.isNotEmpty() && !state.tookMorto.getOrElse(time) { false }
+        if (aindaTemMorto) return 0.0
+        val menorMao = cadeirasDoTime(state, time).minOfOrNull { state.handSize(it) } ?: return 0.0
+        return ((CANASTRA_HAND_SIZE - menorMao).toDouble() / CANASTRA_HAND_SIZE).coerceIn(0.0, 1.0)
     }
 
     /** A ameaça que os times rivais impõem a [time] — ver [PesosCanastra.pesoAmeacaDeBatida]. */
